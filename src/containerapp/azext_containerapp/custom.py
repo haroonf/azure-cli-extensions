@@ -47,6 +47,7 @@ def create_containerapp(cmd,
                         dapr_app_id=None,
                         dapr_app_protocol=None,
                         # dapr_components=None,
+                        revision_suffix=None,
                         location=None,
                         startup_command=None,
                         args=None,
@@ -153,6 +154,9 @@ def create_containerapp(cmd,
     template_def["containers"] = [container_def]
     template_def["scale"] = scale_def
     template_def["dapr"] = dapr_def
+
+    if revision_suffix is not None:
+        template_def["revisionSuffix"] = revision_suffix
 
     containerapp_def = ContainerApp
     containerapp_def["location"] = location
@@ -442,10 +446,7 @@ def delete_containerapp(cmd, name, resource_group_name, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     try:
-        r = ContainerAppClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name, no_wait=no_wait)
-        if not r and not no_wait:
-            logger.warning('Containerapp successfully deleted')
-        return r
+        return ContainerAppClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name, no_wait=no_wait)
     except CLIError as e:
         handle_raw_exception(e)
 
@@ -473,7 +474,6 @@ def create_managed_environment(cmd,
     _ensure_location_allowed(cmd, location, "Microsoft.App", "managedEnvironments")
 
     if logs_customer_id is None or logs_key is None:
-        logger.warning("No Log Analytics workspace provided, generating a Log Analytics workspace")
         logs_customer_id, logs_key = _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, location, resource_group_name)
 
     log_analytics_config_def = LogAnalyticsConfiguration
@@ -586,9 +586,6 @@ def delete_managed_environment(cmd, name, resource_group_name, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     try:
-        r = ManagedEnvironmentClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name, no_wait=no_wait)
-        if not r and not no_wait:
-            logger.warning('Containerapp environment successfully deleted')
-        return r
+        return ManagedEnvironmentClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name, no_wait=no_wait)
     except CLIError as e:
         handle_raw_exception(e)

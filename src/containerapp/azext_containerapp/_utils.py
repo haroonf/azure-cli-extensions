@@ -3,6 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
 
+from distutils.filelist import findall
 from azure.cli.core.azclierror import (ResourceNotFoundError, ValidationError)
 from azure.cli.core.commands.client_factory import get_subscription_id
 from knack.log import get_logger
@@ -176,13 +177,32 @@ def _get_default_log_analytics_location(cmd):
         return default_location
     return default_location
 
+def _new_tiny_guid():
+    import random, string
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=4))
 
-def _generate_log_analytics_workspace_name():
-    return "log-analytics-name" # TODO: Implement
+def _generate_log_analytics_workspace_name(resource_group_name):
+    import re
+    prefix = "workspace"
+    suffix = _new_tiny_guid()
+    alphaNumericRG = resource_group_name
+    alphaNumericRG = re.sub(r'[^0-9a-z]', '', resource_group_name)
+    maxLength = 40
+
+    name = "{}-{}{}".format(
+        prefix,
+        alphaNumericRG,
+        suffix
+    )
+
+    if len(name) > maxLength:
+        name = name[:maxLength]
+    return name
 
 
 def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, location, resource_group_name):
     if logs_customer_id is None and logs_key is None:
+        logger.warning("No Log Analytics workspace provided.")
         try:
             _validate_subscription_registered(cmd, "Microsoft.OperationalInsights")
             log_analytics_client = log_analytics_client_factory(cmd.cli_ctx)
@@ -197,8 +217,9 @@ def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, loc
             from azure.cli.core.commands import LongRunningOperation
             from azure.mgmt.loganalytics.models import Workspace
 
-            workspace_name = _generate_log_analytics_workspace_name()
+            workspace_name = _generate_log_analytics_workspace_name(resource_group_name)
             workspace_instance = Workspace(location=log_analytics_location)
+            logger.warning("Generating a Log Analytics workspace with name \"{}\"".format(workspace_name))
 
             poller = log_analytics_client.begin_create_or_update(resource_group_name, workspace_name, workspace_instance)
             log_analytics_workspace = LongRunningOperation(cmd.cli_ctx)(poller)

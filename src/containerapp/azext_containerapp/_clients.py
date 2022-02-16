@@ -11,7 +11,9 @@ import sys
 from sys import api_version
 from azure.cli.core.util import send_raw_request
 from azure.cli.core.commands.client_factory import get_subscription_id
+from knack.log import get_logger
 
+logger = get_logger(__name__)
 
 API_VERSION = "2021-03-01"
 NEW_API_VERSION = "2022-01-01-preview"
@@ -152,7 +154,14 @@ class ContainerAppClient():
                 resource_group_name,
                 name,
                 api_version)
-            poll(cmd, request_url, "cancelled")
+
+            if r.status_code == 202:
+                from azure.cli.core.azclierror import ResourceNotFoundError
+                try:
+                    poll(cmd, request_url, "cancelled")
+                except ResourceNotFoundError:
+                    pass
+                logger.warning('Containerapp successfully deleted')
         return
 
     @classmethod
@@ -314,7 +323,14 @@ class ManagedEnvironmentClient():
                 resource_group_name,
                 name,
                 api_version)
-            poll(cmd, request_url, "scheduledfordelete")
+
+            if r.status_code == 202:
+                from azure.cli.core.azclierror import ResourceNotFoundError
+                try:
+                    poll(cmd, request_url, "scheduledfordelete")
+                except ResourceNotFoundError:
+                    pass
+                logger.warning('Containerapp environment successfully deleted')
         return
 
     @classmethod
