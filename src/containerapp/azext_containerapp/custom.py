@@ -17,7 +17,8 @@ from ._clients import ManagedEnvironmentClient, ContainerAppClient
 from ._models import (ManagedEnvironment, VnetConfiguration, AppLogsConfiguration, LogAnalyticsConfiguration,
                      Ingress, Configuration, Template, RegistryCredentials, ContainerApp, Dapr, ContainerResources, Scale, Container)
 from ._utils import (_validate_subscription_registered, _get_location_from_resource_group, _ensure_location_allowed,
-                    parse_secret_flags, store_as_secret_and_return_secret_ref, parse_list_of_strings, parse_env_var_flags)
+                    parse_secret_flags, store_as_secret_and_return_secret_ref, parse_list_of_strings, parse_env_var_flags,
+                    _generate_log_analytics_if_not_provided)
 
 logger = get_logger(__name__)
 
@@ -54,7 +55,7 @@ def create_containerapp(cmd,
     location = location or _get_location_from_resource_group(cmd.cli_ctx, resource_group_name)
 
     _validate_subscription_registered(cmd, "Microsoft.App")
-    _ensure_location_allowed(cmd, location, "Microsoft.App")
+    _ensure_location_allowed(cmd, location, "Microsoft.App", "containerApps")
 
     if yaml:
         # TODO: Implement yaml
@@ -114,7 +115,7 @@ def create_containerapp(cmd,
     config_def["secrets"] = secrets_def
     config_def["activeRevisionsMode"] = revisions_mode
     config_def["ingress"] = ingress_def
-    config_def["registries"] = [registries_def]
+    config_def["registries"] = [registries_def] if registries_def is not None else None
 
     scale_def = None
     if min_replicas is not None or max_replicas is not None:
@@ -452,8 +453,8 @@ def delete_containerapp(cmd, name, resource_group_name, no_wait=False):
 def create_managed_environment(cmd,
                               name,
                               resource_group_name,
-                              logs_customer_id,
-                              logs_key,
+                              logs_customer_id=None,
+                              logs_key=None,
                               logs_destination="log-analytics",
                               location=None,
                               instrumentation_key=None,
@@ -469,7 +470,11 @@ def create_managed_environment(cmd,
     location = location or _get_location_from_resource_group(cmd.cli_ctx, resource_group_name)
 
     _validate_subscription_registered(cmd, "Microsoft.App")
-    _ensure_location_allowed(cmd, location, "Microsoft.App")
+    _ensure_location_allowed(cmd, location, "Microsoft.App", "managedEnvironments")
+
+    if logs_customer_id is None or logs_key is None:
+        logger.warning("No Log Analytics workspace provided, generating a Log Analytics workspace")
+        logs_customer_id, logs_key = _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, location, resource_group_name)
 
     log_analytics_config_def = LogAnalyticsConfiguration
     log_analytics_config_def["customerId"] = logs_customer_id
