@@ -10,7 +10,8 @@ from knack.log import get_logger
 from msrestazure.tools import parse_resource_id
 from urllib.parse import urlparse
 
-from ._client_factory import providers_client_factory, cf_resource_groups, log_analytics_client_factory, log_analytics_shared_key_client_factory
+from ._clients import ContainerAppClient
+from ._client_factory import handle_raw_exception, providers_client_factory, cf_resource_groups, log_analytics_client_factory, log_analytics_shared_key_client_factory
 
 logger = get_logger(__name__)
 
@@ -177,10 +178,12 @@ def _get_default_log_analytics_location(cmd):
         return default_location
     return default_location
 
+# Generate random 4 character string
 def _new_tiny_guid():
     import random, string
     return ''.join(random.choices(string.ascii_letters + string.digits, k=4))
 
+# Follow same naming convention as Portal
 def _generate_log_analytics_workspace_name(resource_group_name):
     import re
     prefix = "workspace"
@@ -258,3 +261,16 @@ def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, loc
         logs_key = shared_keys.primary_shared_key
 
     return logs_customer_id, logs_key
+
+
+def _get_existing_secrets(cmd, resource_group_name, name, containerapp_def):
+    if "secrets" not in containerapp_def["properties"]["configuration"]:
+        containerapp_def["properties"]["configuration"]["secrets"] = []
+    else:
+        secrets = []
+        try:
+            secrets = ContainerAppClient.list_secrets(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        except Exception as e:
+            handle_raw_exception(e)
+
+        containerapp_def["properties"]["configuration"]["secrets"] = secrets["value"]

@@ -238,6 +238,24 @@ class ContainerAppClient():
 
         return app_list
 
+    @classmethod
+    def list_secrets(cls, cmd, resource_group_name, name):
+        secrets = []
+
+        management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
+        api_version = NEW_API_VERSION
+        sub_id = get_subscription_id(cmd.cli_ctx)
+        url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.App/containerApps/{}/listSecrets?api-version={}"
+        request_url = url_fmt.format(
+            management_hostname.strip('/'),
+            sub_id,
+            resource_group_name,
+            name,
+            api_version)
+
+        r = send_raw_request(cmd.cli_ctx, "POST", request_url, body=None)
+        return r.json()
+
 
 class ManagedEnvironmentClient():
     @classmethod
