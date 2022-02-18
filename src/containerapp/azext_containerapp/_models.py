@@ -183,9 +183,9 @@ ContainerApp = {
 
 SourceControl = {
     "properties": {
-        "repo_url": None, 
+        "repoUrl": None, 
         "branch": None, 
-        "github_action_configuration": None # [GitHubActionConfiguration]
+        "githubActionConfiguration": None # [GitHubActionConfiguration]
     }
 
 }
