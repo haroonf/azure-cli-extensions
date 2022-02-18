@@ -3,7 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
 
-from azure.cli.core.azclierror import (ResourceNotFoundError, ValidationError)
+from azure.cli.core.azclierror import (ResourceNotFoundError, ValidationError, RequiredArgumentMissingError)
 from azure.cli.core.commands.client_factory import get_subscription_id
 from knack.log import get_logger
 from urllib.parse import urlparse
@@ -153,3 +153,10 @@ def store_as_secret_and_return_secret_ref(secrets_list, registry_user, registry_
 def parse_list_of_strings(comma_separated_string):
     comma_separated = comma_separated_string.split(',')
     return [s.strip() for s in comma_separated]
+
+def raise_missing_token_suggestion():
+    pat_documentation = "https://help.github.com/en/articles/creating-a-personal-access-token-for-the-command-line"
+    raise RequiredArgumentMissingError("GitHub access token is required to authenticate to your repositories. "
+                                       "If you need to create a Github Personal Access Token, "
+                                       "please run with the '--login-with-github' flag or follow "
+                                       "the steps found at the following link:\n{0}".format(pat_documentation))
