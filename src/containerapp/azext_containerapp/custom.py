@@ -22,6 +22,8 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                     parse_secret_flags, store_as_secret_and_return_secret_ref, parse_list_of_strings, parse_env_var_flags, raise_missing_token_suggestion)
 from ._github_oauth import get_github_access_token
 from azure.cli.command_modules.appservice.custom import (_get_acr_cred)
+                    parse_secret_flags, store_as_secret_and_return_secret_ref, parse_list_of_strings, parse_env_var_flags,
+                    _generate_log_analytics_if_not_provided, _get_existing_secrets)
 
 logger = get_logger(__name__)
 
@@ -50,6 +52,7 @@ def create_containerapp(cmd,
                         dapr_app_id=None,
                         dapr_app_protocol=None,
                         # dapr_components=None,
+                        revision_suffix=None,
                         location=None,
                         startup_command=None,
                         args=None,
@@ -58,7 +61,7 @@ def create_containerapp(cmd,
     location = location or _get_location_from_resource_group(cmd.cli_ctx, resource_group_name)
 
     _validate_subscription_registered(cmd, "Microsoft.App")
-    _ensure_location_allowed(cmd, location, "Microsoft.App")
+    _ensure_location_allowed(cmd, location, "Microsoft.App", "containerApps")
 
     if yaml:
         # TODO: Implement yaml
@@ -84,7 +87,13 @@ def create_containerapp(cmd,
     if not managed_env_info:
         raise ValidationError("The environment '{}' does not exist. Specify a valid environment".format(managed_env))
 
-    location = location or managed_env_info.location
+    if not location:
+        location = managed_env_info["location"]
+    elif location.lower() != managed_env_info["location"].lower():
+        raise ValidationError("The location \"{}\" of the containerapp must be the same as the Managed Environment location \"{}\"".format(
+            location,
+            managed_env_info["location"]
+        ))
 
     external_ingress = None
     if ingress is not None:
@@ -118,7 +127,7 @@ def create_containerapp(cmd,
     config_def["secrets"] = secrets_def
     config_def["activeRevisionsMode"] = revisions_mode
     config_def["ingress"] = ingress_def
-    config_def["registries"] = [registries_def]
+    config_def["registries"] = [registries_def] if registries_def is not None else None
 
     scale_def = None
     if min_replicas is not None or max_replicas is not None:
@@ -156,6 +165,9 @@ def create_containerapp(cmd,
     template_def["containers"] = [container_def]
     template_def["scale"] = scale_def
     template_def["dapr"] = dapr_def
+
+    if revision_suffix is not None:
+        template_def["revisionSuffix"] = revision_suffix
 
     containerapp_def = ContainerApp
     containerapp_def["location"] = location
@@ -305,7 +317,7 @@ def update_containerapp(cmd,
         if transport is not None:
             containerapp_def["properties"]["configuration"]["transport"] = transport
 
-    # TODO: Need list_secrets API to do secrets before registries
+    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
     if update_map["registries"]:
         registries_def = None
@@ -360,61 +372,27 @@ def scale_containerapp(cmd, name, resource_group_name, min_replicas=None, max_re
     if not containerapp_def:
         raise CLIError("The containerapp '{}' does not exist".format(name))
 
-    shouldWork = False # TODO: Should only setting minReplicas and maxReplicas in the body work? Or do we have to do a GET on the containerapp, add in secrets, then modify minReplicas and maxReplicas
-    if shouldWork:
-        updated_containerapp_def = {
-            "location": containerapp_def["location"],
-            "properties": {
-                "template": {
-                    "scale": None
-                }
-            }
-        }
+    if "scale" not in containerapp_def["properties"]["template"]:
+        containerapp_def["properties"]["template"]["scale"] = {}
 
-        if "scale" not in containerapp_def["properties"]["template"]:
-            updated_containerapp_def["properties"]["template"]["scale"] = {}
-        else:
-            updated_containerapp_def["properties"]["template"]["scale"] = containerapp_def["properties"]["template"]["scale"]
+    if min_replicas is not None:
+        containerapp_def["properties"]["template"]["scale"]["minReplicas"] = min_replicas
 
-        if min_replicas is not None:
-            updated_containerapp_def["properties"]["template"]["scale"]["minReplicas"] = min_replicas
+    if max_replicas is not None:
+        containerapp_def["properties"]["template"]["scale"]["maxReplicas"] = max_replicas
 
-        if max_replicas is not None:
-            updated_containerapp_def["properties"]["template"]["scale"]["maxReplicas"] = max_replicas
+    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
-        try:
-            r = ContainerAppClient.create_or_update(
-                cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=updated_containerapp_def, no_wait=no_wait)
+    try:
+        r = ContainerAppClient.create_or_update(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
 
-            if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
-                logger.warning('Containerapp scale in progress. Please monitor the update using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
+        if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
+            logger.warning('Containerapp scale in progress. Please monitor the update using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
 
-            return r
-        except Exception as e:
-            handle_raw_exception(e)
-    else:
-        if "scale" not in containerapp_def["properties"]["template"]:
-            containerapp_def["properties"]["template"]["scale"] = {}
-
-        if min_replicas is not None:
-            containerapp_def["properties"]["template"]["scale"]["minReplicas"] = min_replicas
-
-        if max_replicas is not None:
-            containerapp_def["properties"]["template"]["scale"]["maxReplicas"] = max_replicas
-
-        del containerapp_def["properties"]["configuration"]["registries"]
-        del containerapp_def["properties"]["configuration"]["secrets"]
-
-        try:
-            r = ContainerAppClient.create_or_update(
-                cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
-
-            if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
-                logger.warning('Containerapp scale in progress. Please monitor the update using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
-
-            return r
-        except Exception as e:
-            handle_raw_exception(e)
+        return r
+    except Exception as e:
+        handle_raw_exception(e)
 
 
 def show_containerapp(cmd, name, resource_group_name):
@@ -445,10 +423,7 @@ def delete_containerapp(cmd, name, resource_group_name, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     try:
-        r = ContainerAppClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name, no_wait=no_wait)
-        if not r and not no_wait:
-            logger.warning('Containerapp successfully deleted')
-        return r
+        return ContainerAppClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name, no_wait=no_wait)
     except CLIError as e:
         handle_raw_exception(e)
 
@@ -456,8 +431,8 @@ def delete_containerapp(cmd, name, resource_group_name, no_wait=False):
 def create_managed_environment(cmd,
                               name,
                               resource_group_name,
-                              logs_customer_id,
-                              logs_key,
+                              logs_customer_id=None,
+                              logs_key=None,
                               logs_destination="log-analytics",
                               location=None,
                               instrumentation_key=None,
@@ -473,7 +448,10 @@ def create_managed_environment(cmd,
     location = location or _get_location_from_resource_group(cmd.cli_ctx, resource_group_name)
 
     _validate_subscription_registered(cmd, "Microsoft.App")
-    _ensure_location_allowed(cmd, location, "Microsoft.App")
+    _ensure_location_allowed(cmd, location, "Microsoft.App", "managedEnvironments")
+
+    if logs_customer_id is None or logs_key is None:
+        logs_customer_id, logs_key = _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, location, resource_group_name)
 
     log_analytics_config_def = LogAnalyticsConfiguration
     log_analytics_config_def["customerId"] = logs_customer_id
@@ -585,10 +563,7 @@ def delete_managed_environment(cmd, name, resource_group_name, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     try:
-        r = ManagedEnvironmentClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name, no_wait=no_wait)
-        if not r and not no_wait:
-            logger.warning('Containerapp environment successfully deleted')
-        return r
+        return ManagedEnvironmentClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name, no_wait=no_wait)
     except CLIError as e:
         handle_raw_exception(e)
 
