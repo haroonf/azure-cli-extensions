@@ -15,7 +15,7 @@ from msrestazure.tools import parse_resource_id
 from ._client_factory import handle_raw_exception
 from ._clients import ManagedEnvironmentClient, ContainerAppClient
 from ._models import (ManagedEnvironment, VnetConfiguration, AppLogsConfiguration, LogAnalyticsConfiguration,
-                     Ingress, Configuration, Template, RegistryCredentials, ContainerApp, Dapr, ContainerResources, Scale, Container)
+                     Ingress, Configuration, Template, RegistryCredentials, ContainerApp, Dapr, ContainerResources, Scale, Container, ManagedServiceIdentity)
 from ._utils import (_validate_subscription_registered, _get_location_from_resource_group, _ensure_location_allowed,
                     parse_secret_flags, store_as_secret_and_return_secret_ref, parse_list_of_strings, parse_env_var_flags,
                     _generate_log_analytics_if_not_provided, _get_existing_secrets, _ensure_identity_resource_id)
@@ -52,7 +52,8 @@ def create_containerapp(cmd,
                         startup_command=None,
                         args=None,
                         tags=None,
-                        no_wait=False):
+                        no_wait=False,
+                        assign_identity=[]):
     location = location or _get_location_from_resource_group(cmd.cli_ctx, resource_group_name)
 
     _validate_subscription_registered(cmd, "Microsoft.App")
@@ -124,6 +125,28 @@ def create_containerapp(cmd,
     config_def["ingress"] = ingress_def
     config_def["registries"] = [registries_def] if registries_def is not None else None
 
+    # Identity actions
+    identity_def = ManagedServiceIdentity
+    identity_def["type"] = "None"
+
+    assign_system_identity = '[system]' in assign_identity
+    assign_user_identities = [x for x in assign_identity if x != '[system]']
+
+    if assign_system_identity and assign_user_identities:
+        identity_def["type"] = "SystemAssigned, UserAssigned"
+    elif assign_system_identity: 
+        identity_def["type"] = "SystemAssigned"
+    elif assign_user_identities: 
+        identity_def["type"] = "UserAssigned"
+
+    if assign_user_identities:
+        identity_def["userAssignedIdentities"] = {}
+        subscription_id = get_subscription_id(cmd.cli_ctx)
+        
+        for r in assign_user_identities:
+            r = _ensure_identity_resource_id(subscription_id, resource_group_name, r)
+            identity_def["userAssignedIdentities"][r] = {}
+    
     scale_def = None
     if min_replicas is not None or max_replicas is not None:
         scale_def = Scale
@@ -166,6 +189,7 @@ def create_containerapp(cmd,
 
     containerapp_def = ContainerApp
     containerapp_def["location"] = location
+    containerapp_def["identity"] = identity_def
     containerapp_def["properties"]["managedEnvironmentId"] = managed_env
     containerapp_def["properties"]["configuration"] = config_def
     containerapp_def["properties"]["template"] = template_def

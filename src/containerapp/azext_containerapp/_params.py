@@ -59,6 +59,7 @@ def load_arguments(self, _):
         c.argument('registry_pass', type=str, validator=validate_registry_pass, options_list=['--registry-password'], help="The password to log in container image registry server. If stored as a secret, value must start with \'secretref:\' followed by the secret name.")
         c.argument('registry_user', type=str, validator=validate_registry_user, options_list=['--registry-username'], help="The username to log in container image registry server")
         c.argument('secrets', type=str, options_list=['--secrets', '-s'], help="A list of secret(s) for the containerapp. Comma-separated values in 'key=value' format.")
+        c.argument('assign_identity', nargs='+', help="Space-separated identities. Use '[system]' to refer to the system assigned identity.")
 
     # Ingress
     with self.argument_context('containerapp', arg_group='Ingress') as c:
