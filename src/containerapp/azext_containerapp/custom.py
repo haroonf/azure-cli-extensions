@@ -631,11 +631,11 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
         handle_raw_exception(e)
 
     
-def remove_managed_identity(cmd, name, resource_group_name, identities=None, no_wait=False):
+def remove_managed_identity(cmd, name, resource_group_name, identities, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
-    if not identities:
-        identities = ['[system]']
+    # if not identities:
+    #     identities = ['[system]']
 
     remove_system_identity = '[system]' in identities
     remove_user_identities = [x for x in identities if x != '[system]']
