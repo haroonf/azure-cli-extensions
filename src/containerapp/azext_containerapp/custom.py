@@ -18,7 +18,7 @@ from ._models import (ManagedEnvironment, VnetConfiguration, AppLogsConfiguratio
                      Ingress, Configuration, Template, RegistryCredentials, ContainerApp, Dapr, ContainerResources, Scale, Container)
 from ._utils import (_validate_subscription_registered, _get_location_from_resource_group, _ensure_location_allowed,
                     parse_secret_flags, store_as_secret_and_return_secret_ref, parse_list_of_strings, parse_env_var_flags,
-                    _generate_log_analytics_if_not_provided, _get_existing_secrets)
+                    _generate_log_analytics_if_not_provided, _get_existing_secrets, _ensure_identity_resource_id)
 
 logger = get_logger(__name__)
 
@@ -566,8 +566,6 @@ def delete_managed_environment(cmd, name, resource_group_name, no_wait=False):
 def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
-    from azure.cli.core.commands.client_factory import get_subscription_id
-
     # if no identities, then assign system by default
     if not identities:
         identities = ['[system]']
@@ -635,8 +633,6 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
     
 def remove_managed_identity(cmd, name, resource_group_name, identities=None, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
-
-    from azure.cli.core.commands.client_factory import get_subscription_id
 
     if not identities:
         identities = ['[system]']
@@ -710,7 +706,7 @@ def show_managed_identity(cmd, name, resource_group_name):
         r = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
     except CLIError as e:
         handle_raw_exception(e)
-        
+
     try:
         return r["identity"]
     except: 
@@ -719,13 +715,3 @@ def show_managed_identity(cmd, name, resource_group_name):
         return r["identity"]
 
 
-def _ensure_identity_resource_id(subscription_id, resource_group, resource):
-    from msrestazure.tools import resource_id, is_valid_resource_id
-    if is_valid_resource_id(resource):
-        return resource
-
-    return resource_id(subscription=subscription_id,
-                       resource_group=resource_group,
-                       namespace='Microsoft.ManagedIdentity',
-                       type='userAssignedIdentities',
-                       name=resource)

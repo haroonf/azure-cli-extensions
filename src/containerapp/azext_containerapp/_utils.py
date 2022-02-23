@@ -274,3 +274,14 @@ def _get_existing_secrets(cmd, resource_group_name, name, containerapp_def):
             handle_raw_exception(e)
 
         containerapp_def["properties"]["configuration"]["secrets"] = secrets["value"]
+
+def _ensure_identity_resource_id(subscription_id, resource_group, resource):
+    from msrestazure.tools import resource_id, is_valid_resource_id
+    if is_valid_resource_id(resource):
+        return resource
+
+    return resource_id(subscription=subscription_id,
+                       resource_group=resource_group,
+                       namespace='Microsoft.ManagedIdentity',
+                       type='userAssignedIdentities',
+                       name=resource)
