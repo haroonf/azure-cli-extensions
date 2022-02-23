@@ -569,6 +569,7 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
     # if no identities, then assign system by default
     if not identities:
         identities = ['[system]']
+        logger.warning('Identities not specified. Assigning managed system identity.')
     
     assign_system_identity = '[system]' in identities 
     assign_user_identities = [x for x in identities if x != '[system]']
@@ -634,6 +635,7 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
 def remove_managed_identity(cmd, name, resource_group_name, identities, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
+    # if identities=None, remove system identity
     # if not identities:
     #     identities = ['[system]']
 
