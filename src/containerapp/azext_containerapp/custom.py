@@ -562,12 +562,17 @@ def delete_managed_environment(cmd, name, resource_group_name, no_wait=False):
     except CLIError as e:
         handle_raw_exception(e)
 
-def assign_managed_identity(cmd, name, resource_group_name, identities, no_wait=False):
+
+def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     from azure.cli.core.commands.client_factory import get_subscription_id
 
-    assign_system_identity = '[system]' in identities
+    # if no identities, then assign system by default
+    if not identities:
+        identities = ['[system]']
+    
+    assign_system_identity = '[system]' in identities 
     assign_user_identities = [x for x in identities if x != '[system]']
 
     containerapp_def = None
@@ -581,6 +586,14 @@ def assign_managed_identity(cmd, name, resource_group_name, identities, no_wait=
     if not containerapp_def:
         raise CLIError("The containerapp '{}' does not exist".format(name))
 
+    # If identity not returned
+    try: 
+        containerapp_def["identity"]
+        containerapp_def["identity"]["type"]
+    except:
+        containerapp_def["identity"] = {}
+        containerapp_def["identity"]["type"] = "None"
+
     # Assign correct type
     try:
         if containerapp_def["identity"]["type"] != "None": 
@@ -590,24 +603,21 @@ def assign_managed_identity(cmd, name, resource_group_name, identities, no_wait=
                 containerapp_def["identity"]["type"] = "SystemAssigned,UserAssigned"
         else: 
             if assign_system_identity and assign_user_identities:
-                containerapp_def["identity"]["type"] = "SystemAssigned,UserAssigned"
+                containerapp_def["identity"]["type"] = "SystemAssigned, UserAssigned"
             elif assign_system_identity: 
                 containerapp_def["identity"]["type"] = "SystemAssigned"
             elif assign_user_identities: 
                 containerapp_def["identity"]["type"] = "UserAssigned"
     except: 
-        # Server always returns "type": "None" when CA has no previous identities 
+        # Always returns "type": "None" when CA has no previous identities 
         pass
 
-
-    # If there are no identities, create something empty to assign to 
-    try: 
-        containerapp_def["identity"]["userAssignedIdentities"]
-    except: 
-        containerapp_def["identity"]["userAssignedIdentities"] = {}
-
-
     if assign_user_identities:
+        try: 
+            containerapp_def["identity"]["userAssignedIdentities"]
+        except: 
+            containerapp_def["identity"]["userAssignedIdentities"] = {}
+
         subscription_id = get_subscription_id(cmd.cli_ctx)
         
         for r in assign_user_identities:
@@ -616,26 +626,94 @@ def assign_managed_identity(cmd, name, resource_group_name, identities, no_wait=
     
     try:
         r = ContainerAppClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        # If identity is not returned, do nothing
         return r["identity"]
+
     except Exception as e:
         handle_raw_exception(e)
 
     
-
-def remove_managed_identity(cmd, name, resource_group_name):
+def remove_managed_identity(cmd, name, resource_group_name, identities=None, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
-    return
+    from azure.cli.core.commands.client_factory import get_subscription_id
 
+    if not identities:
+        identities = ['[system]']
+
+    remove_system_identity = '[system]' in identities
+    remove_user_identities = [x for x in identities if x != '[system]']
+
+    containerapp_def = None
+
+    # Get containerapp properties of CA we are updating
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    # If identity not returned
+    try: 
+        containerapp_def["identity"]
+        containerapp_def["identity"]["type"]
+    except:
+        containerapp_def["identity"] = {}
+        containerapp_def["identity"]["type"] = "None"
+
+    if containerapp_def["identity"]["type"] == "None":
+        raise CLIError("The containerapp {} has no system or user assigned identities.".format(name))
+
+    if remove_system_identity:
+        if containerapp_def["identity"]["type"] == "UserAssigned":
+            raise CLIError("The containerapp {} has no system assigned identities.".format(name))
+        containerapp_def["identity"]["type"] = ("None" if containerapp_def["identity"]["type"] == "SystemAssigned" else "UserAssigned")
+
+    if remove_user_identities:
+        subscription_id = get_subscription_id(cmd.cli_ctx)
+        try: 
+            containerapp_def["identity"]["userAssignedIdentities"]
+        except: 
+            containerapp_def["identity"]["userAssignedIdentities"] = {}
+             
+        for id in remove_user_identities:
+            id = _ensure_identity_resource_id(subscription_id, resource_group_name, id)
+            try:
+                # If attribute doesn't exist, we will know which one can't be removed
+                containerapp_def["identity"]["userAssignedIdentities"].pop(id)
+            except:
+                raise CLIError("The containerapp does not have specified user identity '{}' assigned, "
+                               "so it cannot be removed.".format(id))
+
+        if containerapp_def["identity"]["userAssignedIdentities"] == {}:
+            # Wipe identity here if necessary instead of userAssignedIdentities = None
+            #  containerapp_def["identity"] = {} or pop userassignedidentities
+            containerapp_def["identity"]["userAssignedIdentities"] = None
+            containerapp_def["identity"]["type"] = ("None" if containerapp_def["identity"]["type"] == "UserAssigned" else "SystemAssigned")
+    
+    try:
+        r = ContainerAppClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        return r["identity"]
+    except Exception as e:
+        handle_raw_exception(e)
+    
+    
 def show_managed_identity(cmd, name, resource_group_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     try:
-        return ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)["identity"]
+        r = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
     except CLIError as e:
         handle_raw_exception(e)
 
-    
+    try:
+        return r["identity"]
+    except: 
+        raise CLIError("The containerapp {} does not have any identities assigned.".format(name))
+
+
 def _ensure_identity_resource_id(subscription_id, resource_group, resource):
     from msrestazure.tools import resource_id, is_valid_resource_id
     if is_valid_resource_id(resource):
