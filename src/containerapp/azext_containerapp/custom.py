@@ -679,17 +679,20 @@ def remove_managed_identity(cmd, name, resource_group_name, identities=None, no_
             containerapp_def["identity"]["userAssignedIdentities"] = {}
              
         for id in remove_user_identities:
+            given_id = id
             id = _ensure_identity_resource_id(subscription_id, resource_group_name, id)
-            try:
-                # If attribute doesn't exist, we will know which one can't be removed
-                containerapp_def["identity"]["userAssignedIdentities"].pop(id)
-            except:
-                raise CLIError("The containerapp does not have specified user identity '{}' assigned, "
-                               "so it cannot be removed.".format(id))
+            wasRemoved = False
+
+            for old_user_identities in containerapp_def["identity"]["userAssignedIdentities"]:
+                if old_user_identities.lower() == id.lower():
+                    containerapp_def["identity"]["userAssignedIdentities"].pop(old_user_identities)
+                    wasRemoved = True
+                    break
+
+            if not wasRemoved:
+                raise CLIError("The containerapp does not have specified user identity '{}' assigned, so it cannot be removed.".format(given_id))
 
         if containerapp_def["identity"]["userAssignedIdentities"] == {}:
-            # Wipe identity here if necessary instead of userAssignedIdentities = None
-            #  containerapp_def["identity"] = {} or pop userassignedidentities
             containerapp_def["identity"]["userAssignedIdentities"] = None
             containerapp_def["identity"]["type"] = ("None" if containerapp_def["identity"]["type"] == "UserAssigned" else "SystemAssigned")
     
@@ -707,11 +710,13 @@ def show_managed_identity(cmd, name, resource_group_name):
         r = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
     except CLIError as e:
         handle_raw_exception(e)
-
+        
     try:
         return r["identity"]
     except: 
-        raise CLIError("The containerapp {} does not have any identities assigned.".format(name))
+        r["identity"] = {}
+        r["identity"]["type"] = "None"
+        return r["identity"]
 
 
 def _ensure_identity_resource_id(subscription_id, resource_group, resource):

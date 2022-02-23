@@ -103,4 +103,4 @@ def load_arguments(self, _):
         c.argument('name', name_type, help='Name of the managed Environment.')
 
     with self.argument_context('containerapp identity') as c:
-        c.argument('identities', nargs='+', help="Space-separated identities. Use '[system]' to refer to the system assigned identity")
+        c.argument('identities', nargs='+', help="Space-separated identities. Use '[system]' to refer to the system assigned identity.")

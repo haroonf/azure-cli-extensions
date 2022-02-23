@@ -193,3 +193,25 @@ helps['containerapp env list'] = """
       text: |
           az containerapp env list -g MyResourceGroup
 """
+
+# Identity Commands
+helps['containerapp identity'] = """
+type: group
+short-summary: Manage service (managed) identities for a containerapp
+"""
+
+helps['containerapp identity assign'] = """
+type: command
+short-summary: Assign a managed identity to a containerapp
+long-summary: Managed identities can be user-assigned or system-assigned
+"""
+
+helps['containerapp identity remove'] = """
+type: command
+short-summary: Remove a managed identity from a containerapp
+"""
+
+helps['containerapp identity show'] = """
+type: command
+short-summary: Show the containerapp's identity details
+"""
