@@ -59,13 +59,15 @@ def load_arguments(self, _):
         c.argument('registry_pass', type=str, validator=validate_registry_pass, options_list=['--registry-password'], help="The password to log in container image registry server. If stored as a secret, value must start with \'secretref:\' followed by the secret name.")
         c.argument('registry_user', type=str, validator=validate_registry_user, options_list=['--registry-username'], help="The username to log in container image registry server")
         c.argument('secrets', type=str, options_list=['--secrets', '-s'], help="A list of secret(s) for the containerapp. Comma-separated values in 'key=value' format.")
-        c.argument('assign_identity', nargs='+', help="Space-separated identities. Use '[system]' to refer to the system assigned identity.")
 
     # Ingress
     with self.argument_context('containerapp', arg_group='Ingress') as c:
         c.argument('ingress', validator=validate_ingress, options_list=['--ingress'], default=None, arg_type=get_enum_type(['internal', 'external']), help="Ingress type that allows either internal or external+internal ingress traffic to the Containerapp.")
         c.argument('target_port', type=int, validator=validate_target_port, options_list=['--target-port'], help="The application port used for ingress traffic.")
         c.argument('transport', arg_type=get_enum_type(['auto', 'http', 'http2']), help="The transport protocol used for ingress traffic.")
+    
+    with self.argument_context('containerapp create') as c:
+        c.argument('assign_identity', nargs='+', help="Space-separated identities. Use '[system]' to refer to the system assigned identity.")
 
     with self.argument_context('containerapp scale') as c:
         c.argument('min_replicas', type=int, options_list=['--min-replicas'], help="The minimum number of containerapp replicas.")
