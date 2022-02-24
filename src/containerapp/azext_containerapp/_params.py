@@ -107,3 +107,7 @@ def load_arguments(self, _):
 
     with self.argument_context('containerapp identity') as c:
         c.argument('identities', nargs='+', help="Space-separated identities. Use '[system]' to refer to the system assigned identity.")
+
+    with self.argument_context('containerapp identity assign') as c:
+        c.argument('identities', nargs='+', help="Space-separated identities. Use '[system]' to refer to the system assigned identity. Default is '[system]'.")
+
