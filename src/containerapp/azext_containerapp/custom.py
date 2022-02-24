@@ -617,6 +617,9 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
         containerapp_def["identity"] = {}
         containerapp_def["identity"]["type"] = "None"
 
+    if assign_system_identity and containerapp_def["identity"]["type"].__contains__("SystemAssigned"):
+        logger.warning("System identity is already assigned to containerapp")
+
     # Assign correct type
     try:
         if containerapp_def["identity"]["type"] != "None": 
@@ -634,7 +637,7 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
     except: 
         # Always returns "type": "None" when CA has no previous identities 
         pass
-
+    
     if assign_user_identities:
         try: 
             containerapp_def["identity"]["userAssignedIdentities"]
@@ -644,9 +647,14 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
         subscription_id = get_subscription_id(cmd.cli_ctx)
         
         for r in assign_user_identities:
-            r = _ensure_identity_resource_id(subscription_id, resource_group_name, r)
-            containerapp_def["identity"]["userAssignedIdentities"][r] = {}        
-    
+            old_id = r
+            r = _ensure_identity_resource_id(subscription_id, resource_group_name, r).replace("resourceGroup", "resourcegroup")
+            try:
+                containerapp_def["identity"]["userAssignedIdentities"][r]
+                logger.warning("User identity {} is already assigned to containerapp".format(old_id))
+            except:
+                containerapp_def["identity"]["userAssignedIdentities"][r] = {}  
+
     try:
         r = ContainerAppClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
         # If identity is not returned, do nothing
@@ -659,15 +667,16 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
 def remove_managed_identity(cmd, name, resource_group_name, identities, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
-    # if identities=None, remove system identity
-    # if not identities:
-    #     identities = ['[system]']
-
     remove_system_identity = '[system]' in identities
     remove_user_identities = [x for x in identities if x != '[system]']
+    remove_id_size = len(remove_user_identities)
 
+    # Remove duplicate identities that are passed and notify
+    remove_user_identities = list(set(remove_user_identities))
+    if remove_id_size != len(remove_user_identities):
+        logger.warning("At least one identity was passed twice.")
+        
     containerapp_def = None
-
     # Get containerapp properties of CA we are updating
     try:
         containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
@@ -699,15 +708,14 @@ def remove_managed_identity(cmd, name, resource_group_name, identities, no_wait=
             containerapp_def["identity"]["userAssignedIdentities"]
         except: 
             containerapp_def["identity"]["userAssignedIdentities"] = {}
-             
         for id in remove_user_identities:
             given_id = id
             id = _ensure_identity_resource_id(subscription_id, resource_group_name, id)
             wasRemoved = False
 
-            for old_user_identities in containerapp_def["identity"]["userAssignedIdentities"]:
-                if old_user_identities.lower() == id.lower():
-                    containerapp_def["identity"]["userAssignedIdentities"].pop(old_user_identities)
+            for old_user_identity in containerapp_def["identity"]["userAssignedIdentities"]:
+                if old_user_identity.lower() == id.lower():
+                    containerapp_def["identity"]["userAssignedIdentities"].pop(old_user_identity)
                     wasRemoved = True
                     break
 
