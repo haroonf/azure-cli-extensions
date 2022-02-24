@@ -196,22 +196,36 @@ helps['containerapp env list'] = """
 
 # Identity Commands
 helps['containerapp identity'] = """
-type: group
-short-summary: Manage service (managed) identities for a containerapp
+    type: group
+    short-summary: Manage service (managed) identities for a containerapp
 """
 
 helps['containerapp identity assign'] = """
-type: command
-short-summary: Assign a managed identity to a containerapp
-long-summary: Managed identities can be user-assigned or system-assigned
+    type: command
+    short-summary: Assign a managed identity to a containerapp
+    long-summary: Managed identities can be user-assigned or system-assigned
+    examples:
+    - name: Assign system identity.
+      text: |
+          az containerapp identity assign
+    - name: Assign system and user identity.
+      text: |
+          az containerapp identity assign --identities [system] myAssignedId
 """
 
 helps['containerapp identity remove'] = """
-type: command
-short-summary: Remove a managed identity from a containerapp
+    type: command
+    short-summary: Remove a managed identity from a containerapp
+    examples:
+    - name: Remove system identity.
+      text: |
+          az containerapp identity remove [system]
+    - name: Remove system and user identity.
+      text: |
+          az containerapp identity remove --identities [system] myAssignedId
 """
 
 helps['containerapp identity show'] = """
-type: command
-short-summary: Show the containerapp's identity details
+    type: command
+    short-summary: Show the containerapp's identity details
 """
