@@ -595,6 +595,7 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
         identities = ['[system]']
         logger.warning('Identities not specified. Assigning managed system identity.')
     
+    identities = [x.lower() for x in identities]
     assign_system_identity = '[system]' in identities 
     assign_user_identities = [x for x in identities if x != '[system]']
 
@@ -608,6 +609,8 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
 
     if not containerapp_def:
         raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
     # If identity not returned
     try: 
@@ -629,7 +632,7 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
                 containerapp_def["identity"]["type"] = "SystemAssigned,UserAssigned"
         else: 
             if assign_system_identity and assign_user_identities:
-                containerapp_def["identity"]["type"] = "SystemAssigned, UserAssigned"
+                containerapp_def["identity"]["type"] = "SystemAssigned,UserAssigned"
             elif assign_system_identity: 
                 containerapp_def["identity"]["type"] = "SystemAssigned"
             elif assign_user_identities: 
@@ -667,6 +670,7 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
 def remove_managed_identity(cmd, name, resource_group_name, identities, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
+    identities = [x.lower() for x in identities]
     remove_system_identity = '[system]' in identities
     remove_user_identities = [x for x in identities if x != '[system]']
     remove_id_size = len(remove_user_identities)
@@ -685,6 +689,8 @@ def remove_managed_identity(cmd, name, resource_group_name, identities, no_wait=
 
     if not containerapp_def:
         raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
     # If identity not returned
     try: 
