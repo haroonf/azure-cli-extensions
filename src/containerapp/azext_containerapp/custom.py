@@ -3,6 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
 
+from email import header
 from platform import platform
 from turtle import update
 from azure.cli.core.azclierror import (RequiredArgumentMissingError, ResourceNotFoundError, ValidationError)
@@ -15,13 +16,13 @@ from urllib.parse import urlparse
 
 
 from ._client_factory import handle_raw_exception
-from ._clients import ManagedEnvironmentClient, ContainerAppClient
+from ._clients import ManagedEnvironmentClient, ContainerAppClient, GitHubActionClient
 from ._models import (ManagedEnvironment, VnetConfiguration, AppLogsConfiguration, LogAnalyticsConfiguration,
-                     Ingress, Configuration, Template, RegistryCredentials, ContainerApp, Dapr, ContainerResources, Scale, Container)
+                     Ingress, Configuration, Template, RegistryCredentials, ContainerApp, Dapr, ContainerResources, Scale, Container, SourceControl, GitHubActionConfiguration, RegistryInfo, AzureCredentials)
 from ._utils import (_validate_subscription_registered, _get_location_from_resource_group, _ensure_location_allowed,
                     parse_secret_flags, store_as_secret_and_return_secret_ref, parse_list_of_strings, parse_env_var_flags, raise_missing_token_suggestion)
 from ._github_oauth import get_github_access_token
-from azure.cli.command_modules.appservice.custom import (_get_acr_cred)
+from azure.cli.command_modules.appservice.custom import (_get_acr_cred,
                     parse_secret_flags, store_as_secret_and_return_secret_ref, parse_list_of_strings, parse_env_var_flags,
                     _generate_log_analytics_if_not_provided, _get_existing_secrets)
 
@@ -627,32 +628,33 @@ def create_or_update_github_action(cmd,
         # If exception due to github package missing, etc just continue without validating the repo and rely on api validation
         pass
 
-    # Define this in _models.py since we dont have SDK instead of get_models
-    SourceControlInfo, GithubActionConfigurationContainerapp, AzureCredentials, RegistryInfo, SourceControlInfoApiResourceEnvelope = cmd.get_models(
-        'SourceControlInfo', 'GithubActionConfigurationContainerapp', 'AzureCredentials', 'RegistryInfo', 'SourceControlInfoApiResourceEnvelope')
     source_control_info = None
 
     try:
-        # replace this with appropriate API call
-        source_control_info = client.get_source_control_info(resource_group_name, name).properties
+        #source_control_info = client.get_source_control_info(resource_group_name, name).properties
+        source_control_info = GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+
     except Exception as ex:
         if not service_principal_client_id or not service_principal_client_secret or not service_principal_tenant_id:
             raise RequiredArgumentMissingError('Service principal client ID, secret and tenant ID are required to add github actions for the first time. Please create one using the command \"az ad sp create-for-rbac --name \{name\} --role contributor --scopes /subscriptions/\{subscription\}/resourceGroups/\{resourceGroup\} --sdk-auth\"')
-        source_control_info = SourceControlInfo()
+        source_control_info = SourceControl
 
-    source_control_info.repo_url = repo_url
+    source_control_info["repoUrl"] = repo_url
 
     if branch:
-        source_control_info.branch = branch
-    elif not source_control_info.branch:
-        source_control_info.branch = "master"
+        source_control_info["branch"] = branch
+    # try except here maybe
+    elif not source_control_info["branch"]:
+        source_control_info["branch"] = "master"
 
     azure_credentials = None
+
     if service_principal_client_id or service_principal_client_secret or service_principal_tenant_id:
-        azure_credentials = AzureCredentials(client_id=service_principal_client_id,
-                                             client_secret=service_principal_client_secret,
-                                             tenant_id=service_principal_tenant_id,
-                                             subscription_id=get_subscription_id(cmd.cli_ctx))
+        azure_credentials = AzureCredentials
+        azure_credentials["clientId"] = service_principal_client_id
+        azure_credentials["clientSecret"] = service_principal_client_secret
+        azure_credentials["tenantId"] = service_principal_tenant_id
+        azure_credentials["subscriptionId"] = get_subscription_id(cmd.cli_ctx)
 
     # Registry
     if not registry_username or not registry_password:
@@ -668,26 +670,35 @@ def create_or_update_github_action(cmd,
         except Exception as ex:
             raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password')
 
-    registry_info = RegistryInfo(registry_url=registry_url,
-                                 registry_user_name=registry_username,
-                                 registry_password=registry_password)
+    registry_info = RegistryInfo
+    registry_info["registryUrl"] = registry_url
+    registry_info["registryUserName"] = registry_username
+    registry_info["registryPassword"] = registry_password
 
-    github_action_configuration = GithubActionConfigurationContainerapp(registry_info=registry_info,
-                                                                        azure_credentials=azure_credentials,
-                                                                        dockerfile_path=docker_file_path)
+    github_action_configuration = GitHubActionConfiguration
+    github_action_configuration["registryInfo"] = registry_info
+    github_action_configuration["azureCredentials"] = azure_credentials
+    github_action_configuration["dockerfilePath"] = docker_file_path
 
-    source_control_info.github_action_configuration = github_action_configuration
+    source_control_info["githubActionConfiguration"] = github_action_configuration
 
+    #Not sure which one works
     headers = {
         "x-ms-github-auxiliary": token
     }
-    #PUT '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.App/containerApps/{containerAppName}/sourcecontrols/{name}'
-    body = SourceControlInfoApiResourceEnvelope(properties=source_control_info)
-    return client.create_or_update_source_control_info(resource_group_name, name, source_control_info=body, custom_headers=headers)
 
+    headers = ["x-ms-github-auxiliary={}".format(token)]
 
+    # Try except this
+    try: 
+        r = GitHubActionClient.create_or_update(cmd = cmd, resource_group_name=resource_group_name, name=name, github_action_envelope=source_control_info, headers = headers)
+        return r
+    except Exception as e:
+        handle_raw_exception(e)
+    
+        
 def show_github_action(cmd, client, name, resource_group_name):
-    return client.get_source_control_info(resource_group_name, name)
+    return GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
 
 
 def delete_github_action(cmd, client, name, resource_group_name, token=None, login_with_github=False):
@@ -703,4 +714,9 @@ def delete_github_action(cmd, client, name, resource_group_name, token=None, log
         "x-ms-github-auxiliary": token
     }
 
-    return client.delete_source_control_info(resource_group_name, name, custom_headers=headers)
+    headers = ["x-ms-github-auxiliary={}".format(token)]
+
+    try:
+        return GitHubActionClient.delete(cmd=cmd, resource_group_name=resource_group_name, name=name, headers=headers)
+    except Exception as e:
+        handle_raw_exception(e)
