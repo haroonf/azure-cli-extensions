@@ -22,9 +22,9 @@ from ._models import (ManagedEnvironment, VnetConfiguration, AppLogsConfiguratio
 from ._utils import (_validate_subscription_registered, _get_location_from_resource_group, _ensure_location_allowed,
                     parse_secret_flags, store_as_secret_and_return_secret_ref, parse_list_of_strings, parse_env_var_flags, raise_missing_token_suggestion)
 from ._github_oauth import get_github_access_token
-from azure.cli.command_modules.appservice.custom import (_get_acr_cred,
-                    parse_secret_flags, store_as_secret_and_return_secret_ref, parse_list_of_strings, parse_env_var_flags,
-                    _generate_log_analytics_if_not_provided, _get_existing_secrets)
+# from azure.cli.command_modules.appservice.custom import (_get_acr_cred,
+#                     store_as_secret_and_return_secret_ref, parse_list_of_strings, parse_env_var_flags,
+#                     _generate_log_analytics_if_not_provided, _get_existing_secrets)
 
 logger = get_logger(__name__)
 
@@ -639,13 +639,12 @@ def create_or_update_github_action(cmd,
             raise RequiredArgumentMissingError('Service principal client ID, secret and tenant ID are required to add github actions for the first time. Please create one using the command \"az ad sp create-for-rbac --name \{name\} --role contributor --scopes /subscriptions/\{subscription\}/resourceGroups/\{resourceGroup\} --sdk-auth\"')
         source_control_info = SourceControl
 
-    source_control_info["repoUrl"] = repo_url
+    source_control_info["properties"]["repoUrl"] = repo_url
 
     if branch:
-        source_control_info["branch"] = branch
-    # try except here maybe
-    elif not source_control_info["branch"]:
-        source_control_info["branch"] = "master"
+        source_control_info["properties"]["branch"] = branch
+    if not source_control_info["properties"]["branch"]:
+        source_control_info["properties"]["branch"] = "master"
 
     azure_credentials = None
 
@@ -680,7 +679,7 @@ def create_or_update_github_action(cmd,
     github_action_configuration["azureCredentials"] = azure_credentials
     github_action_configuration["dockerfilePath"] = docker_file_path
 
-    source_control_info["githubActionConfiguration"] = github_action_configuration
+    source_control_info["properties"]["githubActionConfiguration"] = github_action_configuration
 
     #Not sure which one works
     headers = {

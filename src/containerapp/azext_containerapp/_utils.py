@@ -3,12 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
 
-<<<<<<< HEAD
 from azure.cli.core.azclierror import (ResourceNotFoundError, ValidationError, RequiredArgumentMissingError)
-=======
-from distutils.filelist import findall
-from azure.cli.core.azclierror import (ResourceNotFoundError, ValidationError)
->>>>>>> calvin/containerapp
 from azure.cli.core.commands.client_factory import get_subscription_id
 from knack.log import get_logger
 from msrestazure.tools import parse_resource_id
