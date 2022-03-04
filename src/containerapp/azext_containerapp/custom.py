@@ -681,14 +681,8 @@ def create_or_update_github_action(cmd,
 
     source_control_info["properties"]["githubActionConfiguration"] = github_action_configuration
 
-    #Not sure which one works
-    headers = {
-        "x-ms-github-auxiliary": token
-    }
-
     headers = ["x-ms-github-auxiliary={}".format(token)]
 
-    # Try except this
     try: 
         r = GitHubActionClient.create_or_update(cmd = cmd, resource_group_name=resource_group_name, name=name, github_action_envelope=source_control_info, headers = headers)
         return r
@@ -697,7 +691,10 @@ def create_or_update_github_action(cmd,
     
         
 def show_github_action(cmd, name, resource_group_name):
-    return GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    try:
+        return GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except Exception as e:
+        handle_raw_exception(e)
 
 
 def delete_github_action(cmd, name, resource_group_name, token=None, login_with_github=False):
@@ -709,11 +706,12 @@ def delete_github_action(cmd, name, resource_group_name, token=None, login_with_
     elif token and login_with_github:
         logger.warning("Both token and --login-with-github flag are provided. Will use provided token")
 
-    headers = {
-        "x-ms-github-auxiliary": token
-    }
-
     headers = ["x-ms-github-auxiliary={}".format(token)]
+
+    try: 
+        GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except Exception as e:
+        handle_raw_exception(e)
 
     try:
         return GitHubActionClient.delete(cmd=cmd, resource_group_name=resource_group_name, name=name, headers=headers)
