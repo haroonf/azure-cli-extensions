@@ -432,7 +432,7 @@ class GitHubActionClient():
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
         api_version = NEW_API_VERSION
         sub_id = get_subscription_id(cmd.cli_ctx)
-        url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.App/containerApps/{}/sourcecontrols/?api-version={}"
+        url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.App/containerApps/{}/sourcecontrols/current?api-version={}"
         request_url = url_fmt.format(
             management_hostname.strip('/'),
             sub_id,
@@ -445,7 +445,7 @@ class GitHubActionClient():
         if no_wait:
             return r.json()
         elif r.status_code == 201:
-            url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.App/containerApps/{}/sourcecontrols/?api-version={}"
+            url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.App/containerApps/{}/sourcecontrols/current?api-version={}"
             request_url = url_fmt.format(
                 management_hostname.strip('/'),
                 sub_id,
@@ -461,7 +461,7 @@ class GitHubActionClient():
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
         api_version = NEW_API_VERSION
         sub_id = get_subscription_id(cmd.cli_ctx)
-        url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.App/containerApps/{}/sourcecontrols?api-version={}"
+        url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.App/containerApps/{}/sourcecontrols/current?api-version={}"
         request_url = url_fmt.format(
             management_hostname.strip('/'),
             sub_id,

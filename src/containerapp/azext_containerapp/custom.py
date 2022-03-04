@@ -696,11 +696,11 @@ def create_or_update_github_action(cmd,
         handle_raw_exception(e)
     
         
-def show_github_action(cmd, client, name, resource_group_name):
+def show_github_action(cmd, name, resource_group_name):
     return GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
 
 
-def delete_github_action(cmd, client, name, resource_group_name, token=None, login_with_github=False):
+def delete_github_action(cmd, name, resource_group_name, token=None, login_with_github=False):
     if not token and not login_with_github:
         raise_missing_token_suggestion()
     elif not token:
