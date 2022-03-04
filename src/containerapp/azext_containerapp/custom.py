@@ -698,6 +698,14 @@ def show_github_action(cmd, name, resource_group_name):
 
 
 def delete_github_action(cmd, name, resource_group_name, token=None, login_with_github=False):
+    # Check if there is an existing source control to delete
+    try: 
+        github_action_config = GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except Exception as e:
+        handle_raw_exception(e)
+
+    repo_url = github_action_config["properties"]["repoUrl"]
+
     if not token and not login_with_github:
         raise_missing_token_suggestion()
     elif not token:
@@ -706,12 +714,38 @@ def delete_github_action(cmd, name, resource_group_name, token=None, login_with_
     elif token and login_with_github:
         logger.warning("Both token and --login-with-github flag are provided. Will use provided token")
 
-    headers = ["x-ms-github-auxiliary={}".format(token)]
+    # Check if PAT can access repo
+    try:
+        # Verify github repo
+        from github import Github, GithubException
+        from github.GithubException import BadCredentialsException, UnknownObjectException
 
-    try: 
-        GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
-    except Exception as e:
-        handle_raw_exception(e)
+        repo = None
+        repo = repo_url.split('/')
+        if len(repo) >= 2:
+            repo = '/'.join(repo[-2:])
+        
+        if repo:
+            g = Github(token)
+            github_repo = None
+            try:
+                github_repo = g.get_repo(repo)
+            except BadCredentialsException:
+                raise CLIError("Could not authenticate to the repository. Please create a Personal Access Token and use "
+                            "the --token argument. Run 'az webapp deployment github-actions add --help' "
+                            "for more information.")
+            except GithubException as e:
+                error_msg = "Encountered GitHub error when accessing {} repo".format(repo)
+                if e.data and e.data['message']:
+                    error_msg += " Error: {}".format(e.data['message'])
+                raise CLIError(error_msg)
+    except CLIError as clierror:
+        raise clierror
+    except Exception as ex:
+        # If exception due to github package missing, etc just continue without validating the repo and rely on api validation
+        pass
+        
+    headers = ["x-ms-github-auxiliary={}".format(token)]
 
     try:
         return GitHubActionClient.delete(cmd=cmd, resource_group_name=resource_group_name, name=name, headers=headers)
