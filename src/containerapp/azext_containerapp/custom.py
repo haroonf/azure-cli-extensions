@@ -605,6 +605,8 @@ def create_or_update_github_action(cmd,
             github_repo = None
             try:
                 github_repo = g.get_repo(repo)
+                if not github_repo.permissions.push or not github_repo.permissions.maintain:
+                    raise CLIError("The token does not have appropriate access rights to repository {}.".format(repo))
                 try:
                     github_repo.get_branch(branch=branch)
                 except GithubException as e:
@@ -730,6 +732,8 @@ def delete_github_action(cmd, name, resource_group_name, token=None, login_with_
             github_repo = None
             try:
                 github_repo = g.get_repo(repo)
+                if not github_repo.permissions.push or not github_repo.permissions.maintain:
+                    raise CLIError("The token does not have appropriate access rights to repository {}.".format(repo))
             except BadCredentialsException:
                 raise CLIError("Could not authenticate to the repository. Please create a Personal Access Token and use "
                             "the --token argument. Run 'az webapp deployment github-actions add --help' "
