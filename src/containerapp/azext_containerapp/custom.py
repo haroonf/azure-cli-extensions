@@ -22,9 +22,7 @@ from ._models import (ManagedEnvironment, VnetConfiguration, AppLogsConfiguratio
 from ._utils import (_validate_subscription_registered, _get_location_from_resource_group, _ensure_location_allowed,
                     parse_secret_flags, store_as_secret_and_return_secret_ref, parse_list_of_strings, parse_env_var_flags, raise_missing_token_suggestion)
 from ._github_oauth import get_github_access_token
-# from azure.cli.command_modules.appservice.custom import (_get_acr_cred,
-#                     store_as_secret_and_return_secret_ref, parse_list_of_strings, parse_env_var_flags,
-#                     _generate_log_analytics_if_not_provided, _get_existing_secrets)
+from azure.cli.command_modules.appservice.custom import (_get_acr_cred)
 
 logger = get_logger(__name__)
 
