@@ -1161,6 +1161,7 @@ def add_registry(cmd, name, resource_group_name, server, username=None, password
     updating_existing_registry = False
     for r in registries_def:
         if r['server'].lower() == server.lower():
+            logger.warning("Updating existing registry.")
             updating_existing_registry = True
             if username:
                 r["username"] = username

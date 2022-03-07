@@ -306,7 +306,9 @@ def _remove_registry_secret(containerapp_def, server, username):
         if existing_secret["name"].lower() == registry_secret_name.lower():
             containerapp_def["properties"]["configuration"]["secrets"].pop(i)
             break
-        
+    if len(containerapp_def["properties"]["configuration"]["secrets"]) == 0:
+        containerapp_def["properties"]["configuration"].pop("secrets")
+
 def _add_or_update_env_vars(existing_env_vars, new_env_vars):
     for new_env_var in new_env_vars:
 

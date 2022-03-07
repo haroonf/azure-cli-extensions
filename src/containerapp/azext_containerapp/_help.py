@@ -305,3 +305,45 @@ helps['containerapp ingress traffic show'] = """
       text: |
           az containerapp ingress traffic show -n MyContainerapp -g MyResourceGroup 
 """
+
+# Registry Commands
+helps['containerapp registry'] = """
+    type: group
+    short-summary: Commands to manage Containerapp registries.
+"""
+
+helps['containerapp registry show'] = """
+    type: command
+    short-summary: Show details of a Containerapp registry.
+    examples:
+    - name: Show the details of a Containerapp registry.
+      text: |
+          az containerapp registry show -n MyContainerapp -g MyResourceGroup --server MyContainerappRegistry.azurecr.io
+"""
+
+helps['containerapp registry list'] = """
+    type: command
+    short-summary: List registries assigned to a Containerapp.
+    examples:
+    - name: Show the details of a Containerapp registry.
+      text: |
+          az containerapp registry list -n MyContainerapp -g MyResourceGroup 
+"""
+
+helps['containerapp registry add'] = """
+    type: command
+    short-summary: Add a registry to a Containerapp.
+    examples:
+    - name: Add a registry to a Containerapp.
+      text: |
+          az containerapp registry add -n MyContainerapp -g MyResourceGroup --server MyContainerappRegistry.azurecr.io
+"""
+
+helps['containerapp registry delete'] = """
+    type: command
+    short-summary: Delete a registry from a Containerapp.
+    examples:
+    - name: Delete a registry from a Containerapp.
+      text: |
+          az containerapp registry delete -n MyContainerapp -g MyResourceGroup --server MyContainerappRegistry.azurecr.io
+"""
