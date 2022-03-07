@@ -10,6 +10,8 @@ from knack.util import CLIError
 from knack.log import get_logger
 from msrestazure.tools import parse_resource_id, is_valid_resource_id
 from msrest.exceptions import DeserializationError
+from azure.cli.command_modules.appservice.custom import _get_acr_cred
+from urllib.parse import urlparse
 
 from ._client_factory import handle_raw_exception
 from ._clients import ManagedEnvironmentClient, ContainerAppClient
@@ -33,7 +35,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                     _generate_log_analytics_if_not_provided, _get_existing_secrets, _convert_object_from_snake_to_camel_case,
                     _object_to_dict, _add_or_update_secrets, _remove_additional_attributes, _remove_readonly_attributes,
                     _add_or_update_env_vars, _add_or_update_tags, update_nested_dictionary, _update_traffic_Weights,
-                    _get_app_from_revision)
+                    _get_app_from_revision, _remove_registry_secret)
 
 logger = get_logger(__name__)
 
@@ -1079,5 +1081,160 @@ def show_ingress_traffic(cmd, name, resource_group_name):
     except: 
         raise CLIError("Ingress must be enabled to show ingress traffic. Try running `az containerapp ingress -h` for more info.")
 
+def show_registry(cmd, name, resource_group_name, server):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    try:
+        containerapp_def["properties"]["configuration"]["registries"]
+    except: 
+        raise CLIError("The containerapp {} has no assigned registries.".format(name))
+
+    registries_def = containerapp_def["properties"]["configuration"]["registries"]
+
+    for r in registries_def:
+        if r['server'].lower() == server.lower():
+            return r
+    raise CLIError("The containerapp {} does not have specified registry assigned.".format(name))
+
+def list_registry(cmd, name, resource_group_name):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    try:
+        return containerapp_def["properties"]["configuration"]["registries"]
+    except: 
+        raise CLIError("The containerapp {} has no assigned registries.".format(name))
+
+def add_registry(cmd, name, resource_group_name, server, username=None, password=None, no_wait=False):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
+
+    registries_def = None
+    registry = None
+
+    if "registries" not in containerapp_def["properties"]["configuration"]:
+        containerapp_def["properties"]["configuration"]["registries"] = []
+
+    registries_def = containerapp_def["properties"]["configuration"]["registries"]
+
+    if not username or not password:
+        # If registry is Azure Container Registry, we can try inferring credentials
+        if '.azurecr.io' not in server:
+            raise RequiredArgumentMissingError('Registry username and password are required if you are not using Azure Container Registry.')
+        logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
+        parsed = urlparse(server)
+        registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
+
+        try:
+            username, password = _get_acr_cred(cmd.cli_ctx, registry_name)
+        except Exception as ex:
+            raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password')
+
+    # Check if updating existing registry
+    updating_existing_registry = False
+    for r in registries_def:
+        if r['server'].lower() == server.lower():
+            updating_existing_registry = True
+            if username:
+                r["username"] = username
+            if password:
+                r["passwordSecretRef"] = store_as_secret_and_return_secret_ref(
+                    containerapp_def["properties"]["configuration"]["secrets"],
+                    r["username"],
+                    r["server"],
+                    password,
+                    update_existing_secret=True)
+
+    # If not updating existing registry, add as new registry
+    if not updating_existing_registry:
+        registry = RegistryCredentialsModel
+        registry["server"] = server
+        registry["username"] = username
+        registry["passwordSecretRef"] = store_as_secret_and_return_secret_ref(
+            containerapp_def["properties"]["configuration"]["secrets"],
+            username,
+            server,
+            password,
+            update_existing_secret=True)
+            # Should this be false? ^
+
+        registries_def.append(registry)
+   
+    try:
+        r = ContainerAppClient.create_or_update(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+
+        return r["properties"]["configuration"]["registries"]
+    except Exception as e:
+        handle_raw_exception(e)
+
+def delete_registry(cmd, name, resource_group_name, server, no_wait=False):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
+
+    registries_def = None
+    registry = None
+
+    try:
+        containerapp_def["properties"]["configuration"]["registries"]
+    except: 
+        raise CLIError("The containerapp {} has no assigned registries.".format(name))
+
+    registries_def = containerapp_def["properties"]["configuration"]["registries"]
+
+    for i in range(0, len(registries_def)):
+        r = registries_def[i]
+        if r['server'].lower() == server.lower():
+            registries_def.pop(i)
+            _remove_registry_secret(containerapp_def=containerapp_def, server=server, username=r["username"])
+
+    if len(containerapp_def["properties"]["configuration"]["registries"]) == 0:
+        containerapp_def["properties"]["configuration"].pop("registries")
+
+    try:
+        r = ContainerAppClient.create_or_update(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        logger.warning("Registry successfully removed.")
+        return r["properties"]["configuration"]["registries"]
+    # No registries to return, so return nothing
+    except Exception as e:
+        return
 
 

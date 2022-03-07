@@ -72,3 +72,14 @@ def load_command_table(self, _):
         g.custom_command('set', 'set_ingress_traffic', exception_handler=ex_handler_factory())
         g.custom_command('show', 'show_ingress_traffic')
 
+    with self.command_group('containerapp registry') as g:
+        g.custom_command('add', 'add_registry', exception_handler=ex_handler_factory())
+        g.custom_command('show', 'show_registry')
+        g.custom_command('list', 'list_registry')
+        g.custom_command('delete', 'delete_registry', exception_handler=ex_handler_factory())
+
+
+    # with self.command_group('containerapp secret') as g:
+    #     g.custom_command('enable', 'enable_ingress', exception_handler=ex_handler_factory())
+    #     g.custom_command('disable', 'disable_ingress', exception_handler=ex_handler_factory())
+    #     g.custom_command('show', 'show_ingress')
