@@ -283,6 +283,11 @@ helps['containerapp ingress disable'] = """
           az containerapp ingress disable -n MyContainerapp -g MyResourceGroup
 """
 
+helps['containerapp ingress traffic'] = """
+    type: group
+    short-summary: Commands to manage Containerapp ingress traffic.
+"""
+
 helps['containerapp ingress traffic set'] = """
     type: command
     short-summary: Set Containerapp ingress traffic.
