@@ -953,3 +953,131 @@ def deactivate_revision(cmd, resource_group_name, revision_name, name=None):
     except CLIError as e:
         handle_raw_exception(e)
 
+def show_ingress(cmd, name, resource_group_name):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    try:
+        return containerapp_def["properties"]["configuration"]["ingress"]
+    except:
+        raise CLIError("The containerapp '{}' does not have ingress enabled.".format(name))
+
+
+def enable_ingress(cmd, name, resource_group_name, type, target_port, transport, allow_insecure=False, no_wait=False):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    external_ingress = None
+    if type is not None:
+        if type.lower() == "internal":
+            external_ingress = False
+        elif type.lower() == "external":
+            external_ingress = True
+
+    ingress_def = None
+    if target_port is not None and type is not None:
+        ingress_def = IngressModel
+        ingress_def["external"] = external_ingress
+        ingress_def["targetPort"] = target_port
+        ingress_def["transport"] = transport
+        ingress_def["allowInsecure"] = allow_insecure
+ 
+    containerapp_def["properties"]["configuration"]["ingress"] = ingress_def
+
+    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
+
+    try:
+        r = ContainerAppClient.create_or_update(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        return r["properties"]["configuration"]["ingress"]
+    except Exception as e: 
+        handle_raw_exception(e)
+
+def disable_ingress(cmd, name, resource_group_name, no_wait=False):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    containerapp_def["properties"]["configuration"]["ingress"] = None
+
+    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
+
+    try:
+        r = ContainerAppClient.create_or_update(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        logger.warning("Ingress has been disabled successfully.")
+        return 
+    except Exception as e: 
+        handle_raw_exception(e)
+
+def set_ingress_traffic(cmd, name, resource_group_name, traffic_weights, no_wait=False):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    try:
+        containerapp_def["properties"]["configuration"]["ingress"]
+    except: 
+        raise CLIError("Ingress must be enabled to set ingress traffic. Try running `az containerapp ingress -h` for more info.")
+
+    if traffic_weights is not None:
+         _update_traffic_Weights(containerapp_def, traffic_weights)
+
+    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
+
+    try:
+        r = ContainerAppClient.create_or_update(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        return r["properties"]["configuration"]["ingress"]["traffic"]
+    except Exception as e: 
+        handle_raw_exception(e)
+
+def show_ingress_traffic(cmd, name, resource_group_name):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    try:
+        return containerapp_def["properties"]["configuration"]["ingress"]["traffic"]
+    except: 
+        raise CLIError("Ingress must be enabled to show ingress traffic. Try running `az containerapp ingress -h` for more info.")
+
+
+

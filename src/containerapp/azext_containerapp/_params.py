@@ -105,3 +105,12 @@ def load_arguments(self, _):
 
     with self.argument_context('containerapp revision') as c:
         c.argument('revision_name', type=str, help='Name of the revision')
+
+    with self.argument_context('containerapp ingress') as c:
+        c.argument('allow_insecure', help='Allow insecure connections for ingress traffic.')
+        c.argument('type', validator=validate_ingress, arg_type=get_enum_type(['internal', 'external']), help="Ingress type that allows either internal or external traffic to the Containerapp.")
+        c.argument('transport', arg_type=get_enum_type(['auto', 'http', 'http2']), help="The transport protocol used for ingress traffic.")
+        c.argument('target_port', type=int, validator=validate_target_port, help="The application port used for ingress traffic.")
+
+    with self.argument_context('containerapp ingress traffic') as c:
+        c.argument('traffic_weights', nargs='*', options_list=['--traffic-weight'], help="A list of revision weight(s) for the Containerapp. Space-separated values in 'revision_name=weight' format. For latest revision, use 'latest=weight'")

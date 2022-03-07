@@ -62,3 +62,13 @@ def load_command_table(self, _):
         g.custom_command('list', 'list_revisions', table_transformer=transform_revision_list_output, exception_handler=ex_handler_factory())
         g.custom_command('restart', 'restart_revision')
         g.custom_command('show', 'show_revision', table_transformer=transform_revision_output, exception_handler=ex_handler_factory())
+
+    with self.command_group('containerapp ingress') as g:
+        g.custom_command('enable', 'enable_ingress', exception_handler=ex_handler_factory())
+        g.custom_command('disable', 'disable_ingress', exception_handler=ex_handler_factory())
+        g.custom_command('show', 'show_ingress')
+    
+    with self.command_group('containerapp ingress traffic') as g:
+        g.custom_command('set', 'set_ingress_traffic', exception_handler=ex_handler_factory())
+        g.custom_command('show', 'show_ingress_traffic')
+
