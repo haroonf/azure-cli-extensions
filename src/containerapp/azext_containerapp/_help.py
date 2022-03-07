@@ -244,3 +244,59 @@ helps['containerapp env list'] = """
       text: |
           az containerapp env list -g MyResourceGroup
 """
+
+# Ingress Commands
+helps['containerapp ingress'] = """
+    type: group
+    short-summary: Commands to manage Containerapp ingress.
+"""
+
+helps['containerapp ingress traffic'] = """
+    type: subgroup
+    short-summary: Commands to manage Containerapp ingress traffic.
+"""
+
+helps['containerapp ingress show'] = """
+    type: command
+    short-summary: Show details of a Containerapp ingress.
+    examples:
+    - name: Show the details of a Containerapp ingress.
+      text: |
+          az containerapp ingress show -n MyContainerapp -g MyResourceGroup
+"""
+
+helps['containerapp ingress enable'] = """
+    type: command
+    short-summary: Enable Containerapp ingress.
+    examples:
+    - name: Enable Containerapp ingress.
+      text: |
+          az containerapp ingress enable -n MyContainerapp -g MyResourceGroup --type external --allow-insecure --target-port 80 --transport auto
+"""
+
+helps['containerapp ingress disable'] = """
+    type: command
+    short-summary: Disable Containerapp ingress.
+    examples:
+    - name: Disable Containerapp ingress.
+      text: |
+          az containerapp ingress disable -n MyContainerapp -g MyResourceGroup
+"""
+
+helps['containerapp ingress traffic set'] = """
+    type: command
+    short-summary: Set Containerapp ingress traffic.
+    examples:
+    - name: Set Containerapp ingress traffic.
+      text: |
+          az containerapp ingress traffic set -n MyContainerapp -g MyResourceGroup --traffic-weight latest=100
+"""
+
+helps['containerapp ingress traffic show'] = """
+    type: command
+    short-summary: Show Containerapp ingress traffic.
+    examples:
+    - name: Show Containerapp ingress traffic.
+      text: |
+          az containerapp ingress traffic show -n MyContainerapp -g MyResourceGroup 
+"""
