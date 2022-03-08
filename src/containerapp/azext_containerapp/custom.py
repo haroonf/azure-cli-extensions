@@ -1256,7 +1256,7 @@ def list_secrets(cmd, name, resource_group_name):
         raise CLIError("The containerapp '{}' does not exist".format(name))
 
     try:
-        return ContainerAppClient.list_secrets(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        return ContainerAppClient.list_secrets(cmd=cmd, resource_group_name=resource_group_name, name=name)["value"]
     except: 
         raise CLIError("The containerapp {} has no assigned secrets.".format(name))
 
@@ -1308,20 +1308,26 @@ def delete_secret(cmd, name, resource_group_name, secret_name, no_wait = False):
     except Exception as e:
         handle_raw_exception(e)
 
-def set_secrets(cmd, name, resource_group_name, secrets=[], yaml=None, no_wait = False):
+def set_secrets(cmd, name, resource_group_name, secrets, 
+                #secrets=None,
+                #yaml=None, 
+                no_wait = False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
-    if not yaml and not secrets:
-        raise RequiredArgumentMissingError('Usage error: --secrets is required if not using --yaml')
+    # if not yaml and not secrets:
+    #     raise RequiredArgumentMissingError('Usage error: --secrets is required if not using --yaml')
 
-    if yaml:
-        yaml_secrets = load_yaml_file(yaml).split(' ')
-        try:
-            parse_secret_flags(yaml_secrets)
-        except:
-            raise CLIError("YAML secrets must be a list of secrets in key=value format, delimited by new line.")
-        for secret in yaml_secrets:
-            secrets.append(secret.strip())
+    # if not secrets:
+    #     secrets = []
+    
+    # if yaml:
+    #     yaml_secrets = load_yaml_file(yaml).split(' ')
+    #     try:
+    #         parse_secret_flags(yaml_secrets)
+    #     except:
+    #         raise CLIError("YAML secrets must be a list of secrets in key=value format, delimited by new line.")
+    #     for secret in yaml_secrets:
+    #         secrets.append(secret.strip())
 
     containerapp_def = None
     try:
