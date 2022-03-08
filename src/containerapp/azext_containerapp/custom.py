@@ -1122,7 +1122,7 @@ def list_registry(cmd, name, resource_group_name):
     except: 
         raise CLIError("The containerapp {} has no assigned registries.".format(name))
 
-def add_registry(cmd, name, resource_group_name, server, username=None, password=None, no_wait=False):
+def set_registry(cmd, name, resource_group_name, server, username=None, password=None, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     containerapp_def = None

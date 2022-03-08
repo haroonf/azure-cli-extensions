@@ -330,13 +330,17 @@ helps['containerapp registry list'] = """
           az containerapp registry list -n MyContainerapp -g MyResourceGroup 
 """
 
-helps['containerapp registry add'] = """
+helps['containerapp registry set'] = """
     type: command
-    short-summary: Add a registry to a Containerapp.
+    short-summary: Add or update a Containerapp registry.
     examples:
     - name: Add a registry to a Containerapp.
       text: |
           az containerapp registry add -n MyContainerapp -g MyResourceGroup --server MyContainerappRegistry.azurecr.io
+    - name: Update a Containerapp registry.
+      text: |
+          az containerapp registry add -n MyContainerapp -g MyResourceGroup --server MyExistingContainerappRegistry.azurecr.io --username MyRegistryUsername --password MyRegistryPassword
+  
 """
 
 helps['containerapp registry remove'] = """
