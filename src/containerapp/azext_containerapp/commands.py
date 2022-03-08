@@ -81,5 +81,5 @@ def load_command_table(self, _):
     with self.command_group('containerapp secret') as g:
         g.custom_command('list', 'list_secrets')
         g.custom_command('show', 'show_secret')
-        g.custom_command('delete', 'delete_secret', exception_handler=ex_handler_factory())
+        g.custom_command('delete', 'delete_secrets', exception_handler=ex_handler_factory())
         g.custom_command('set', 'set_secrets', exception_handler=ex_handler_factory())

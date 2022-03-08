@@ -1278,7 +1278,7 @@ def show_secret(cmd, name, resource_group_name, secret_name):
             return secret
     raise CLIError("The containerapp {} does not have a secret assigned with name {}.".format(name, secret_name))
 
-def delete_secret(cmd, name, resource_group_name, secret_name, no_wait = False):
+def delete_secrets(cmd, name, resource_group_name, secrets, no_wait = False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     containerapp_def = None
@@ -1292,19 +1292,24 @@ def delete_secret(cmd, name, resource_group_name, secret_name, no_wait = False):
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
-    wasRemoved = False
-    for secret in containerapp_def["properties"]["configuration"]["secrets"]:
-        if secret["name"].lower() == secret_name.lower():
-            _remove_secret(containerapp_def, secret_name=secret["name"])
-            wasRemoved = True
-            break
-    if not wasRemoved:
-        raise CLIError("The containerapp {} does not have a secret assigned with name {}.".format(name, secret_name))
+    for secret_name in secrets:
+        wasRemoved = False
+        for secret in containerapp_def["properties"]["configuration"]["secrets"]:
+            if secret["name"].lower() == secret_name.lower():
+                _remove_secret(containerapp_def, secret_name=secret["name"])
+                wasRemoved = True
+                break
+        if not wasRemoved:
+            raise CLIError("The containerapp {} does not have a secret assigned with name {}.".format(name, secret_name))
     try:
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
         logger.warning("Secret successfully removed.")
-        return r["properties"]["configuration"]["secrets"]
+        try:
+            return r["properties"]["configuration"]["secrets"]
+        # No secrets to return
+        except:
+            pass
     except Exception as e:
         handle_raw_exception(e)
 

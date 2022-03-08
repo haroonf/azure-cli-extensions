@@ -336,10 +336,10 @@ helps['containerapp registry set'] = """
     examples:
     - name: Add a registry to a Containerapp.
       text: |
-          az containerapp registry add -n MyContainerapp -g MyResourceGroup --server MyContainerappRegistry.azurecr.io
+          az containerapp registry set -n MyContainerapp -g MyResourceGroup --server MyContainerappRegistry.azurecr.io
     - name: Update a Containerapp registry.
       text: |
-          az containerapp registry add -n MyContainerapp -g MyResourceGroup --server MyExistingContainerappRegistry.azurecr.io --username MyRegistryUsername --password MyRegistryPassword
+          az containerapp registry set -n MyContainerapp -g MyResourceGroup --server MyExistingContainerappRegistry.azurecr.io --username MyRegistryUsername --password MyRegistryPassword
   
 """
 
@@ -350,4 +350,49 @@ helps['containerapp registry remove'] = """
     - name: Remove a registry from a Containerapp.
       text: |
           az containerapp registry remove -n MyContainerapp -g MyResourceGroup --server MyContainerappRegistry.azurecr.io
+"""
+
+# Secret Commands
+helps['containerapp secret'] = """
+    type: group
+    short-summary: Commands to manage Containerapp secrets.
+"""
+
+helps['containerapp secret show'] = """
+    type: command
+    short-summary: Show details of a Containerapp secret.
+    examples:
+    - name: Show the details of a Containerapp secret.
+      text: |
+          az containerapp secret show -n MyContainerapp -g MyResourceGroup --secret-name MySecret
+"""
+
+helps['containerapp secret list'] = """
+    type: command
+    short-summary: List the secrets of a Containerapp.
+    examples:
+    - name: List the secrets of a Containerapp.
+      text: |
+          az containerapp secret list -n MyContainerapp -g MyResourceGroup
+"""
+
+helps['containerapp secret delete'] = """
+    type: command
+    short-summary: Delete secrets from a Containerapp.
+    examples:
+    - name: Delete secrets from a Containerapp.
+      text: |
+          az containerapp secret delete -n MyContainerapp -g MyResourceGroup --secrets MySecret MySecret2
+"""
+
+helps['containerapp secret set'] = """
+    type: command
+    short-summary: Create/update Containerapp secrets.
+    examples:
+    - name: Add a secret to a Containerapp.
+      text: |
+          az containerapp secret set -n MyContainerapp -g MyResourceGroup --secrets MySecretName=MySecretValue 
+    - name: Update a Containerapp secret.
+      text: |
+          az containerapp secret set -n MyContainerapp -g MyResourceGroup --secrets MyExistingSecretName=MyNewSecretValue 
 """
