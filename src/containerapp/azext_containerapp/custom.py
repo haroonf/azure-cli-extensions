@@ -1220,11 +1220,16 @@ def remove_registry(cmd, name, resource_group_name, server, no_wait=False):
 
     registries_def = containerapp_def["properties"]["configuration"]["registries"]
 
+    wasRemoved = False
     for i in range(0, len(registries_def)):
         r = registries_def[i]
         if r['server'].lower() == server.lower():
             registries_def.pop(i)
             _remove_registry_secret(containerapp_def=containerapp_def, server=server, username=r["username"])
+            wasRemoved = True
+
+    if not wasRemoved:
+        raise CLIError("Containerapp does not have registry server {} assigned.".format(server))
 
     if len(containerapp_def["properties"]["configuration"]["registries"]) == 0:
         containerapp_def["properties"]["configuration"].pop("registries")
