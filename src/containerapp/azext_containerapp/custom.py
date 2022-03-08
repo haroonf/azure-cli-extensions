@@ -35,7 +35,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                     _generate_log_analytics_if_not_provided, _get_existing_secrets, _convert_object_from_snake_to_camel_case,
                     _object_to_dict, _add_or_update_secrets, _remove_additional_attributes, _remove_readonly_attributes,
                     _add_or_update_env_vars, _add_or_update_tags, update_nested_dictionary, _update_traffic_Weights,
-                    _get_app_from_revision, _remove_registry_secret)
+                    _get_app_from_revision, _remove_registry_secret, _remove_secret)
 
 logger = get_logger(__name__)
 
@@ -1242,5 +1242,104 @@ def remove_registry(cmd, name, resource_group_name, server, no_wait=False):
     # No registries to return, so return nothing
     except Exception as e:
         return
+
+def list_secrets(cmd, name, resource_group_name):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    try:
+        return ContainerAppClient.list_secrets(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except: 
+        raise CLIError("The containerapp {} has no assigned secrets.".format(name))
+
+def show_secret(cmd, name, resource_group_name, secret_name):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    r = ContainerAppClient.list_secrets(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    for secret in r["value"]:
+        if secret["name"].lower() == secret_name.lower():
+            return secret
+    raise CLIError("The containerapp {} does not have a secret assigned with name {}.".format(name, secret_name))
+
+def delete_secret(cmd, name, resource_group_name, secret_name, no_wait = False):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
+
+    wasRemoved = False
+    for secret in containerapp_def["properties"]["configuration"]["secrets"]:
+        if secret["name"].lower() == secret_name.lower():
+            _remove_secret(containerapp_def, secret_name=secret["name"])
+            wasRemoved = True
+            break
+    if not wasRemoved:
+        raise CLIError("The containerapp {} does not have a secret assigned with name {}.".format(name, secret_name))
+    try:
+        r = ContainerAppClient.create_or_update(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        logger.warning("Secret successfully removed.")
+        return r["properties"]["configuration"]["secrets"]
+    except Exception as e:
+        handle_raw_exception(e)
+
+def set_secrets(cmd, name, resource_group_name, secrets=[], yaml=None, no_wait = False):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    if not yaml and not secrets:
+        raise RequiredArgumentMissingError('Usage error: --secrets is required if not using --yaml')
+
+    if yaml:
+        yaml_secrets = load_yaml_file(yaml).split(' ')
+        try:
+            parse_secret_flags(yaml_secrets)
+        except:
+            raise CLIError("YAML secrets must be a list of secrets in key=value format, delimited by new line.")
+        for secret in yaml_secrets:
+            secrets.append(secret.strip())
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
+    _add_or_update_secrets(containerapp_def, parse_secret_flags(secrets))
+
+    try:
+        r = ContainerAppClient.create_or_update(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        return r["properties"]["configuration"]["secrets"]
+    except Exception as e:
+        handle_raw_exception(e)
 
 

@@ -78,8 +78,8 @@ def load_command_table(self, _):
         g.custom_command('list', 'list_registry')
         g.custom_command('remove', 'remove_registry', exception_handler=ex_handler_factory())
 
-
-    # with self.command_group('containerapp secret') as g:
-    #     g.custom_command('enable', 'enable_ingress', exception_handler=ex_handler_factory())
-    #     g.custom_command('disable', 'disable_ingress', exception_handler=ex_handler_factory())
-    #     g.custom_command('show', 'show_ingress')
+    with self.command_group('containerapp secret') as g:
+        g.custom_command('list', 'list_secrets')
+        g.custom_command('show', 'show_secret')
+        g.custom_command('delete', 'delete_secret', exception_handler=ex_handler_factory())
+        g.custom_command('set', 'set_secrets', exception_handler=ex_handler_factory())
