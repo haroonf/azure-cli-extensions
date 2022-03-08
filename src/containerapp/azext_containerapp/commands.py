@@ -6,7 +6,7 @@
 # pylint: disable=line-too-long
 from azure.cli.core.commands import CliCommandType
 from msrestazure.tools import is_valid_resource_id, parse_resource_id
-from azext_containerapp._client_factory import cf_containerapp, ex_handler_factory
+from azext_containerapp._client_factory import ex_handler_factory
 
 
 def transform_containerapp_output(app):
@@ -23,6 +23,20 @@ def transform_containerapp_output(app):
 
 def transform_containerapp_list_output(apps):
     return [transform_containerapp_output(a) for a in apps]
+
+
+def transform_revision_output(rev):
+    props = ['name', 'replicas', 'active', 'createdTime']
+    result = {k: rev[k] for k in rev if k in props}
+
+    if 'latestRevisionFqdn' in rev['template']:
+        result['fqdn'] = rev['template']['latestRevisionFqdn']
+
+    return result
+
+
+def transform_revision_list_output(revs):
+    return [transform_revision_output(r) for r in revs]
 
 
 def load_command_table(self, _):
@@ -46,3 +60,10 @@ def load_command_table(self, _):
         g.custom_command('add', 'create_or_update_github_action', exception_handler=ex_handler_factory())
         g.custom_command('show', 'show_github_action',  exception_handler=ex_handler_factory())
         g.custom_command('delete', 'delete_github_action',  exception_handler=ex_handler_factory())
+
+    with self.command_group('containerapp revision') as g:
+        g.custom_command('activate', 'activate_revision')
+        g.custom_command('deactivate', 'deactivate_revision')
+        g.custom_command('list', 'list_revisions', table_transformer=transform_revision_list_output, exception_handler=ex_handler_factory())
+        g.custom_command('restart', 'restart_revision')
+        g.custom_command('show', 'show_revision', table_transformer=transform_revision_output, exception_handler=ex_handler_factory())

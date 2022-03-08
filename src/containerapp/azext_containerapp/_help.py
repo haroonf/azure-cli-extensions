@@ -60,7 +60,7 @@ helps['containerapp create'] = """
     - name: Create a Containerapp using a YAML configuration. Example YAML configuration - https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples
       text: |
           az containerapp create -n MyContainerapp -g MyResourceGroup \\
-              -- yaml "C:/path/to/yaml/file.yml"
+              --yaml "C:/path/to/yaml/file.yml"
 """
 
 helps['containerapp update'] = """
@@ -138,6 +138,57 @@ helps['containerapp list'] = """
           az containerapp list -g MyResourceGroup
 """
 
+# Revision Commands
+helps['containerapp revision'] = """
+    type: group
+    short-summary: Commands to manage a Containerapp's revisions.
+"""
+
+helps['containerapp revision show'] = """
+    type: command
+    short-summary: Show details of a Containerapp's revision.
+    examples:
+    - name: Show details of a Containerapp's revision.
+      text: |
+          az containerapp revision show --revision-name MyContainerappRevision -g MyResourceGroup
+"""
+
+helps['containerapp revision list'] = """
+    type: command
+    short-summary: List details of a Containerapp's revisions.
+    examples:
+    - name: List a Containerapp's revisions.
+      text: |
+          az containerapp revision list --revision-name MyContainerapp -g MyResourceGroup
+"""
+
+helps['containerapp revision restart'] = """
+    type: command
+    short-summary: Restart a Containerapps's revision.
+    examples:
+    - name: Restart a Containerapp's revision.
+      text: |
+          az containerapp revision restart --revision-name MyContainerappRevision -g MyResourceGroup
+"""
+
+helps['containerapp revision activate'] = """
+    type: command
+    short-summary: Activates Containerapp's revision.
+    examples:
+    - name: Activate a Containerapp's revision.
+      text: |
+          az containerapp revision activate --revision-name MyContainerappRevision -g MyResourceGroup
+"""
+
+helps['containerapp revision deactivate'] = """
+    type: command
+    short-summary: Deactivates Containerapp's revision.
+    examples:
+    - name: Deactivate a Containerapp's revision.
+      text: |
+          az containerapp revision deactivate --revision-name MyContainerappRevision -g MyResourceGroup
+"""
+
 # Environment Commands
 helps['containerapp env'] = """
     type: group
@@ -167,7 +218,7 @@ helps['containerapp env update'] = """
 
 helps['containerapp env delete'] = """
     type: command
-    short-summary: Deletes a Containerapp Environment.
+    short-summary: Delete a Containerapp Environment.
     examples:
     - name: Delete Containerapp Environment.
       text: az containerapp env delete -g MyResourceGroup -n MyContainerappEnvironment

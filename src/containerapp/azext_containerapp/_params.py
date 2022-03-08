@@ -7,7 +7,7 @@
 from knack.arguments import CLIArgumentType
 
 from azure.cli.core.commands.parameters import (resource_group_name_type, get_location_type,
-                                                get_resource_name_completion_list,
+                                                get_resource_name_completion_list, file_type,
                                                 get_three_state_flag, get_enum_type, tags_type)
 from azure.cli.core.commands.validators import get_default_location_from_resource_group
 
@@ -27,16 +27,17 @@ def load_arguments(self, _):
     with self.argument_context('containerapp') as c:
         c.argument('tags', arg_type=tags_type)
         c.argument('managed_env', validator=validate_managed_env_name_or_id, options_list=['--environment', '-e'], help="Name or resource ID of the containerapp's environment.")
-        c.argument('yaml', help='Path to a .yaml file with the configuration of a containerapp. All other parameters will be ignored')
+        c.argument('yaml', type=file_type, help='Path to a .yaml file with the configuration of a containerapp. All other parameters will be ignored')
 
     # Container
     with self.argument_context('containerapp', arg_group='Container (Creates new revision)') as c:
-        c.argument('image_name', type=str, options_list=['--image', '-i'], help="Container image, e.g. publisher/image-name:tag. If there are multiple containers, please use --yaml instead.")
+        c.argument('image', type=str, options_list=['--image', '-i'], help="Container image, e.g. publisher/image-name:tag.")
+        c.argument('image_name', type=str, options_list=['--image-name'], help="Name of the Container image.")
         c.argument('cpu', type=float, validator=validate_cpu, options_list=['--cpu'], help="Required CPU in cores, e.g. 0.5")
         c.argument('memory', type=str, validator=validate_memory, options_list=['--memory'], help="Required memory, e.g. 1.0Gi")
-        c.argument('env_vars', type=str, options_list=['--environment-variables', '-v'], help="A list of environment variable(s) for the containerapp. Comma-separated values in 'key=value' format. If there are multiple containers, please use --yaml instead.")
-        c.argument('startup_command', type=str, options_list=['--command'], help="A list of supported commands on the container app that will executed during container startup. Comma-separated values e.g. '/bin/queue'. If there are multiple containers, please use --yaml instead.")
-        c.argument('args', type=str, options_list=['--args'], help="A list of container startup command argument(s). Comma-separated values e.g. '-c, mycommand'. If there are multiple containers, please use --yaml instead.")
+        c.argument('env_vars', nargs='*', options_list=['--environment-variables'], help="A list of environment variable(s) for the containerapp. Space-separated values in 'key=value' format.")
+        c.argument('startup_command', nargs='*', options_list=['--command'], help="A list of supported commands on the container app that will executed during container startup. Space-separated values e.g. \"/bin/queue\" \"mycommand\". Empty string to clear existing values")
+        c.argument('args', nargs='*', options_list=['--args'], help="A list of container startup command argument(s). Space-separated values e.g. \"-c\" \"mycommand\". Empty string to clear existing values")
         c.argument('revision_suffix', type=str, options_list=['--revision-suffix'], help='User friendly suffix that is appended to the revision name')
 
     # Scale
@@ -58,13 +59,14 @@ def load_arguments(self, _):
         c.argument('registry_server', type=str, validator=validate_registry_server, options_list=['--registry-login-server'], help="The url of the registry, e.g. myregistry.azurecr.io")
         c.argument('registry_pass', type=str, validator=validate_registry_pass, options_list=['--registry-password'], help="The password to log in container image registry server. If stored as a secret, value must start with \'secretref:\' followed by the secret name.")
         c.argument('registry_user', type=str, validator=validate_registry_user, options_list=['--registry-username'], help="The username to log in container image registry server")
-        c.argument('secrets', type=str, options_list=['--secrets', '-s'], help="A list of secret(s) for the containerapp. Comma-separated values in 'key=value' format.")
+        c.argument('secrets', nargs='*', options_list=['--secrets', '-s'], help="A list of secret(s) for the containerapp. Space-separated values in 'key=value' format.")
 
     # Ingress
     with self.argument_context('containerapp', arg_group='Ingress') as c:
-        c.argument('ingress', validator=validate_ingress, options_list=['--ingress'], default=None, arg_type=get_enum_type(['internal', 'external']), help="Ingress type that allows either internal or external+internal ingress traffic to the Containerapp.")
+        c.argument('ingress', validator=validate_ingress, options_list=['--ingress'], default=None, arg_type=get_enum_type(['internal', 'external']), help="Ingress type that allows either internal or external traffic to the Containerapp.")
         c.argument('target_port', type=int, validator=validate_target_port, options_list=['--target-port'], help="The application port used for ingress traffic.")
         c.argument('transport', arg_type=get_enum_type(['auto', 'http', 'http2']), help="The transport protocol used for ingress traffic.")
+        c.argument('traffic_weights', nargs='*', options_list=['--traffic-weight'], help="A list of revision weight(s) for the Containerapp. Space-separated values in 'revision_name=weight' format. For latest revision, use 'latest=weight'")
 
     with self.argument_context('containerapp scale') as c:
         c.argument('min_replicas', type=int, options_list=['--min-replicas'], help="The minimum number of containerapp replicas.")
@@ -77,7 +79,6 @@ def load_arguments(self, _):
         c.argument('tags', arg_type=tags_type)
 
     with self.argument_context('containerapp env', arg_group='Log Analytics') as c:
-        c.argument('logs_destination', type=str, options_list=['--logs-dest'])
         c.argument('logs_customer_id', type=str, options_list=['--logs-workspace-id'], help='Name or resource ID of the Log Analytics workspace to send diagnostics logs to. You can use \"az monitor log-analytics workspace create\" to create one. Extra billing may apply.')
         c.argument('logs_key', type=str, options_list=['--logs-workspace-key'], help='Log Analytics workspace key to configure your Log Analytics workspace. You can use \"az monitor log-analytics workspace get-shared-keys\" to retrieve the key.')
 
@@ -115,7 +116,9 @@ def load_arguments(self, _):
         c.argument('service_principal_client_secret', help='The service principal client secret.')
         c.argument('service_principal_tenant_id', help='The service principal tenant ID.')
 
-
     with self.argument_context('containerapp github-action delete') as c:
         c.argument('token', help='A Personal Access Token with write access to the specified repository. For more information: https://help.github.com/en/github/authenticating-to-github/creating-a-personal-access-token-for-the-command-line')
         c.argument('login_with_github', help='Interactively log in with Github to retrieve the Personal Access Token')
+        
+    with self.argument_context('containerapp revision') as c:
+        c.argument('revision_name', type=str, help='Name of the revision')
