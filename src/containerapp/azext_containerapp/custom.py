@@ -1227,6 +1227,7 @@ def delete_registry(cmd, name, resource_group_name, server, no_wait=False):
             registries_def.pop(i)
             _remove_registry_secret(containerapp_def=containerapp_def, server=server, username=r["username"])
             wasRemoved = True
+            break
 
     if not wasRemoved:
         raise CLIError("Containerapp does not have registry server {} assigned.".format(server))
