@@ -1196,7 +1196,7 @@ def set_registry(cmd, name, resource_group_name, server, username=None, password
     except Exception as e:
         handle_raw_exception(e)
 
-def remove_registry(cmd, name, resource_group_name, server, no_wait=False):
+def delete_registry(cmd, name, resource_group_name, server, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     containerapp_def = None

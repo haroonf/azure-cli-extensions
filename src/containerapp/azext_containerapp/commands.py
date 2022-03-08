@@ -76,7 +76,7 @@ def load_command_table(self, _):
         g.custom_command('set', 'set_registry', exception_handler=ex_handler_factory())
         g.custom_command('show', 'show_registry')
         g.custom_command('list', 'list_registry')
-        g.custom_command('remove', 'remove_registry', exception_handler=ex_handler_factory())
+        g.custom_command('delete', 'delete_registry', exception_handler=ex_handler_factory())
 
     with self.command_group('containerapp secret') as g:
         g.custom_command('list', 'list_secrets')
