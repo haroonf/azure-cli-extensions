@@ -382,7 +382,7 @@ helps['containerapp secret delete'] = """
     examples:
     - name: Delete secrets from a Containerapp.
       text: |
-          az containerapp secret delete -n MyContainerapp -g MyResourceGroup --secrets MySecret MySecret2
+          az containerapp secret delete -n MyContainerapp -g MyResourceGroup --secret-names MySecret MySecret2
 """
 
 helps['containerapp secret set'] = """
