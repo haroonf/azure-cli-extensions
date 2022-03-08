@@ -339,11 +339,11 @@ helps['containerapp registry add'] = """
           az containerapp registry add -n MyContainerapp -g MyResourceGroup --server MyContainerappRegistry.azurecr.io
 """
 
-helps['containerapp registry delete'] = """
+helps['containerapp registry remove'] = """
     type: command
-    short-summary: Delete a registry from a Containerapp.
+    short-summary: Remove a registry from a Containerapp.
     examples:
-    - name: Delete a registry from a Containerapp.
+    - name: Remove a registry from a Containerapp.
       text: |
-          az containerapp registry delete -n MyContainerapp -g MyResourceGroup --server MyContainerappRegistry.azurecr.io
+          az containerapp registry remove -n MyContainerapp -g MyResourceGroup --server MyContainerappRegistry.azurecr.io
 """
