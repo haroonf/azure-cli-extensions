@@ -31,7 +31,7 @@ from ._models import (
     Dapr as DaprModel,
     ContainerResources as ContainerResourcesModel,
     Scale as ScaleModel,
-    Container as ContainerModel, GitHubActionConfiguration, RegistryInfo, AzureCredentials, SourceControl)
+    Container as ContainerModel, GitHubActionConfiguration, RegistryInfo as RegistryInfoModel, AzureCredentials as AzureCredentialsModel, SourceControl as SourceControlModel)
 from ._utils import (_validate_subscription_registered, _get_location_from_resource_group, _ensure_location_allowed,
                     parse_secret_flags, store_as_secret_and_return_secret_ref, parse_list_of_strings, parse_env_var_flags,
                     _generate_log_analytics_if_not_provided, _get_existing_secrets, _convert_object_from_snake_to_camel_case,
@@ -983,7 +983,7 @@ def create_or_update_github_action(cmd,
     except Exception as ex:
         if not service_principal_client_id or not service_principal_client_secret or not service_principal_tenant_id:
             raise RequiredArgumentMissingError('Service principal client ID, secret and tenant ID are required to add github actions for the first time. Please create one using the command \"az ad sp create-for-rbac --name \{name\} --role contributor --scopes /subscriptions/\{subscription\}/resourceGroups/\{resourceGroup\} --sdk-auth\"')
-        source_control_info = SourceControl
+        source_control_info = SourceControlModel
 
     source_control_info["properties"]["repoUrl"] = repo_url
 
@@ -995,7 +995,7 @@ def create_or_update_github_action(cmd,
     azure_credentials = None
 
     if service_principal_client_id or service_principal_client_secret or service_principal_tenant_id:
-        azure_credentials = AzureCredentials
+        azure_credentials = AzureCredentialsModel
         azure_credentials["clientId"] = service_principal_client_id
         azure_credentials["clientSecret"] = service_principal_client_secret
         azure_credentials["tenantId"] = service_principal_tenant_id
@@ -1015,7 +1015,7 @@ def create_or_update_github_action(cmd,
         except Exception as ex:
             raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password')
 
-    registry_info = RegistryInfo
+    registry_info = RegistryInfoModel
     registry_info["registryUrl"] = registry_url
     registry_info["registryUserName"] = registry_username
     registry_info["registryPassword"] = registry_password
