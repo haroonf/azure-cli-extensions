@@ -955,6 +955,192 @@ def deactivate_revision(cmd, resource_group_name, revision_name, name=None):
     except CLIError as e:
         handle_raw_exception(e)
 
+def copy_revision(cmd,
+                        name,
+                        resource_group_name,
+                        from_revision=None,
+                        #label=None,
+                        yaml=None,
+                        image=None,
+                        image_name=None,
+                        min_replicas=None,
+                        max_replicas=None,
+                        env_vars=None,
+                        cpu=None,
+                        memory=None,
+                        revision_suffix=None,
+                        startup_command=None,
+                        traffic_weights=None,
+                        args=None,
+                        tags=None,
+                        no_wait=False):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    if yaml:
+        if image or min_replicas or max_replicas or\
+            env_vars or cpu or memory or \
+            startup_command or args or tags:
+            logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
+        return update_containerapp_yaml(cmd=cmd, name=name, resource_group_name=resource_group_name, file_name=yaml, no_wait=no_wait)
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    if not from_revision:
+        from_revision = containerapp_def["properties"]["latestRevisionName"]
+
+    try:
+        r = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=from_revision)
+    except CLIError as e:
+        # Error handle the case where revision not found?
+        handle_raw_exception(e)
+
+    containerapp_def["properties"]["template"] = r["properties"]["template"]
+
+    update_map = {}
+    update_map['ingress'] = traffic_weights
+    update_map['scale'] = min_replicas or max_replicas
+    update_map['container'] = image or image_name or env_vars or cpu or memory or startup_command is not None or args is not None
+    update_map['configuration'] =  update_map['ingress']
+
+    if tags:
+        _add_or_update_tags(containerapp_def, tags)
+
+    if revision_suffix is not None:
+        containerapp_def["properties"]["template"]["revisionSuffix"] = revision_suffix
+
+    # Containers
+    if update_map["container"]:
+        if not image_name:
+            if len(containerapp_def["properties"]["template"]["containers"]) == 1:
+                image_name = containerapp_def["properties"]["template"]["containers"][0]["name"]
+            else:
+                raise ValidationError("Usage error: --image-name is required when adding or updating a container")
+
+        # Check if updating existing container
+        updating_existing_container = False
+        for c in containerapp_def["properties"]["template"]["containers"]:
+            if c["name"].lower() == image_name.lower():
+                updating_existing_container = True
+
+                if image is not None:
+                    c["image"] = image
+                if env_vars is not None:
+                    if "env" not in c or not c["env"]:
+                        c["env"] = []
+                    _add_or_update_env_vars(c["env"], parse_env_var_flags(env_vars))
+                if startup_command is not None:
+                    if isinstance(startup_command, list) and not startup_command:
+                        c["command"] = None
+                    else:
+                        c["command"] = startup_command
+                if args is not None:
+                    if isinstance(args, list) and not args:
+                        c["args"] = None
+                    else:
+                        c["args"] = args
+                if cpu is not None or memory is not None:
+                    if "resources" in c and c["resources"]:
+                        if cpu is not None:
+                            c["resources"]["cpu"] = cpu
+                        if memory is not None:
+                            c["resources"]["memory"] = memory
+                    else:
+                        c["resources"] = {
+                            "cpu": cpu,
+                            "memory": memory
+                        }
+
+        # If not updating existing container, add as new container
+        if not updating_existing_container:
+            if image is None:
+                raise ValidationError("Usage error: --image is required when adding a new container")
+
+            resources_def = None
+            if cpu is not None or memory is not None:
+                resources_def = ContainerResourcesModel
+                resources_def["cpu"] = cpu
+                resources_def["memory"] = memory
+
+            container_def = ContainerModel
+            container_def["name"] = image_name
+            container_def["image"] = image
+            if env_vars is not None:
+                container_def["env"] = parse_env_var_flags(env_vars)
+            if startup_command is not None:
+                if isinstance(startup_command, list) and not startup_command:
+                    container_def["command"] = None
+                else:
+                    container_def["command"] = startup_command
+            if args is not None:
+                if isinstance(args, list) and not args:
+                    container_def["args"] = None
+                else:
+                    container_def["args"] = args
+            if resources_def is not None:
+                container_def["resources"] = resources_def
+
+            containerapp_def["properties"]["template"]["containers"].append(container_def)
+
+    # Scale
+    if update_map["scale"]:
+        if "scale" not in containerapp_def["properties"]["template"]:
+            containerapp_def["properties"]["template"]["scale"] = {}
+        if min_replicas is not None:
+            containerapp_def["properties"]["template"]["scale"]["minReplicas"] = min_replicas
+        if max_replicas is not None:
+            containerapp_def["properties"]["template"]["scale"]["maxReplicas"] = max_replicas
+
+    # Configuration
+    if update_map["ingress"]:
+        if "ingress" not in containerapp_def["properties"]["configuration"]:
+            containerapp_def["properties"]["configuration"]["ingress"] = {}
+
+        if traffic_weights is not None:
+            _update_traffic_Weights(containerapp_def, traffic_weights)
+
+    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
+
+    try:
+        r = ContainerAppClient.create_or_update(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+
+        if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
+            logger.warning('Containerapp update in progress. Please monitor the update using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
+
+        return r
+    except Exception as e:
+        handle_raw_exception(e)
+
+def set_revision_mode(cmd, resource_group_name, name, mode, no_wait=False):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    containerapp_def["properties"]["configuration"]["activeRevisionsMode"] = mode.lower()
+
+    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
+
+    try:
+        r = ContainerAppClient.create_or_update(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        return r["properties"]["configuration"]["activeRevisionsMode"]
+    except Exception as e: 
+        handle_raw_exception(e)
+
 def show_ingress(cmd, name, resource_group_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -971,7 +1157,6 @@ def show_ingress(cmd, name, resource_group_name):
         return containerapp_def["properties"]["configuration"]["ingress"]
     except:
         raise CLIError("The containerapp '{}' does not have ingress enabled.".format(name))
-
 
 def enable_ingress(cmd, name, resource_group_name, type, target_port, transport, allow_insecure=False, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")

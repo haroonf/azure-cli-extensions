@@ -104,7 +104,10 @@ def load_arguments(self, _):
         c.argument('name', name_type, help='Name of the managed Environment.')
 
     with self.argument_context('containerapp revision') as c:
-        c.argument('revision_name', type=str, help='Name of the revision')
+        c.argument('revision_name', options_list=['--revision'], type=str, help='Name of the revision.')
+
+    with self.argument_context('containerapp revision copy') as c:
+        c.argument('from_revision', type=str, help='Revision to copy from. Default: latest revision.')
 
     with self.argument_context('containerapp ingress') as c:
         c.argument('allow_insecure', help='Allow insecure connections for ingress traffic.')
