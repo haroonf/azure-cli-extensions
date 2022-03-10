@@ -83,7 +83,7 @@ def create_deserializer():
     return Deserializer(deserializer)
 
 
-def update_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=False):
+def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_revision=None, no_wait=False):
     yaml_containerapp = process_loaded_yaml(load_yaml_file(file_name))
     if type(yaml_containerapp) != dict:
         raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
@@ -109,6 +109,14 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=
 
     if not current_containerapp_def:
         raise ValidationError("The containerapp '{}' does not exist".format(name))
+
+    # Change which revision we update from
+    if from_revision:
+        try:
+            r = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=from_revision)
+        except CLIError as e:
+            handle_raw_exception(e)
+        current_containerapp_def["properties"]["template"] = r["properties"]["template"]
 
     # Deserialize the yaml into a ContainerApp object. Need this since we're not using SDK
     try:
@@ -976,12 +984,15 @@ def copy_revision(cmd,
                         no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
+    if not from_revision:
+        from_revision = containerapp_def["properties"]["latestRevisionName"]
+
     if yaml:
         if image or min_replicas or max_replicas or\
             env_vars or cpu or memory or \
             startup_command or args or tags:
             logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
-        return update_containerapp_yaml(cmd=cmd, name=name, resource_group_name=resource_group_name, file_name=yaml, no_wait=no_wait)
+        return update_containerapp_yaml(cmd=cmd, name=name, resource_group_name=resource_group_name, file_name=yaml, from_revision=from_revision, no_wait=no_wait)
 
     containerapp_def = None
     try:
@@ -991,9 +1002,6 @@ def copy_revision(cmd,
 
     if not containerapp_def:
         raise CLIError("The containerapp '{}' does not exist".format(name))
-
-    if not from_revision:
-        from_revision = containerapp_def["properties"]["latestRevisionName"]
 
     try:
         r = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=from_revision)
