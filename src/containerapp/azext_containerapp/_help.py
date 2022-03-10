@@ -414,3 +414,27 @@ helps['containerapp secret set'] = """
       text: |
           az containerapp secret set -n MyContainerapp -g MyResourceGroup --secrets MyExistingSecretName=MyNewSecretValue 
 """
+
+# Dapr Commands
+helps['containerapp dapr'] = """
+    type: group
+    short-summary: Commands to manage Containerapp dapr.
+"""
+
+helps['containerapp dapr enable'] = """
+    type: command
+    short-summary: Enable dapr for a Containerapp.
+    examples:
+    - name: Enable dapr for a Containerapp.
+      text: |
+          az containerapp dapr enable -n MyContainerapp -g MyResourceGroup --dapr-app-id my-app-id --dapr-app-port 8080
+"""
+
+helps['containerapp dapr disable'] = """
+    type: command
+    short-summary: Disable dapr for a Containerapp.
+    examples:
+    - name: Disable dapr for a Containerapp.
+      text: |
+          az containerapp dapr disable -n MyContainerapp -g MyResourceGroup
+"""

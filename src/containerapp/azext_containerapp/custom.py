@@ -1539,4 +1539,61 @@ def set_secrets(cmd, name, resource_group_name, secrets,
     except Exception as e:
         handle_raw_exception(e)
 
+def enable_dapr(cmd, name, resource_group_name, dapr_app_id=None, dapr_app_port=None, dapr_app_protocol=None):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
+
+    if 'dapr' not in containerapp_def['properties']:
+        containerapp_def['properties']['dapr'] = {}
+    
+    if dapr_app_id:
+        containerapp_def['properties']['dapr']['dapr_app_id'] = dapr_app_id
+    
+    if dapr_app_port:
+        containerapp_def['properties']['dapr']['dapr_app_port'] = dapr_app_port
+    
+    if dapr_app_protocol:
+        containerapp_def['properties']['dapr']['dapr_app_protocol'] = dapr_app_protocol
+
+    containerapp_def['properties']['dapr']['enabled'] = True
+
+    try:
+        r = ContainerAppClient.create_or_update(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        return r["properties"]['dapr']
+    except Exception as e:
+        handle_raw_exception(e)
+
+def disable_dapr(cmd, name, resource_group_name): 
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise CLIError("The containerapp '{}' does not exist".format(name))
+
+    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
+
+    containerapp_def['properties']['dapr']['enabled'] = False
+
+    try:
+        r = ContainerAppClient.create_or_update(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        return r["properties"]['dapr']
+    except Exception as e:
+        handle_raw_exception(e)
 

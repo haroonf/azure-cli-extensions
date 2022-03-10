@@ -87,3 +87,7 @@ def load_command_table(self, _):
         g.custom_command('show', 'show_secret')
         g.custom_command('delete', 'delete_secrets', exception_handler=ex_handler_factory())
         g.custom_command('set', 'set_secrets', exception_handler=ex_handler_factory())
+
+    with self.command_group('containerapp dapr') as g:
+        g.custom_command('enable', 'enable_dapr', exception_handler=ex_handler_factory())
+        g.custom_command('disable', 'disable_dapr', exception_handler=ex_handler_factory())
