@@ -90,7 +90,7 @@ helps['containerapp update'] = """
               --registry-password mypassword
     - name: Update a Containerapp using a specified startup command and arguments
       text: |
-          az containerapp create -n MyContainerapp -g MyResourceGroup \\
+          az containerapp update -n MyContainerapp -g MyResourceGroup \\
               --image MyContainerImage \\
               --command "/bin/sh"
               --args "-c", "while true; do echo hello; sleep 10;done"
@@ -413,4 +413,52 @@ helps['containerapp secret set'] = """
     - name: Update a Containerapp secret.
       text: |
           az containerapp secret set -n MyContainerapp -g MyResourceGroup --secrets MyExistingSecretName=MyNewSecretValue 
+"""
+
+helps['containerapp github-action add'] = """
+    type: command
+    short-summary: Adds GitHub Actions to the Containerapp
+    examples:
+    - name: Add GitHub Actions, using Azure Container Registry and personal access token.
+      text: az containerapp github-action add -g MyResourceGroup -n MyContainerapp --repo-url https://github.com/userid/repo --branch main
+          --registry-url myregistryurl.azurecr.io
+          --service-principal-client-id 00000000-0000-0000-0000-00000000
+          --service-principal-tenant-id 00000000-0000-0000-0000-00000000
+          --service-principal-client-secret ClientSecret
+          --token MyAccessToken
+    - name: Add GitHub Actions, using Azure Container Registry and log in to GitHub flow to retrieve personal access token.
+      text: az containerapp github-action add -g MyResourceGroup -n MyContainerapp --repo-url https://github.com/userid/repo --branch main
+          --registry-url myregistryurl.azurecr.io
+          --service-principal-client-id 00000000-0000-0000-0000-00000000
+          --service-principal-tenant-id 00000000-0000-0000-0000-00000000
+          --service-principal-client-secret ClientSecret
+          --login-with-github
+    - name: Add GitHub Actions, using Dockerhub and log in to GitHub flow to retrieve personal access token.
+      text: az containerapp github-action add -g MyResourceGroup -n MyContainerapp --repo-url https://github.com/userid/repo --branch main
+          --registry-username MyUsername
+          --registry-password MyPassword
+          --service-principal-client-id 00000000-0000-0000-0000-00000000
+          --service-principal-tenant-id 00000000-0000-0000-0000-00000000
+          --service-principal-client-secret ClientSecret
+          --login-with-github
+"""
+
+helps['containerapp github-action delete'] = """
+    type: command
+    short-summary: Removes GitHub Actions from the Containerapp
+    examples:
+    - name: Removes GitHub Actions, personal access token.
+      text: az containerapp github-action delete -g MyResourceGroup -n MyContainerapp
+          --token MyAccessToken
+    - name: Removes GitHub Actions, using log in to GitHub flow to retrieve personal access token.
+      text: az containerapp github-action delete -g MyResourceGroup -n MyContainerapp
+          --login-with-github
+"""
+
+helps['containerapp github-action show'] = """
+    type: command
+    short-summary: Show the GitHub Actions configuration on a Containerapp
+    examples:
+    - name: Show the GitHub Actions configuration on a Containerapp
+      text: az containerapp github-action show -g MyResourceGroup -n MyContainerapp
 """

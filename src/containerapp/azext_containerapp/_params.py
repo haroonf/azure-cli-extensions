@@ -26,7 +26,7 @@ def load_arguments(self, _):
 
     with self.argument_context('containerapp') as c:
         c.argument('tags', arg_type=tags_type)
-        c.argument('managed_env', validator=validate_managed_env_name_or_id, options_list=['--environment', '-e'], help="Name or resource ID of the containerapp's environment.")
+        c.argument('managed_env', validator=validate_managed_env_name_or_id, options_list=['--environment'], help="Name or resource ID of the containerapp's environment.")
         c.argument('yaml', type=file_type, help='Path to a .yaml file with the configuration of a containerapp. All other parameters will be ignored')
 
     # Container
@@ -35,7 +35,7 @@ def load_arguments(self, _):
         c.argument('image_name', type=str, options_list=['--image-name'], help="Name of the Container image.")
         c.argument('cpu', type=float, validator=validate_cpu, options_list=['--cpu'], help="Required CPU in cores, e.g. 0.5")
         c.argument('memory', type=str, validator=validate_memory, options_list=['--memory'], help="Required memory, e.g. 1.0Gi")
-        c.argument('env_vars', nargs='*', options_list=['--environment-variables'], help="A list of environment variable(s) for the containerapp. Space-separated values in 'key=value' format.")
+        c.argument('env_vars', nargs='*', options_list=['--env-vars', '--environment-variables'], help="A list of environment variable(s) for the containerapp. Space-separated values in 'key=value' format. Empty string to clear existing values")
         c.argument('startup_command', nargs='*', options_list=['--command'], help="A list of supported commands on the container app that will executed during container startup. Space-separated values e.g. \"/bin/queue\" \"mycommand\". Empty string to clear existing values")
         c.argument('args', nargs='*', options_list=['--args'], help="A list of container startup command argument(s). Space-separated values e.g. \"-c\" \"mycommand\". Empty string to clear existing values")
         c.argument('revision_suffix', type=str, options_list=['--revision-suffix'], help='User friendly suffix that is appended to the revision name')
@@ -56,7 +56,7 @@ def load_arguments(self, _):
     # Configuration
     with self.argument_context('containerapp', arg_group='Configuration') as c:
         c.argument('revisions_mode', arg_type=get_enum_type(['single', 'multiple']), options_list=['--revisions-mode'], help="The active revisions mode for the containerapp.")
-        c.argument('registry_server', type=str, validator=validate_registry_server, options_list=['--registry-login-server'], help="The url of the registry, e.g. myregistry.azurecr.io")
+        c.argument('registry_server', type=str, validator=validate_registry_server, options_list=['--registry-server', '--registry-login-server'], help="The url of the registry, e.g. myregistry.azurecr.io")
         c.argument('registry_pass', type=str, validator=validate_registry_pass, options_list=['--registry-password'], help="The password to log in container image registry server. If stored as a secret, value must start with \'secretref:\' followed by the secret name.")
         c.argument('registry_user', type=str, validator=validate_registry_user, options_list=['--registry-username'], help="The username to log in container image registry server")
         c.argument('secrets', nargs='*', options_list=['--secrets', '-s'], help="A list of secret(s) for the containerapp. Space-separated values in 'key=value' format.")
@@ -103,6 +103,23 @@ def load_arguments(self, _):
     with self.argument_context('containerapp env show') as c:
         c.argument('name', name_type, help='Name of the managed Environment.')
 
+    with self.argument_context('containerapp github-action add') as c:
+        c.argument('repo_url', help='The GitHub repository to which the workflow file will be added. In the format: https://github.com/<owner>/<repository-name>')
+        c.argument('token', help='A Personal Access Token with write access to the specified repository. For more information: https://help.github.com/en/github/authenticating-to-github/creating-a-personal-access-token-for-the-command-line')
+        c.argument('branch', options_list=['--branch', '-b'], help='The branch of the GitHub repo. Defaults to "master" if not specified.')
+        c.argument('login_with_github', help='Interactively log in with Github to retrieve the Personal Access Token')
+        c.argument('registry_url', help='The url of the registry, e.g. myregistry.azurecr.io')
+        c.argument('registry_username', help='The username of the registry. If using Azure Container Registry, we will try to infer the credentials if not supplied')
+        c.argument('registry_password', help='The password of the registry. If using Azure Container Registry, we will try to infer the credentials if not supplied')
+        c.argument('docker_file_path', help='The dockerfile location, e.g. ./Dockerfile')
+        c.argument('service_principal_client_id', help='The service principal client ID. ')
+        c.argument('service_principal_client_secret', help='The service principal client secret.')
+        c.argument('service_principal_tenant_id', help='The service principal tenant ID.')
+
+    with self.argument_context('containerapp github-action delete') as c:
+        c.argument('token', help='A Personal Access Token with write access to the specified repository. For more information: https://help.github.com/en/github/authenticating-to-github/creating-a-personal-access-token-for-the-command-line')
+        c.argument('login_with_github', help='Interactively log in with Github to retrieve the Personal Access Token')
+        
     with self.argument_context('containerapp revision') as c:
         c.argument('revision_name', options_list=['--revision'], type=str, help='Name of the revision.')
 
