@@ -333,8 +333,6 @@ def create_containerapp(cmd,
                         tags=None,
                         no_wait=False,
                         assign_identity=[]):
-    location = location or _get_location_from_resource_group(cmd.cli_ctx, resource_group_name)
-
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     if yaml:
