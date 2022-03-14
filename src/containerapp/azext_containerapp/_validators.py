@@ -7,21 +7,6 @@ from unicodedata import name
 from azure.cli.core.azclierror import (ValidationError, RequiredArgumentMissingError)
 
 
-def example_name_or_id_validator(cmd, namespace):
-    # Example of a storage account name or ID validator.
-    # See: https://github.com/Azure/azure-cli/blob/dev/doc/authoring_command_modules/authoring_commands.md#supporting-name-or-id-parameters
-    from azure.cli.core.commands.client_factory import get_subscription_id
-    from msrestazure.tools import is_valid_resource_id, resource_id
-    if namespace.storage_account:
-        if not is_valid_resource_id(namespace.RESOURCE):
-            namespace.storage_account = resource_id(
-                subscription=get_subscription_id(cmd.cli_ctx),
-                resource_group=namespace.resource_group_name,
-                namespace='Microsoft.Storage',
-                type='storageAccounts',
-                name=namespace.storage_account
-            )
-
 def _is_number(s):
     try:
         float(s)
@@ -67,19 +52,20 @@ def validate_registry_server(namespace):
     if "create" in namespace.command.lower():
         if namespace.registry_server:
             if not namespace.registry_user or not namespace.registry_pass:
-                raise ValidationError("Usage error: --registry-login-server, --registry-password and --registry-username are required together")
+                if ".azurecr.io" not in namespace.registry_server:
+                    raise ValidationError("Usage error: --registry-server, --registry-password and --registry-username are required together if not using Azure Container Registry")
 
 def validate_registry_user(namespace):
     if "create" in namespace.command.lower():
         if namespace.registry_user:
-            if not namespace.registry_server or not namespace.registry_pass:
-                raise ValidationError("Usage error: --registry-login-server, --registry-password and --registry-username are required together")
+            if not namespace.registry_server or (not namespace.registry_pass and ".azurecr.io" not in namespace.registry_server):
+                raise ValidationError("Usage error: --registry-server, --registry-password and --registry-username are required together if not using Azure Container Registry")
 
 def validate_registry_pass(namespace):
     if "create" in namespace.command.lower():
         if namespace.registry_pass:
-            if not namespace.registry_user or not namespace.registry_server:
-                raise ValidationError("Usage error: --registry-login-server, --registry-password and --registry-username are required together")
+            if not namespace.registry_server or (not namespace.registry_user and ".azurecr.io" not in namespace.registry_server):
+                raise ValidationError("Usage error: --registry-server, --registry-password and --registry-username are required together if not using Azure Container Registry")
 
 def validate_target_port(namespace):
     if "create" in namespace.command.lower():

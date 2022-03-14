@@ -4,7 +4,9 @@
 # --------------------------------------------------------------------------------------------
 
 from distutils.filelist import findall
-from azure.cli.core.azclierror import (ResourceNotFoundError, ValidationError)
+from operator import is_
+from azure.cli.command_modules.appservice.custom import (_get_acr_cred)
+from azure.cli.core.azclierror import (ResourceNotFoundError, ValidationError, RequiredArgumentMissingError)
 from azure.cli.core.commands.client_factory import get_subscription_id
 from knack.log import get_logger
 from msrestazure.tools import parse_resource_id
@@ -22,15 +24,18 @@ def _get_location_from_resource_group(cli_ctx, resource_group_name):
     return group.location
 
 
-def _validate_subscription_registered(cmd, resource_provider):
+def _validate_subscription_registered(cmd, resource_provider, subscription_id=None):
     providers_client = None
+    if not subscription_id:
+        subscription_id = get_subscription_id(cmd.cli_ctx)
+
     try:
-        providers_client = providers_client_factory(cmd.cli_ctx, get_subscription_id(cmd.cli_ctx))
+        providers_client = providers_client_factory(cmd.cli_ctx, subscription_id)
         registration_state = getattr(providers_client.get(resource_provider), 'registration_state', "NotRegistered")
 
         if not (registration_state and registration_state.lower() == 'registered'):
-            raise ValidationError('Subscription is not registered for the {} resource provider. Please run \"az provider register -n {} --wait\" to register your subscription.'.format(
-                resource_provider, resource_provider))
+            raise ValidationError('Subscription {} is not registered for the {} resource provider. Please run \"az provider register -n {} --wait\" to register your subscription.'.format(
+                subscription_id, resource_provider, resource_provider))
     except ValidationError as ex:
         raise ex
     except Exception:
@@ -61,16 +66,15 @@ def _ensure_location_allowed(cmd, location, resource_provider, resource_type):
         pass
 
 
-def parse_env_var_flags(env_string, is_update_containerapp=False):
-    env_pair_strings = env_string.split(',')
+def parse_env_var_flags(env_list, is_update_containerapp=False):
     env_pairs = {}
 
-    for pair in env_pair_strings:
+    for pair in env_list:
         key_val = pair.split('=', 1)
         if len(key_val) != 2:
             if is_update_containerapp:
-                raise ValidationError("Environment variables must be in the format \"<key>=<value>,<key>=secretref:<value>,...\". If you are updating a Containerapp, did you pass in the flag \"--environment\"? Updating a containerapp environment is not supported, please re-run the command without this flag.")
-            raise ValidationError("Environment variables must be in the format \"<key>=<value>,<key>=secretref:<value>,...\".")
+                raise ValidationError("Environment variables must be in the format \"<key>=<value>\" \"<key>=secretref:<value>\" ...\".")
+            raise ValidationError("Environment variables must be in the format \"<key>=<value>\" \"<key>=secretref:<value>\" ...\".")
         if key_val[0] in env_pairs:
             raise ValidationError("Duplicate environment variable {env} found, environment variable names must be unique.".format(env = key_val[0]))
         value = key_val[1].split('secretref:')
@@ -92,11 +96,10 @@ def parse_env_var_flags(env_string, is_update_containerapp=False):
     return env_var_def
 
 
-def parse_secret_flags(secret_string):
-    secret_pair_strings = secret_string.split(',')
+def parse_secret_flags(secret_list):
     secret_pairs = {}
 
-    for pair in secret_pair_strings:
+    for pair in secret_list:
         key_val = pair.split('=', 1)
         if len(key_val) != 2:
             raise ValidationError("--secrets: must be in format \"<key>=<value>,<key>=<value>,...\"")
@@ -157,6 +160,12 @@ def parse_list_of_strings(comma_separated_string):
     comma_separated = comma_separated_string.split(',')
     return [s.strip() for s in comma_separated]
 
+def raise_missing_token_suggestion():
+    pat_documentation = "https://help.github.com/en/articles/creating-a-personal-access-token-for-the-command-line"
+    raise RequiredArgumentMissingError("GitHub access token is required to authenticate to your repositories. "
+                                       "If you need to create a Github Personal Access Token, "
+                                       "please run with the '--login-with-github' flag or follow "
+                                       "the steps found at the following link:\n{0}".format(pat_documentation))
 
 def _get_default_log_analytics_location(cmd):
     default_location = "eastus"
@@ -285,3 +294,195 @@ def _ensure_identity_resource_id(subscription_id, resource_group, resource):
                        namespace='Microsoft.ManagedIdentity',
                        type='userAssignedIdentities',
                        name=resource)
+
+def _add_or_update_secrets(containerapp_def, add_secrets):
+    if "secrets" not in containerapp_def["properties"]["configuration"]:
+        containerapp_def["properties"]["configuration"]["secrets"] = []
+
+    for new_secret in add_secrets:
+        is_existing = False
+        for existing_secret in containerapp_def["properties"]["configuration"]["secrets"]:
+            if existing_secret["name"].lower() == new_secret["name"].lower():
+                is_existing = True
+                existing_secret["value"] = new_secret["value"]
+                break
+        
+        if not is_existing:
+            containerapp_def["properties"]["configuration"]["secrets"].append(new_secret)
+
+def _remove_registry_secret(containerapp_def, server, username):
+    if (urlparse(server).hostname is not None):
+        registry_secret_name = "{server}-{user}".format(server=urlparse(server).hostname.replace('.', ''), user=username.lower())
+    else:
+        registry_secret_name = "{server}-{user}".format(server=server.replace('.', ''), user=username.lower())
+        
+    _remove_secret(containerapp_def, secret_name=registry_secret_name)
+
+def _remove_secret(containerapp_def, secret_name):
+    if "secrets" not in containerapp_def["properties"]["configuration"]:
+        containerapp_def["properties"]["configuration"]["secrets"] = []
+
+    for i in range(0, len(containerapp_def["properties"]["configuration"]["secrets"])):
+        existing_secret = containerapp_def["properties"]["configuration"]["secrets"][i]
+        if existing_secret["name"].lower() == secret_name.lower():
+            containerapp_def["properties"]["configuration"]["secrets"].pop(i)
+            break
+
+def _add_or_update_env_vars(existing_env_vars, new_env_vars):
+    for new_env_var in new_env_vars:
+
+        # Check if updating existing env var
+        is_existing = False
+        for existing_env_var in existing_env_vars:
+            if existing_env_var["name"].lower() == new_env_var["name"].lower():
+                is_existing = True
+
+                if "value" in new_env_var:
+                    existing_env_var["value"] = new_env_var["value"]
+                else:
+                    existing_env_var["value"] = None
+
+                if "secretRef" in new_env_var:
+                    existing_env_var["secretRef"] = new_env_var["secretRef"]
+                else:
+                    existing_env_var["secretRef"] = None
+                break
+
+        # If not updating existing env var, add it as a new env var
+        if not is_existing:
+            existing_env_vars.append(new_env_var)
+
+
+def _add_or_update_tags(containerapp_def, tags):
+    if 'tags' not in containerapp_def:
+        if tags:
+            containerapp_def['tags'] = tags
+        else:
+            containerapp_def['tags'] = {}
+    else:
+        for key in tags:
+            containerapp_def['tags'][key] = tags[key]
+
+
+def _object_to_dict(obj):
+    import json
+    return json.loads(json.dumps(obj, default=lambda o: o.__dict__))
+
+
+def _to_camel_case(snake_str):
+    components = snake_str.split('_')
+    return components[0] + ''.join(x.title() for x in components[1:])
+
+
+def _convert_object_from_snake_to_camel_case(o):
+    if isinstance(o, list):
+        return [_convert_object_from_snake_to_camel_case(i) if isinstance(i, (dict, list)) else i for i in o]
+    return {
+        _to_camel_case(a): _convert_object_from_snake_to_camel_case(b) if isinstance(b, (dict, list)) else b for a, b in o.items()
+    }
+
+
+def _remove_additional_attributes(o):
+    if isinstance(o, list):
+        for i in o:
+            _remove_additional_attributes(i)
+    elif isinstance(o, dict):
+        if "additionalProperties" in o:
+            del o["additionalProperties"]
+
+        for key in o:
+            _remove_additional_attributes(o[key])
+
+
+def _remove_readonly_attributes(containerapp_def):
+    unneeded_properties = [
+        "id",
+        "name",
+        "type",
+        "systemData",
+        "provisioningState",
+        "latestRevisionName",
+        "latestRevisionFqdn",
+        "customDomainVerificationId",
+        "outboundIpAddresses",
+        "fqdn"
+    ]
+
+    for unneeded_property in unneeded_properties:
+        if unneeded_property in containerapp_def:
+            del containerapp_def[unneeded_property]
+        elif unneeded_property in containerapp_def['properties']:
+            del containerapp_def['properties'][unneeded_property]
+
+
+def update_nested_dictionary(orig_dict, new_dict):
+    # Recursively update a nested dictionary. If the value is a list, replace the old list with new list
+    import collections
+
+    for key, val in new_dict.items():
+        if isinstance(val, collections.Mapping):
+            tmp = update_nested_dictionary(orig_dict.get(key, { }), val)
+            orig_dict[key] = tmp
+        elif isinstance(val, list):
+            if new_dict[key]:
+                orig_dict[key] = new_dict[key]
+        else:
+            if new_dict[key] is not None:
+                orig_dict[key] = new_dict[key]
+    return orig_dict
+
+
+def _is_valid_weight(weight):
+    try:
+        n = int(weight)
+        if n >= 0 and n <= 100:
+            return True
+        return False
+    except ValueError:
+        return False
+
+
+def _update_traffic_Weights(containerapp_def, list_weights):
+    if "traffic" not in containerapp_def["properties"]["configuration"]["ingress"] or list_weights and len(list_weights):
+        containerapp_def["properties"]["configuration"]["ingress"]["traffic"] = []
+
+    for new_weight in list_weights:
+        key_val = new_weight.split('=', 1)
+        is_existing = False
+
+        if len(key_val) != 2:
+            raise ValidationError('Traffic weights must be in format \"<revision>=weight <revision2>=<weigh2> ...\"')
+
+        if not _is_valid_weight(key_val[1]):
+            raise ValidationError('Traffic weights must be integers between 0 and 100')
+
+        if not is_existing:
+            containerapp_def["properties"]["configuration"]["ingress"]["traffic"].append({
+                "revisionName": key_val[0],
+                "weight": int(key_val[1])
+            })
+
+
+def _get_app_from_revision(revision):
+    if not revision:
+        raise ValidationError('Invalid revision. Revision must not be empty')
+
+    revision = revision.split('--')
+    revision.pop()
+    revision = "--".join(revision)
+    return revision
+
+
+def _infer_acr_credentials(cmd, registry_server):
+    # If registry is Azure Container Registry, we can try inferring credentials
+    if '.azurecr.io' not in registry_server:
+        raise RequiredArgumentMissingError('Registry url is required if using Azure Container Registry, otherwise Registry username and password are required.')
+    logger.warning('No credential was provided to access Azure Container Registry. Trying to look up credentials...')
+    parsed = urlparse(registry_server)
+    registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
+
+    try:
+        registry_user, registry_pass = _get_acr_cred(cmd.cli_ctx, registry_name)
+        return (registry_user, registry_pass)
+    except Exception as ex:
+        raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry {}. Please provide the registry username and password'.format(registry_name))
