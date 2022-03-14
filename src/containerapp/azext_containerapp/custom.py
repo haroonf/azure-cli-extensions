@@ -14,7 +14,7 @@ from azure.cli.command_modules.appservice.custom import _get_acr_cred
 from urllib.parse import urlparse
 
 from ._client_factory import handle_raw_exception
-from ._clients import ManagedEnvironmentClient, ContainerAppClient
+from ._clients import ManagedEnvironmentClient, ContainerAppClient, DaprComponentClient
 from ._sdk_models import *
 from ._models import (
     ManagedEnvironment as ManagedEnvironmentModel,
@@ -35,7 +35,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                     _generate_log_analytics_if_not_provided, _get_existing_secrets, _convert_object_from_snake_to_camel_case,
                     _object_to_dict, _add_or_update_secrets, _remove_additional_attributes, _remove_readonly_attributes,
                     _add_or_update_env_vars, _add_or_update_tags, update_nested_dictionary, _update_traffic_Weights,
-                    _get_app_from_revision, _remove_registry_secret, _remove_secret)
+                    _get_app_from_revision, _remove_registry_secret, _remove_secret, _remove_dapr_readonly_attributes)
 
 logger = get_logger(__name__)
 
@@ -1539,7 +1539,7 @@ def set_secrets(cmd, name, resource_group_name, secrets,
     except Exception as e:
         handle_raw_exception(e)
 
-def enable_dapr(cmd, name, resource_group_name, dapr_app_id=None, dapr_app_port=None, dapr_app_protocol=None):
+def enable_dapr(cmd, name, resource_group_name, dapr_app_id=None, dapr_app_port=None, dapr_app_protocol=None, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     containerapp_def = None
@@ -1574,7 +1574,7 @@ def enable_dapr(cmd, name, resource_group_name, dapr_app_id=None, dapr_app_port=
     except Exception as e:
         handle_raw_exception(e)
 
-def disable_dapr(cmd, name, resource_group_name): 
+def disable_dapr(cmd, name, resource_group_name, no_wait=False): 
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     containerapp_def = None
@@ -1597,3 +1597,76 @@ def disable_dapr(cmd, name, resource_group_name):
     except Exception as e:
         handle_raw_exception(e)
 
+def list_dapr_components(cmd, resource_group_name, environment_name):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    return DaprComponentClient.list(cmd, resource_group_name, environment_name)
+
+def show_dapr_component(cmd, resource_group_name, dapr_component_name, environment_name):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    return DaprComponentClient.show(cmd, resource_group_name, environment_name, name=dapr_component_name)
+
+def create_or_update_dapr_component(cmd, resource_group_name, environment_name, name, yaml):
+
+    yaml_containerapp = load_yaml_file(yaml)
+    if type(yaml_containerapp) != dict:
+        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
+
+    # Deserialize the yaml into a DaprComponent object. Need this since we're not using SDK
+    daprcomponent_def = None
+    try:
+        deserializer = create_deserializer()
+
+        daprcomponent_def = deserializer('DaprComponent', yaml_containerapp)
+    except DeserializationError as ex:
+        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
+
+    #daprcomponent_def = _object_to_dict(daprcomponent_def)
+    daprcomponent_def = _convert_object_from_snake_to_camel_case(_object_to_dict(daprcomponent_def))
+
+    # Remove "additionalProperties" and read-only attributes that are introduced in the deserialization. Need this since we're not using SDK
+    _remove_additional_attributes(daprcomponent_def)
+    _remove_dapr_readonly_attributes(daprcomponent_def)
+
+    if not daprcomponent_def["ignoreErrors"]:
+        daprcomponent_def["ignoreErrors"] = False
+
+    dapr_component_envelope = {}
+
+    dapr_component_envelope["properties"] = daprcomponent_def
+
+    # r = DaprComponentClient.create_or_update(cmd, resource_group_name, environment_name, name, dapr_component_envelope)
+    # return r
+
+    try:
+        r = DaprComponentClient.create_or_update(cmd, resource_group_name, environment_name, name, dapr_component_envelope)
+        return r
+    except Exception as e:
+        handle_raw_exception(e)
+
+    # secrets
+    # metadata
+    # scopes (containerapps)
+
+def delete_dapr_component(cmd, resource_group_name, dapr_component_name, environment_name):
+    delete.metadata = {'url': '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.App/managedEnvironments/{environmentName}/daprComponents/{name}'}
+
+
+# DaprComponent = {
+#     "properties": {
+#         "componentType": None, #String
+#         "version": None,
+#         "ignoreErrors": None, 
+#         "initTimeout": None,
+#         "secrets": None,
+#         "metadata": None,
+#         "scopes": None
+#     }
+# }
+
+# DaprMetadata = {
+#     "key": None, #str
+#     "value": None, #str
+#     "secret_ref": None #str
+# }

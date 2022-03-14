@@ -91,3 +91,7 @@ def load_command_table(self, _):
     with self.command_group('containerapp dapr') as g:
         g.custom_command('enable', 'enable_dapr', exception_handler=ex_handler_factory())
         g.custom_command('disable', 'disable_dapr', exception_handler=ex_handler_factory())
+        g.custom_command('list', 'list_dapr_components')
+        g.custom_command('show', 'show_dapr_component')
+        g.custom_command('set', 'create_or_update_dapr_component')
+
