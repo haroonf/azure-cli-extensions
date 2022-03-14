@@ -1607,7 +1607,8 @@ def show_dapr_component(cmd, resource_group_name, dapr_component_name, environme
 
     return DaprComponentClient.show(cmd, resource_group_name, environment_name, name=dapr_component_name)
 
-def create_or_update_dapr_component(cmd, resource_group_name, environment_name, name, yaml):
+def create_or_update_dapr_component(cmd, resource_group_name, environment_name, dapr_component_name, yaml):
+    _validate_subscription_registered(cmd, "Microsoft.App")
 
     yaml_containerapp = load_yaml_file(yaml)
     if type(yaml_containerapp) != dict:
@@ -1636,37 +1637,24 @@ def create_or_update_dapr_component(cmd, resource_group_name, environment_name, 
 
     dapr_component_envelope["properties"] = daprcomponent_def
 
-    # r = DaprComponentClient.create_or_update(cmd, resource_group_name, environment_name, name, dapr_component_envelope)
-    # return r
-
     try:
-        r = DaprComponentClient.create_or_update(cmd, resource_group_name, environment_name, name, dapr_component_envelope)
+        r = DaprComponentClient.create_or_update(cmd, resource_group_name, environment_name, dapr_component_envelope, name=dapr_component_name)
         return r
     except Exception as e:
         handle_raw_exception(e)
 
-    # secrets
-    # metadata
-    # scopes (containerapps)
-
 def delete_dapr_component(cmd, resource_group_name, dapr_component_name, environment_name):
-    delete.metadata = {'url': '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.App/managedEnvironments/{environmentName}/daprComponents/{name}'}
+    _validate_subscription_registered(cmd, "Microsoft.App")
 
+    try: 
+        DaprComponentClient.show(cmd, resource_group_name, environment_name, name=dapr_component_name)
+    except:
+        raise CLIError("Dapr component not found.")
 
-# DaprComponent = {
-#     "properties": {
-#         "componentType": None, #String
-#         "version": None,
-#         "ignoreErrors": None, 
-#         "initTimeout": None,
-#         "secrets": None,
-#         "metadata": None,
-#         "scopes": None
-#     }
-# }
+    try:
+        r = DaprComponentClient.delete(cmd, resource_group_name, environment_name, name=dapr_component_name)
+        logger.warning("Dapr componenet successfully deleted.")
+        return r
+    except Exception as e:
+        handle_raw_exception(e)
 
-# DaprMetadata = {
-#     "key": None, #str
-#     "value": None, #str
-#     "secret_ref": None #str
-# }

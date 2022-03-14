@@ -526,7 +526,7 @@ class ManagedEnvironmentClient():
 
 class DaprComponentClient():
     @classmethod
-    def create_or_update(cls, cmd, resource_group_name, environemnt_name, name, dapr_component_envelope, no_wait=False):
+    def create_or_update(cls, cmd, resource_group_name, environment_name, name, dapr_component_envelope, no_wait=False):
         #create_or_update.metadata = {'url': '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.App/managedEnvironments/{environmentName}/daprComponents/{name}'}
 
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
@@ -537,7 +537,7 @@ class DaprComponentClient():
             management_hostname.strip('/'),
             sub_id,
             resource_group_name,
-            environemnt_name,
+            environment_name,
             name,
             api_version)
 
@@ -546,11 +546,12 @@ class DaprComponentClient():
         if no_wait:
             return r.json()
         elif r.status_code == 201:
-            url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.App/containerApps/{}?api-version={}"
+            url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.App/managedEnvironments/{}/daprComponents/{}?api-version={}"
             request_url = url_fmt.format(
                 management_hostname.strip('/'),
                 sub_id,
                 resource_group_name,
+                environment_name,
                 name,
                 api_version)
             return poll(cmd, request_url, "inprogress")
@@ -558,15 +559,16 @@ class DaprComponentClient():
         return r.json()
 
     @classmethod
-    def delete(cls, cmd, resource_group_name, name, no_wait=False):
+    def delete(cls, cmd, resource_group_name, environment_name, name, no_wait=False):
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
         api_version = NEW_API_VERSION
         sub_id = get_subscription_id(cmd.cli_ctx)
-        url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.App/containerApps/{}?api-version={}"
+        url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.App/managedEnvironments/{}/daprComponents/{}?api-version={}"
         request_url = url_fmt.format(
             management_hostname.strip('/'),
             sub_id,
             resource_group_name,
+            environment_name,
             name,
             api_version)
 
@@ -575,11 +577,12 @@ class DaprComponentClient():
         if no_wait:
             return # API doesn't return JSON (it returns no content)
         elif r.status_code in [200, 201, 202, 204]:
-            url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.App/containerApps/{}?api-version={}"
+            url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.App/managedEnvironments/{}/daprComponents/{}?api-version={}"
             request_url = url_fmt.format(
                 management_hostname.strip('/'),
                 sub_id,
                 resource_group_name,
+                environment_name,
                 name,
                 api_version)
 
@@ -589,7 +592,7 @@ class DaprComponentClient():
                     poll(cmd, request_url, "cancelled")
                 except ResourceNotFoundError:
                     pass
-                logger.warning('Containerapp successfully deleted')
+                logger.warning('Dapr component successfully deleted')
         return
 
     @classmethod
