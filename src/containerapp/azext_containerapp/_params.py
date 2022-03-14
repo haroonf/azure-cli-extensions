@@ -128,3 +128,5 @@ def load_arguments(self, _):
         c.argument('dapr_app_id', help="The dapr app id.")
         c.argument('dapr_app_port', help="The port of your app.")
         c.argument('dapr_app_protocol', help="Tells Dapr which protocol your application is using.  Allowed values: grpc, http.")
+        c.argument('dapr_component_name', help="The dapr component name.")
+        c.argument('environment_name', help="The dapr component environment name.")
