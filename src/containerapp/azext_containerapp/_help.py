@@ -527,11 +527,11 @@ helps['containerapp dapr set'] = """
           az containerapp dapr set -g MyResourceGroup --environment-name MyEnv --yaml MyYAMLPath --name MyDaprName
 """
 
-helps['containerapp dapr delete'] = """
+helps['containerapp dapr remove'] = """
     type: command
-    short-summary: Delete a dapr componenet from a Containerapp.
+    short-summary: Remove a dapr componenet from a Containerapp environment.
     examples:
-    - name: Delete a dapr componenet from a Containerapp.
+    - name: Remove a dapr componenet from a Containerapp environment.
       text: |
           az containerapp dapr delete -g MyResourceGroup --dapr-component-name MyDaprComponenetName --environment-name MyEnvironment
 """

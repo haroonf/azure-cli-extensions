@@ -106,5 +106,5 @@ def load_command_table(self, _):
         g.custom_command('list', 'list_dapr_components')
         g.custom_command('show', 'show_dapr_component')
         g.custom_command('set', 'create_or_update_dapr_component')
-        g.custom_command('delete', 'delete_dapr_component')
+        g.custom_command('remove', 'remove_dapr_component')
 

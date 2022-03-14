@@ -2053,7 +2053,7 @@ def create_or_update_dapr_component(cmd, resource_group_name, environment_name, 
     except Exception as e:
         handle_raw_exception(e)
 
-def delete_dapr_component(cmd, resource_group_name, dapr_component_name, environment_name):
+def remove_dapr_component(cmd, resource_group_name, dapr_component_name, environment_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     try: 
