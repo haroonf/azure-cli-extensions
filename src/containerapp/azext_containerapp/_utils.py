@@ -5,7 +5,8 @@
 
 from distutils.filelist import findall
 from operator import is_
-from azure.cli.core.azclierror import (ResourceNotFoundError, ValidationError)
+from azure.cli.command_modules.appservice.custom import (_get_acr_cred)
+from azure.cli.core.azclierror import (ResourceNotFoundError, ValidationError, RequiredArgumentMissingError)
 from azure.cli.core.commands.client_factory import get_subscription_id
 from knack.log import get_logger
 from msrestazure.tools import parse_resource_id
@@ -72,8 +73,8 @@ def parse_env_var_flags(env_list, is_update_containerapp=False):
         key_val = pair.split('=', 1)
         if len(key_val) != 2:
             if is_update_containerapp:
-                raise ValidationError("Environment variables must be in the format \"<key>=<value>,<key>=secretref:<value>,...\". If you are updating a Containerapp, did you pass in the flag \"--environment\"? Updating a containerapp environment is not supported, please re-run the command without this flag.")
-            raise ValidationError("Environment variables must be in the format \"<key>=<value>,<key>=secretref:<value>,...\".")
+                raise ValidationError("Environment variables must be in the format \"<key>=<value>\" \"<key>=secretref:<value>\" ...\".")
+            raise ValidationError("Environment variables must be in the format \"<key>=<value>\" \"<key>=secretref:<value>\" ...\".")
         if key_val[0] in env_pairs:
             raise ValidationError("Duplicate environment variable {env} found, environment variable names must be unique.".format(env = key_val[0]))
         value = key_val[1].split('secretref:')
@@ -159,6 +160,12 @@ def parse_list_of_strings(comma_separated_string):
     comma_separated = comma_separated_string.split(',')
     return [s.strip() for s in comma_separated]
 
+def raise_missing_token_suggestion():
+    pat_documentation = "https://help.github.com/en/articles/creating-a-personal-access-token-for-the-command-line"
+    raise RequiredArgumentMissingError("GitHub access token is required to authenticate to your repositories. "
+                                       "If you need to create a Github Personal Access Token, "
+                                       "please run with the '--login-with-github' flag or follow "
+                                       "the steps found at the following link:\n{0}".format(pat_documentation))
 
 def _get_default_log_analytics_location(cmd):
     default_location = "eastus"
@@ -277,6 +284,16 @@ def _get_existing_secrets(cmd, resource_group_name, name, containerapp_def):
 
         containerapp_def["properties"]["configuration"]["secrets"] = secrets["value"]
 
+def _ensure_identity_resource_id(subscription_id, resource_group, resource):
+    from msrestazure.tools import resource_id, is_valid_resource_id
+    if is_valid_resource_id(resource):
+        return resource
+
+    return resource_id(subscription=subscription_id,
+                       resource_group=resource_group,
+                       namespace='Microsoft.ManagedIdentity',
+                       type='userAssignedIdentities',
+                       name=resource)
 
 def _add_or_update_secrets(containerapp_def, add_secrets):
     if "secrets" not in containerapp_def["properties"]["configuration"]:
@@ -471,3 +488,18 @@ def _get_app_from_revision(revision):
     revision.pop()
     revision = "--".join(revision)
     return revision
+
+
+def _infer_acr_credentials(cmd, registry_server):
+    # If registry is Azure Container Registry, we can try inferring credentials
+    if '.azurecr.io' not in registry_server:
+        raise RequiredArgumentMissingError('Registry url is required if using Azure Container Registry, otherwise Registry username and password are required.')
+    logger.warning('No credential was provided to access Azure Container Registry. Trying to look up credentials...')
+    parsed = urlparse(registry_server)
+    registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
+
+    try:
+        registry_user, registry_pass = _get_acr_cred(cmd.cli_ctx, registry_name)
+        return (registry_user, registry_pass)
+    except Exception as ex:
+        raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry {}. Please provide the registry username and password'.format(registry_name))
