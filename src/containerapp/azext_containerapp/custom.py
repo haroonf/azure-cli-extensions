@@ -1326,7 +1326,10 @@ def copy_revision(cmd,
                   container_name=None,
                   min_replicas=None,
                   max_replicas=None,
-                  env_vars=None,
+                  set_env_vars=None,
+                  replace_env_vars=None,
+                  remove_env_vars=None,
+                  remove_all_env_vars=False,
                   cpu=None,
                   memory=None,
                   revision_suffix=None,
@@ -1341,7 +1344,8 @@ def copy_revision(cmd,
 
     if yaml:
         if image or min_replicas or max_replicas or\
-            env_vars or cpu or memory or \
+            set_env_vars or replace_env_vars or remove_env_vars or \
+            remove_all_env_vars or cpu or memory or \
             startup_command or args or tags:
             logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
         return update_containerapp_yaml(cmd=cmd, name=name, resource_group_name=resource_group_name, file_name=yaml, from_revision=from_revision, no_wait=no_wait)
@@ -1373,7 +1377,7 @@ def copy_revision(cmd,
 
     update_map = {}
     update_map['scale'] = min_replicas or max_replicas
-    update_map['container'] = image or container_name or env_vars or cpu or memory or startup_command is not None or args is not None
+    update_map['container'] = image or container_name or set_env_vars or replace_env_vars or remove_env_vars or remove_all_env_vars or cpu or memory or startup_command is not None or args is not None
 
     if tags:
         _add_or_update_tags(containerapp_def, tags)
@@ -1397,10 +1401,28 @@ def copy_revision(cmd,
 
                 if image is not None:
                     c["image"] = image
-                if env_vars is not None:
+
+                if set_env_vars is not None:
                     if "env" not in c or not c["env"]:
                         c["env"] = []
-                    _add_or_update_env_vars(c["env"], parse_env_var_flags(env_vars))
+                    # env vars
+                    _add_or_update_env_vars(c["env"], parse_env_var_flags(set_env_vars), is_add=True)
+
+                if replace_env_vars is not None:
+                    if "env" not in c or not c["env"]:
+                        c["env"] = []
+                    # env vars
+                    _add_or_update_env_vars(c["env"], parse_env_var_flags(replace_env_vars))
+
+                if remove_env_vars is not None:
+                    if "env" not in c or not c["env"]:
+                        c["env"] = []
+                    # env vars
+                    _remove_env_vars(c["env"], remove_env_vars)
+
+                if remove_all_env_vars:
+                    c["env"] = []
+
                 if startup_command is not None:
                     if isinstance(startup_command, list) and not startup_command:
                         c["command"] = None
@@ -1437,8 +1459,22 @@ def copy_revision(cmd,
             container_def = ContainerModel
             container_def["name"] = container_name
             container_def["image"] = image
-            if env_vars is not None:
-                container_def["env"] = parse_env_var_flags(env_vars)
+
+            if set_env_vars is not None:
+                # env vars
+                _add_or_update_env_vars(container_def["env"], parse_env_var_flags(set_env_vars), is_add=True)
+
+            if replace_env_vars is not None:
+                # env vars
+                _add_or_update_env_vars(container_def["env"], parse_env_var_flags(replace_env_vars))
+
+            if remove_env_vars is not None:
+                # env vars
+                _remove_env_vars(container_def["env"], remove_env_vars)
+
+            if remove_all_env_vars:
+                container_def["env"] = []
+
             if startup_command is not None:
                 if isinstance(startup_command, list) and not startup_command:
                     container_def["command"] = None
