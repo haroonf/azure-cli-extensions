@@ -328,7 +328,7 @@ def _remove_secret(containerapp_def, secret_name):
             containerapp_def["properties"]["configuration"]["secrets"].pop(i)
             break
 
-def _add_or_update_env_vars(existing_env_vars, new_env_vars):
+def _add_or_update_env_vars(existing_env_vars, new_env_vars, is_add=False):
     for new_env_var in new_env_vars:
 
         # Check if updating existing env var
@@ -336,6 +336,8 @@ def _add_or_update_env_vars(existing_env_vars, new_env_vars):
         for existing_env_var in existing_env_vars:
             if existing_env_var["name"].lower() == new_env_var["name"].lower():
                 is_existing = True
+                if is_add:
+                    logger.warning("Env var {} already exists. Replacing env var value.".format(new_env_var["name"]))
 
                 if "value" in new_env_var:
                     existing_env_var["value"] = new_env_var["value"]
@@ -350,8 +352,25 @@ def _add_or_update_env_vars(existing_env_vars, new_env_vars):
 
         # If not updating existing env var, add it as a new env var
         if not is_existing:
+            if not is_add:
+                logger.warning("Env var {} does not exist. Adding as new env var.".format(new_env_var["name"]))
             existing_env_vars.append(new_env_var)
 
+def _remove_env_vars(existing_env_vars, remove_env_vars):
+    for old_env_var in remove_env_vars:
+
+        # Check if updating existing env var
+        is_existing = False
+        for i in range(0, len(existing_env_vars)):
+            existing_env_var = existing_env_vars[i]
+            if existing_env_var["name"].lower() == old_env_var.lower():
+                is_existing = True
+                existing_env_vars.pop(i)
+                break
+
+        # If not updating existing env var, add it as a new env var
+        if not is_existing:
+            logger.warning("Env var {} does not exist.".format(old_env_var))
 
 def _add_or_update_tags(containerapp_def, tags):
     if 'tags' not in containerapp_def:

@@ -45,7 +45,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                     _object_to_dict, _add_or_update_secrets, _remove_additional_attributes, _remove_readonly_attributes,
                     _add_or_update_env_vars, _add_or_update_tags, update_nested_dictionary, _update_traffic_weights,
                     _get_app_from_revision, raise_missing_token_suggestion, _infer_acr_credentials, _remove_registry_secret, _remove_secret, 
-                    _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists)
+                    _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars)
 
 logger = get_logger(__name__)
 
@@ -497,7 +497,10 @@ def update_containerapp(cmd,
                         max_replicas=None,
                         revisions_mode=None,
                         secrets=None,
-                        env_vars=None,
+                        set_env_vars=None,
+                        remove_env_vars=None,
+                        replace_env_vars=None,
+                        remove_all_env_vars=False,
                         cpu=None,
                         memory=None,
                         registry_server=None,
@@ -512,7 +515,7 @@ def update_containerapp(cmd,
 
     if yaml:
         if image or min_replicas or max_replicas or\
-            revisions_mode or secrets or env_vars or cpu or memory or registry_server or\
+            revisions_mode or secrets or set_env_vars or remove_env_vars or replace_env_vars or remove_all_env_vars or cpu or memory or registry_server or\
             registry_user or registry_pass or\
             startup_command or args or tags:
             logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
@@ -539,7 +542,7 @@ def update_containerapp(cmd,
     update_map['secrets'] = secrets is not None
     update_map['registries'] = registry_server or registry_user or registry_pass
     update_map['scale'] = min_replicas or max_replicas
-    update_map['container'] = image or container_name or env_vars is not None or cpu or memory or startup_command is not None or args is not None
+    update_map['container'] = image or container_name or set_env_vars is not None or remove_env_vars is not None or replace_env_vars is not None or remove_all_env_vars or cpu or memory or startup_command is not None or args is not None
     update_map['configuration'] = update_map['secrets'] or update_map['registries'] or revisions_mode is not None
 
     if tags:
@@ -564,13 +567,28 @@ def update_containerapp(cmd,
 
                 if image is not None:
                     c["image"] = image
-                if env_vars is not None:
-                    if isinstance(env_vars, list) and not env_vars:
+
+                if set_env_vars is not None:
+                    if "env" not in c or not c["env"]:
                         c["env"] = []
-                    else:
-                        if "env" not in c or not c["env"]:
-                            c["env"] = []
-                        _add_or_update_env_vars(c["env"], parse_env_var_flags(env_vars))
+                    # env vars
+                    _add_or_update_env_vars(c["env"], parse_env_var_flags(set_env_vars), is_add=True)
+
+                if replace_env_vars is not None:
+                    if "env" not in c or not c["env"]:
+                        c["env"] = []
+                    # env vars
+                    _add_or_update_env_vars(c["env"], parse_env_var_flags(replace_env_vars))
+
+                if remove_env_vars is not None:
+                    if "env" not in c or not c["env"]:
+                        c["env"] = []
+                    # env vars
+                    _remove_env_vars(c["env"], remove_env_vars)
+
+                if remove_all_env_vars:
+                    c["env"] = []
+
                 if startup_command is not None:
                     if isinstance(startup_command, list) and not startup_command:
                         c["command"] = None
@@ -607,8 +625,23 @@ def update_containerapp(cmd,
             container_def = ContainerModel
             container_def["name"] = container_name
             container_def["image"] = image
-            if env_vars is not None:
-                container_def["env"] = parse_env_var_flags(env_vars)
+            container_def["env"] = []
+
+            if set_env_vars is not None:
+                # env vars
+                _add_or_update_env_vars(container_def["env"], parse_env_var_flags(set_env_vars), is_add=True)
+
+            if replace_env_vars is not None:
+                # env vars
+                _add_or_update_env_vars(container_def["env"], parse_env_var_flags(replace_env_vars))
+
+            if remove_env_vars is not None:
+                # env vars
+                _remove_env_vars(container_def["env"], remove_env_vars)
+
+            if remove_all_env_vars:
+                container_def["env"] = []
+
             if startup_command is not None:
                 if isinstance(startup_command, list) and not startup_command:
                     container_def["command"] = None

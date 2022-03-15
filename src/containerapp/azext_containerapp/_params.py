@@ -35,10 +35,15 @@ def load_arguments(self, _):
         c.argument('container_name', type=str, options_list=['--container-name'], help="Name of the container.")
         c.argument('cpu', type=float, validator=validate_cpu, options_list=['--cpu'], help="Required CPU in cores, e.g. 0.5")
         c.argument('memory', type=str, validator=validate_memory, options_list=['--memory'], help="Required memory, e.g. 1.0Gi")
-        c.argument('env_vars', nargs='*', options_list=['--env-vars'], help="A list of environment variable(s) for the container. Space-separated values in 'key=value' format. Empty string to clear existing values")
-        c.argument('startup_command', nargs='*', options_list=['--command'], help="A list of supported commands on the container that will executed during startup. Space-separated values e.g. \"/bin/queue\" \"mycommand\". Empty string to clear existing values")
         c.argument('args', nargs='*', options_list=['--args'], help="A list of container startup command argument(s). Space-separated values e.g. \"-c\" \"mycommand\". Empty string to clear existing values")
         c.argument('revision_suffix', type=str, options_list=['--revision-suffix'], help='User friendly suffix that is appended to the revision name')
+
+    # Env vars
+    with self.argument_context('containerapp', arg_group='Environment variables (Creates new revision)') as c:
+        c.argument('set_env_vars', options_list=['--set-env-vars, --env-vars'], nargs='*', help="A list of environment variable(s) to add to the container. Space-separated values in 'key=value' format. If stored as a secret, value must start with \'secretref:\' followed by the secret name.")
+        c.argument('remove_env_vars', nargs='*', help="A list of environment variable(s) to remove from container. Space-separated env var name values.")
+        c.argument('replace_env_vars', nargs='*', help="A list of environment variable(s) to replace from the container. Space-separated values in 'key=value' format. If stored as a secret, value must start with \'secretref:\' followed by the secret name.")
+        c.argument('remove_all_env_vars', help="Option to remove all environment variable(s) from the container.")
 
     # Scale
     with self.argument_context('containerapp', arg_group='Scale (Creates new revision)') as c:
