@@ -116,6 +116,12 @@ def parse_secret_flags(secret_list):
 
     return secret_var_def
 
+def _update_revision_env_secretrefs(containers, name):
+    for container in containers:
+        if "env" in container: 
+            for var in container["env"]:
+                if "secretRef" in var:
+                    var["secretRef"] = var["secretRef"].replace("{}-".format(name), "")
 
 def store_as_secret_and_return_secret_ref(secrets_list, registry_user, registry_server, registry_pass, update_existing_secret=False):
     if registry_pass.startswith("secretref:"):

@@ -45,7 +45,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                     _object_to_dict, _add_or_update_secrets, _remove_additional_attributes, _remove_readonly_attributes,
                     _add_or_update_env_vars, _add_or_update_tags, update_nested_dictionary, _update_traffic_weights,
                     _get_app_from_revision, raise_missing_token_suggestion, _infer_acr_credentials, _remove_registry_secret, _remove_secret, 
-                    _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars)
+                    _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars, _update_revision_env_secretrefs)
 
 logger = get_logger(__name__)
 
@@ -126,8 +126,10 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
             r = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=from_revision)
         except CLIError as e:
             handle_raw_exception(e)
+        
+        _update_revision_env_secretrefs(r["properties"]["template"]["containers"], name)
         current_containerapp_def["properties"]["template"] = r["properties"]["template"]
-
+    
     # Deserialize the yaml into a ContainerApp object. Need this since we're not using SDK
     try:
         deserializer = create_deserializer()
@@ -1339,9 +1341,6 @@ def copy_revision(cmd,
                   no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
-    if not from_revision:
-        from_revision = containerapp_def["properties"]["latestRevisionName"]
-
     if yaml:
         if image or min_replicas or max_replicas or\
             set_env_vars or replace_env_vars or remove_env_vars or \
@@ -1359,13 +1358,15 @@ def copy_revision(cmd,
     if not containerapp_def:
         raise CLIError("The containerapp '{}' does not exist".format(name))
 
-    try:
-        r = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=from_revision)
-    except CLIError as e:
-        # Error handle the case where revision not found?
-        handle_raw_exception(e)
+    if from_revision:
+        try:
+            r = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=from_revision)
+        except CLIError as e:
+            # Error handle the case where revision not found?
+            handle_raw_exception(e)
 
-    containerapp_def["properties"]["template"] = r["properties"]["template"]
+        _update_revision_env_secretrefs(r["properties"]["template"]["containers"], name)
+        containerapp_def["properties"]["template"] = r["properties"]["template"]
 
     # Doing this while API has bug. If env var is an empty string, API doesn't return "value" even though the "value" should be an empty string
     if "properties" in containerapp_def and "template" in containerapp_def["properties"] and "containers" in containerapp_def["properties"]["template"]:
