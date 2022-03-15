@@ -80,9 +80,7 @@ def load_command_table(self, _):
         g.custom_command('restart', 'restart_revision')
         g.custom_command('show', 'show_revision', table_transformer=transform_revision_output, exception_handler=ex_handler_factory())
         g.custom_command('copy', 'copy_revision', exception_handler=ex_handler_factory())
-
-    with self.command_group('containerapp revision mode') as g:
-        g.custom_command('set', 'set_revision_mode', exception_handler=ex_handler_factory())
+        g.custom_command('set-mode', 'set_revision_mode', exception_handler=ex_handler_factory())
 
     with self.command_group('containerapp ingress') as g:
         g.custom_command('enable', 'enable_ingress', exception_handler=ex_handler_factory())

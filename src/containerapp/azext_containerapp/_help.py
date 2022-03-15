@@ -145,13 +145,13 @@ helps['containerapp revision deactivate'] = """
           az containerapp revision deactivate -n MyContainerapp -g MyResourceGroup --revision-name MyContainerappRevision
 """
 
-helps['containerapp revision mode set'] = """
+helps['containerapp revision set-mode'] = """
     type: command
     short-summary: Set the revision mode of a container app.
     examples:
     - name: Set a container app to single revision mode.
       text: |
-          az containerapp revision mode set-n MyContainerapp -g MyResourceGroup --mode Single 
+          az containerapp revision set-mode -n MyContainerapp -g MyResourceGroup --mode Single 
 """
 
 helps['containerapp revision copy'] = """
@@ -162,15 +162,6 @@ helps['containerapp revision copy'] = """
       text: |
           az containerapp revision copy -n MyContainerapp -g MyResourceGroup \\
               --from-revision PreviousRevisionName --cpu 0.75 --memory 1.5Gi
-"""
-
-helps['containerapp revision mode set'] = """
-    type: command
-    short-summary: Set the revision mode of a Containerapp.
-    examples:
-    - name: Set the revision mode of a Containerapp.
-      text: |
-          az containerapp revision set --mode Single -n MyContainerapp -g MyResourceGroup
 """
 
 helps['containerapp revision copy'] = """

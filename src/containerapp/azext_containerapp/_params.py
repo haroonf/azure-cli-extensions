@@ -161,3 +161,6 @@ def load_arguments(self, _):
         c.argument('dapr_app_protocol', help="Tells Dapr which protocol your application is using.  Allowed values: grpc, http.")
         c.argument('dapr_component_name', help="The dapr component name.")
         c.argument('environment_name', options_list=['--name','-n'], help="The environment name.")
+
+    with self.argument_context('containerapp revision set-mode') as c:
+        c.argument('mode', arg_type=get_enum_type(['single', 'multiple']), help="The active revisions mode for the container app.")
