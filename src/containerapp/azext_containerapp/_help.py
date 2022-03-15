@@ -273,13 +273,13 @@ helps['containerapp env dapr-component remove'] = """
 # Identity Commands
 helps['containerapp identity'] = """
     type: group
-    short-summary: Manage service (managed) identities for a containerapp
+    short-summary: Commands to manage managed identities.
 """
 
 helps['containerapp identity assign'] = """
     type: command
-    short-summary: Assign a managed identity to a containerapp
-    long-summary: Managed identities can be user-assigned or system-assigned
+    short-summary: Assign managed identity to a container app.
+    long-summary: Managed identities can be user-assigned or system-assigned.
     examples:
     - name: Assign system identity.
       text: |
@@ -291,7 +291,7 @@ helps['containerapp identity assign'] = """
 
 helps['containerapp identity remove'] = """
     type: command
-    short-summary: Remove a managed identity from a containerapp
+    short-summary: Remove a managed identity from a container app.
     examples:
     - name: Remove system identity.
       text: |
@@ -303,7 +303,7 @@ helps['containerapp identity remove'] = """
 
 helps['containerapp identity show'] = """
     type: command
-    short-summary: Show the containerapp's identity details
+    short-summary: Show managed identities of a container app.
 """
 
 # Ingress Commands
@@ -460,6 +460,11 @@ helps['containerapp secret set'] = """
           az containerapp secret set -n MyContainerapp -g MyResourceGroup --secrets MyExistingSecretName=MyNewSecretValue 
 """
 
+helps['containerapp github-action'] = """
+    type: group
+    short-summary: Commands to manage GitHub Actions.
+"""
+
 helps['containerapp github-action add'] = """
     type: command
     short-summary: Add a Github Actions workflow to a repository to deploy a container app.
@@ -511,24 +516,23 @@ helps['containerapp github-action show'] = """
 # Dapr Commands
 helps['containerapp dapr'] = """
     type: group
-    short-summary: Commands to manage dapr.
+    short-summary: Commands to manage Dapr.
 """
 
 helps['containerapp dapr enable'] = """
     type: command
-    short-summary: Enable dapr for a Containerapp.
+    short-summary: Enable Dapr for a container app.
     examples:
-    - name: Enable dapr for a Containerapp.
+    - name: Enable Dapr for a container app.
       text: |
           az containerapp dapr enable -n MyContainerapp -g MyResourceGroup --dapr-app-id my-app-id --dapr-app-port 8080
 """
 
 helps['containerapp dapr disable'] = """
     type: command
-    short-summary: Disable dapr for a Containerapp.
+    short-summary: Disable Dapr for a container app.
     examples:
-    - name: Disable dapr for a Containerapp.
+    - name: Disable Dapr for a container app.
       text: |
           az containerapp dapr disable -n MyContainerapp -g MyResourceGroup
 """
-

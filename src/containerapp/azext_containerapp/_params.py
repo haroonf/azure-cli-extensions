@@ -35,6 +35,8 @@ def load_arguments(self, _):
         c.argument('container_name', type=str, options_list=['--container-name'], help="Name of the container.")
         c.argument('cpu', type=float, validator=validate_cpu, options_list=['--cpu'], help="Required CPU in cores, e.g. 0.5")
         c.argument('memory', type=str, validator=validate_memory, options_list=['--memory'], help="Required memory, e.g. 1.0Gi")
+        c.argument('env_vars', nargs='*', options_list=['--env-vars'], help="A list of environment variable(s) for the container. Space-separated values in 'key=value' format. Empty string to clear existing values. Prefix value with 'secretref:' to reference a secret.")
+        c.argument('startup_command', nargs='*', options_list=['--command'], help="A list of supported commands on the container that will executed during startup. Space-separated values e.g. \"/bin/queue\" \"mycommand\". Empty string to clear existing values")
         c.argument('args', nargs='*', options_list=['--args'], help="A list of container startup command argument(s). Space-separated values e.g. \"-c\" \"mycommand\". Empty string to clear existing values")
         c.argument('revision_suffix', type=str, options_list=['--revision-suffix'], help='User friendly suffix that is appended to the revision name')
 
@@ -169,3 +171,4 @@ def load_arguments(self, _):
         c.argument('server', help="The container registry server, e.g. myregistry.azurecr.io")
         c.argument('username', help='The username of the registry. If using Azure Container Registry, we will try to infer the credentials if not supplied')
         c.argument('password', help='The password of the registry. If using Azure Container Registry, we will try to infer the credentials if not supplied')
+
