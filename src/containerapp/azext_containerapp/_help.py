@@ -267,7 +267,7 @@ helps['containerapp env dapr-component remove'] = """
     examples:
     - name: Remove a dapr componenet from a Containerapp environment.
       text: |
-          az containerapp env dapr-component delete -g MyResourceGroup --dapr-component-name MyDaprComponenetName --environment-name MyEnvironment
+          az containerapp env dapr-component remove -g MyResourceGroup --dapr-component-name MyDaprComponenetName --environment-name MyEnvironment
 """
 
 # Identity Commands
@@ -406,13 +406,13 @@ helps['containerapp registry set'] = """
   
 """
 
-helps['containerapp registry delete'] = """
+helps['containerapp registry remove'] = """
     type: command
     short-summary: Remove a container registry's details.
     examples:
     - name: Remove a registry from a Containerapp.
       text: |
-          az containerapp registry delete -n MyContainerapp -g MyResourceGroup --server MyContainerappRegistry.azurecr.io
+          az containerapp registry remove -n MyContainerapp -g MyResourceGroup --server MyContainerappRegistry.azurecr.io
 """
 
 # Secret Commands
@@ -439,13 +439,13 @@ helps['containerapp secret list'] = """
           az containerapp secret list -n MyContainerapp -g MyResourceGroup
 """
 
-helps['containerapp secret delete'] = """
+helps['containerapp secret remove'] = """
     type: command
-    short-summary: Delete secrets from a container app.
+    short-summary: Remove secrets from a container app.
     examples:
-    - name: Delete secrets from a container app.
+    - name: Remove secrets from a container app.
       text: |
-          az containerapp secret delete -n MyContainerapp -g MyResourceGroup --secret-names MySecret MySecret2
+          az containerapp secret remove -n MyContainerapp -g MyResourceGroup --secret-names MySecret MySecret2
 """
 
 helps['containerapp secret set'] = """

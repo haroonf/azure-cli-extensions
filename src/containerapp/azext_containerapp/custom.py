@@ -1776,7 +1776,7 @@ def set_registry(cmd, name, resource_group_name, server, username=None, password
     except Exception as e:
         handle_raw_exception(e)
 
-def delete_registry(cmd, name, resource_group_name, server, no_wait=False):
+def remove_registry(cmd, name, resource_group_name, server, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     containerapp_def = None
@@ -1859,7 +1859,7 @@ def show_secret(cmd, name, resource_group_name, secret_name):
             return secret
     raise CLIError("The containerapp {} does not have a secret assigned with name {}.".format(name, secret_name))
 
-def delete_secrets(cmd, name, resource_group_name, secret_names, no_wait = False):
+def remove_secrets(cmd, name, resource_group_name, secret_names, no_wait = False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     containerapp_def = None

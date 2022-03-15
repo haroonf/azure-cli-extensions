@@ -152,7 +152,7 @@ def load_arguments(self, _):
     with self.argument_context('containerapp secret set') as c:
         c.argument('secrets', nargs='+', options_list=['--secrets', '-s'], help="A list of secret(s) for the container app. Space-separated values in 'key=value' format.")
 
-    with self.argument_context('containerapp secret delete') as c:
+    with self.argument_context('containerapp secret remove') as c:
         c.argument('secret_names', nargs='+', help="A list of secret(s) for the container app. Space-separated secret values names.")
 
     with self.argument_context('containerapp env dapr-component') as c:
@@ -164,3 +164,8 @@ def load_arguments(self, _):
 
     with self.argument_context('containerapp revision set-mode') as c:
         c.argument('mode', arg_type=get_enum_type(['single', 'multiple']), help="The active revisions mode for the container app.")
+
+    with self.argument_context('containerapp registry') as c:
+        c.argument('server', help="The container registry server, e.g. myregistry.azurecr.io")
+        c.argument('username', help='The username of the registry. If using Azure Container Registry, we will try to infer the credentials if not supplied')
+        c.argument('password', help='The password of the registry. If using Azure Container Registry, we will try to infer the credentials if not supplied')

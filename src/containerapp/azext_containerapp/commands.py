@@ -26,7 +26,7 @@ def transform_containerapp_list_output(apps):
 
 
 def transform_revision_output(rev):
-    props = ['name', 'replicas', 'active', 'createdTime']
+    props = ['name', 'active', 'createdTime', 'trafficWeight']
     result = {k: rev['properties'][k] for k in rev['properties'] if k in props}
 
     if 'name' in rev:
@@ -95,12 +95,12 @@ def load_command_table(self, _):
         g.custom_command('set', 'set_registry', exception_handler=ex_handler_factory())
         g.custom_command('show', 'show_registry')
         g.custom_command('list', 'list_registry')
-        g.custom_command('delete', 'delete_registry', exception_handler=ex_handler_factory())
+        g.custom_command('remove', 'remove_registry', exception_handler=ex_handler_factory())
 
     with self.command_group('containerapp secret') as g:
         g.custom_command('list', 'list_secrets')
         g.custom_command('show', 'show_secret')
-        g.custom_command('delete', 'delete_secrets', exception_handler=ex_handler_factory())
+        g.custom_command('remove', 'remove_secrets', exception_handler=ex_handler_factory())
         g.custom_command('set', 'set_secrets', exception_handler=ex_handler_factory())
 
     with self.command_group('containerapp dapr') as g:
