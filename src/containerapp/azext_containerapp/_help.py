@@ -238,6 +238,47 @@ helps['containerapp env list'] = """
           az containerapp env list -g MyResourceGroup
 """
 
+helps['containerapp env dapr-component'] = """
+    type: group
+    short-summary: Commands to manage Container App environment dapr components.
+"""
+
+helps['containerapp env dapr-component list'] = """
+    type: command
+    short-summary: List dapr components for a Containerapp environment.
+    examples:
+    - name: List dapr components for a Containerapp environment.
+      text: |
+          az containerapp env dapr-component list -g MyResourceGroup --environment-name MyEnvironment
+"""
+
+helps['containerapp env dapr-component show'] = """
+    type: command
+    short-summary: Show the details of a dapr component.
+    examples:
+    - name: Show the details of a dapr component.
+      text: |
+          az containerapp env dapr-component show -g MyResourceGroup --dapr-component-name MyDaprComponenetName --environment-name MyEnvironment
+"""
+
+helps['containerapp env dapr-component set'] = """
+    type: command
+    short-summary: Create or update a dapr component.
+    examples:
+    - name: Create a dapr component.
+      text: |
+          az containerapp env dapr-component set -g MyResourceGroup --environment-name MyEnv --yaml MyYAMLPath --name MyDaprName
+"""
+
+helps['containerapp env dapr-component remove'] = """
+    type: command
+    short-summary: Remove a dapr componenet from a Containerapp environment.
+    examples:
+    - name: Remove a dapr componenet from a Containerapp environment.
+      text: |
+          az containerapp env dapr-component delete -g MyResourceGroup --dapr-component-name MyDaprComponenetName --environment-name MyEnvironment
+"""
+
 # Identity Commands
 helps['containerapp identity'] = """
     type: group
@@ -500,38 +541,3 @@ helps['containerapp dapr disable'] = """
           az containerapp dapr disable -n MyContainerapp -g MyResourceGroup
 """
 
-helps['containerapp dapr list'] = """
-    type: command
-    short-summary: List dapr components for a Containerapp environment.
-    examples:
-    - name: List dapr components for a Containerapp environment.
-      text: |
-          az containerapp dapr list -g MyResourceGroup --environment-name MyEnvironment
-"""
-
-helps['containerapp dapr show'] = """
-    type: command
-    short-summary: Show the details of a dapr component.
-    examples:
-    - name: Show the details of a dapr component.
-      text: |
-          az containerapp dapr show -g MyResourceGroup --dapr-component-name MyDaprComponenetName --environment-name MyEnvironment
-"""
-
-helps['containerapp dapr set'] = """
-    type: command
-    short-summary: Create or update a dapr component.
-    examples:
-    - name: Create a dapr component.
-      text: |
-          az containerapp dapr set -g MyResourceGroup --environment-name MyEnv --yaml MyYAMLPath --name MyDaprName
-"""
-
-helps['containerapp dapr remove'] = """
-    type: command
-    short-summary: Remove a dapr componenet from a Containerapp environment.
-    examples:
-    - name: Remove a dapr componenet from a Containerapp environment.
-      text: |
-          az containerapp dapr delete -g MyResourceGroup --dapr-component-name MyDaprComponenetName --environment-name MyEnvironment
-"""

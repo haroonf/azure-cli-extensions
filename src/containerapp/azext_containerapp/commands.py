@@ -50,7 +50,6 @@ def load_command_table(self, _):
         g.custom_command('update', 'update_containerapp', supports_no_wait=True, exception_handler=ex_handler_factory())
         g.custom_command('delete', 'delete_containerapp', exception_handler=ex_handler_factory())
 
-
     with self.command_group('containerapp env') as g:
         g.custom_command('show', 'show_managed_environment')
         g.custom_command('list', 'list_managed_environments')
@@ -58,12 +57,16 @@ def load_command_table(self, _):
         # g.custom_command('update', 'update_managed_environment', supports_no_wait=True, exception_handler=ex_handler_factory())
         g.custom_command('delete', 'delete_managed_environment', supports_no_wait=True, confirmation=True, exception_handler=ex_handler_factory())
 
+    with self.command_group('containerapp env dapr-component') as g:
+        g.custom_command('list', 'list_dapr_components')
+        g.custom_command('show', 'show_dapr_component')
+        g.custom_command('set', 'create_or_update_dapr_component')
+        g.custom_command('remove', 'remove_dapr_component')
 
     with self.command_group('containerapp identity') as g:
         g.custom_command('assign', 'assign_managed_identity', supports_no_wait=True, exception_handler=ex_handler_factory())
         g.custom_command('remove', 'remove_managed_identity', supports_no_wait=True, exception_handler=ex_handler_factory())
         g.custom_command('show', 'show_managed_identity')
-
 
     with self.command_group('containerapp github-action') as g:
         g.custom_command('add', 'create_or_update_github_action', exception_handler=ex_handler_factory())
@@ -105,8 +108,4 @@ def load_command_table(self, _):
     with self.command_group('containerapp dapr') as g:
         g.custom_command('enable', 'enable_dapr', exception_handler=ex_handler_factory())
         g.custom_command('disable', 'disable_dapr', exception_handler=ex_handler_factory())
-        g.custom_command('list', 'list_dapr_components')
-        g.custom_command('show', 'show_dapr_component')
-        g.custom_command('set', 'create_or_update_dapr_component')
-        g.custom_command('remove', 'remove_dapr_component')
 
