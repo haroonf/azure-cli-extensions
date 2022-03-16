@@ -4,6 +4,7 @@
 # Changes may cause incorrect behavior and will be lost if the code is
 # regenerated.
 # --------------------------------------------------------------------------
+# pylint: disable=line-too-long, super-with-arguments, too-many-instance-attributes
 
 from msrest.serialization import Model
 from msrest.exceptions import HttpOperationError
@@ -196,8 +197,8 @@ class ProxyResource(Resource):
         'system_data': {'key': 'systemData', 'type': 'SystemData'},
     }
 
-    def __init__(self, **kwargs):
-        super(ProxyResource, self).__init__(**kwargs)
+    # def __init__(self, **kwargs):
+    #     super(ProxyResource, self).__init__(**kwargs)
 
 
 class AuthConfig(ProxyResource):

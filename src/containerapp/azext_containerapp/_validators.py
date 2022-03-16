@@ -2,10 +2,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
+# pylint: disable=line-too-long
 
-from unicodedata import name
-from azure.cli.core.azclierror import (ValidationError, RequiredArgumentMissingError)
-
+from azure.cli.core.azclierror import (ValidationError)
 
 def _is_number(s):
     try:
@@ -31,8 +30,8 @@ def validate_cpu(namespace):
         cpu = namespace.cpu
         try:
             float(cpu)
-        except ValueError:
-            raise ValidationError("Usage error: --cpu must be a number eg. \"0.5\"")
+        except ValueError as e:
+            raise ValidationError("Usage error: --cpu must be a number eg. \"0.5\"") from e
 
 def validate_managed_env_name_or_id(cmd, namespace):
     from azure.cli.core.commands.client_factory import get_subscription_id

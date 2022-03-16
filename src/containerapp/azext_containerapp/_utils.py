@@ -139,27 +139,27 @@ def store_as_secret_and_return_secret_ref(secrets_list, registry_user, registry_
         return registry_pass
     else:
         # If user passed in registry password
-            if (urlparse(registry_server).hostname is not None):
-                registry_secret_name = "{server}-{user}".format(server=urlparse(registry_server).hostname.replace('.', ''), user=registry_user.lower())
-            else:
-                registry_secret_name = "{server}-{user}".format(server=registry_server.replace('.', ''), user=registry_user.lower())
-            
-            for secret in secrets_list:
-                if secret['name'].lower() == registry_secret_name.lower():
-                    if secret['value'].lower() != registry_pass.lower():
-                        if update_existing_secret:
-                            secret['value'] = registry_pass
-                        else:
-                            raise ValidationError('Found secret with name \"{}\" but value does not equal the supplied registry password.'.format(registry_secret_name))
-                    return registry_secret_name
+        if (urlparse(registry_server).hostname is not None):
+            registry_secret_name = "{server}-{user}".format(server=urlparse(registry_server).hostname.replace('.', ''), user=registry_user.lower())
+        else:
+            registry_secret_name = "{server}-{user}".format(server=registry_server.replace('.', ''), user=registry_user.lower())
+        
+        for secret in secrets_list:
+            if secret['name'].lower() == registry_secret_name.lower():
+                if secret['value'].lower() != registry_pass.lower():
+                    if update_existing_secret:
+                        secret['value'] = registry_pass
+                    else:
+                        raise ValidationError('Found secret with name \"{}\" but value does not equal the supplied registry password.'.format(registry_secret_name))
+                return registry_secret_name
 
-            logger.warning('Adding registry password as a secret with name \"{}\"'.format(registry_secret_name))
-            secrets_list.append({
-                "name": registry_secret_name,
-                "value": registry_pass
-            })
+        logger.warning('Adding registry password as a secret with name \"{}\"'.format(registry_secret_name))
+        secrets_list.append({
+            "name": registry_secret_name,
+            "value": registry_pass
+        })
 
-            return registry_secret_name
+        return registry_secret_name
 
 
 def parse_list_of_strings(comma_separated_string):
@@ -312,7 +312,7 @@ def _add_or_update_secrets(containerapp_def, add_secrets):
                 is_existing = True
                 existing_secret["value"] = new_secret["value"]
                 break
-        
+
         if not is_existing:
             containerapp_def["properties"]["configuration"]["secrets"].append(new_secret)
 
@@ -321,7 +321,7 @@ def _remove_registry_secret(containerapp_def, server, username):
         registry_secret_name = "{server}-{user}".format(server=urlparse(server).hostname.replace('.', ''), user=username.lower())
     else:
         registry_secret_name = "{server}-{user}".format(server=server.replace('.', ''), user=username.lower())
-        
+
     _remove_secret(containerapp_def, secret_name=registry_secret_name)
 
 def _remove_secret(containerapp_def, secret_name):

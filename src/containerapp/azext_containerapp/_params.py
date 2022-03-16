@@ -2,14 +2,14 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
-# pylint: disable=line-too-long
+# pylint: disable=line-too-long, too-many-statements, consider-using-f-string
 
 from knack.arguments import CLIArgumentType
 
 from azure.cli.core.commands.parameters import (resource_group_name_type, get_location_type,
-                                                get_resource_name_completion_list, file_type,
+                                                file_type,
                                                 get_three_state_flag, get_enum_type, tags_type)
-from azure.cli.core.commands.validators import get_default_location_from_resource_group
+#from azure.cli.core.commands.validators import get_default_location_from_resource_group
 
 from ._validators import (validate_memory, validate_cpu, validate_managed_env_name_or_id, validate_registry_server,
                           validate_registry_user, validate_registry_pass, validate_target_port, validate_ingress)
@@ -73,7 +73,7 @@ def load_arguments(self, _):
         c.argument('ingress', validator=validate_ingress, options_list=['--ingress'], default=None, arg_type=get_enum_type(['internal', 'external']), help="The ingress type.")
         c.argument('target_port', type=int, validator=validate_target_port, options_list=['--target-port'], help="The application port used for ingress traffic.")
         c.argument('transport', arg_type=get_enum_type(['auto', 'http', 'http2']), help="The transport protocol used for ingress traffic.")
-    
+
     with self.argument_context('containerapp create') as c:
         c.argument('assign_identity', nargs='+', help="Space-separated identities. Use '[system]' to refer to the system assigned identity.")
         c.argument('traffic_weights', nargs='*', options_list=['--traffic-weight'], help="A list of revision weight(s) for the container app. Space-separated values in 'revision_name=weight' format. For latest revision, use 'latest=weight'")
@@ -135,7 +135,7 @@ def load_arguments(self, _):
     with self.argument_context('containerapp github-action delete') as c:
         c.argument('token', help='A Personal Access Token with write access to the specified repository. For more information: https://help.github.com/en/github/authenticating-to-github/creating-a-personal-access-token-for-the-command-line')
         c.argument('login_with_github', help='Interactively log in with Github to retrieve the Personal Access Token')
-        
+
     with self.argument_context('containerapp revision') as c:
         c.argument('revision_name', options_list=['--revision'], type=str, help='Name of the revision.')
 
@@ -171,4 +171,3 @@ def load_arguments(self, _):
         c.argument('server', help="The container registry server, e.g. myregistry.azurecr.io")
         c.argument('username', help='The username of the registry. If using Azure Container Registry, we will try to infer the credentials if not supplied')
         c.argument('password', help='The password of the registry. If using Azure Container Registry, we will try to infer the credentials if not supplied')
-

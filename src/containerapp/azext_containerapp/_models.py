@@ -3,6 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
 
+# pylint: disable=line-too-long, too-many-statements, super-with-arguments
 
 VnetConfiguration = {
     "infrastructureSubnetId": None,
@@ -184,7 +185,7 @@ DaprComponent = {
     "properties": {
         "componentType": None, #String
         "version": None,
-        "ignoreErrors": None, 
+        "ignoreErrors": None,
         "initTimeout": None,
         "secrets": None,
         "metadata": None,
@@ -200,8 +201,8 @@ DaprMetadata = {
 
 SourceControl = {
     "properties": {
-        "repoUrl": None, 
-        "branch": None, 
+        "repoUrl": None,
+        "branch": None,
         "githubActionConfiguration": None # [GitHubActionConfiguration]
     }
 

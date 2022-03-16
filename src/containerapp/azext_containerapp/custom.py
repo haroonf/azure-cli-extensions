@@ -33,10 +33,10 @@ from ._models import (
     Dapr as DaprModel,
     ContainerResources as ContainerResourcesModel,
     Scale as ScaleModel,
-    Container as ContainerModel, 
-    GitHubActionConfiguration, 
-    RegistryInfo as RegistryInfoModel, 
-    AzureCredentials as AzureCredentialsModel, 
+    Container as ContainerModel,
+    GitHubActionConfiguration,
+    RegistryInfo as RegistryInfoModel,
+    AzureCredentials as AzureCredentialsModel,
     SourceControl as SourceControlModel,
     ManagedServiceIdentity as ManagedServiceIdentityModel)
 from ._utils import (_validate_subscription_registered, _get_location_from_resource_group, _ensure_location_allowed,
@@ -44,7 +44,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                     _generate_log_analytics_if_not_provided, _get_existing_secrets, _convert_object_from_snake_to_camel_case,
                     _object_to_dict, _add_or_update_secrets, _remove_additional_attributes, _remove_readonly_attributes,
                     _add_or_update_env_vars, _add_or_update_tags, update_nested_dictionary, _update_traffic_weights,
-                    _get_app_from_revision, raise_missing_token_suggestion, _infer_acr_credentials, _remove_registry_secret, _remove_secret, 
+                    _get_app_from_revision, raise_missing_token_suggestion, _infer_acr_credentials, _remove_registry_secret, _remove_secret,
                     _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars, _update_revision_env_secretrefs)
 
 logger = get_logger(__name__)
@@ -126,10 +126,10 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
             r = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=from_revision)
         except CLIError as e:
             handle_raw_exception(e)
-        
+
         _update_revision_env_secretrefs(r["properties"]["template"]["containers"], name)
         current_containerapp_def["properties"]["template"] = r["properties"]["template"]
-    
+
     # Deserialize the yaml into a ContainerApp object. Need this since we're not using SDK
     try:
         deserializer = create_deserializer()
@@ -416,19 +416,19 @@ def create_containerapp(cmd,
 
     if assign_system_identity and assign_user_identities:
         identity_def["type"] = "SystemAssigned, UserAssigned"
-    elif assign_system_identity: 
+    elif assign_system_identity:
         identity_def["type"] = "SystemAssigned"
-    elif assign_user_identities: 
+    elif assign_user_identities:
         identity_def["type"] = "UserAssigned"
 
     if assign_user_identities:
         identity_def["userAssignedIdentities"] = {}
         subscription_id = get_subscription_id(cmd.cli_ctx)
-        
+
         for r in assign_user_identities:
             r = _ensure_identity_resource_id(subscription_id, resource_group_name, r)
             identity_def["userAssignedIdentities"][r] = {}
-    
+
     scale_def = None
     if min_replicas is not None or max_replicas is not None:
         scale_def = ScaleModel
@@ -925,9 +925,9 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
     if not identities:
         identities = ['[system]']
         logger.warning('Identities not specified. Assigning managed system identity.')
-    
+
     identities = [x.lower() for x in identities]
-    assign_system_identity = '[system]' in identities 
+    assign_system_identity = '[system]' in identities
     assign_user_identities = [x for x in identities if x != '[system]']
 
     containerapp_def = None
@@ -944,7 +944,7 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
     # If identity not returned
-    try: 
+    try:
         containerapp_def["identity"]
         containerapp_def["identity"]["type"]
     except:
@@ -956,30 +956,30 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
 
     # Assign correct type
     try:
-        if containerapp_def["identity"]["type"] != "None": 
+        if containerapp_def["identity"]["type"] != "None":
             if containerapp_def["identity"]["type"] == "SystemAssigned" and assign_user_identities:
                 containerapp_def["identity"]["type"] = "SystemAssigned,UserAssigned"
             if containerapp_def["identity"]["type"] == "UserAssigned" and assign_system_identity:
                 containerapp_def["identity"]["type"] = "SystemAssigned,UserAssigned"
-        else: 
+        else:
             if assign_system_identity and assign_user_identities:
                 containerapp_def["identity"]["type"] = "SystemAssigned,UserAssigned"
-            elif assign_system_identity: 
+            elif assign_system_identity:
                 containerapp_def["identity"]["type"] = "SystemAssigned"
-            elif assign_user_identities: 
+            elif assign_user_identities:
                 containerapp_def["identity"]["type"] = "UserAssigned"
-    except: 
-        # Always returns "type": "None" when CA has no previous identities 
+    except:
+        # Always returns "type": "None" when CA has no previous identities
         pass
-    
+
     if assign_user_identities:
-        try: 
+        try:
             containerapp_def["identity"]["userAssignedIdentities"]
-        except: 
+        except:
             containerapp_def["identity"]["userAssignedIdentities"] = {}
 
         subscription_id = get_subscription_id(cmd.cli_ctx)
-        
+
         for r in assign_user_identities:
             old_id = r
             r = _ensure_identity_resource_id(subscription_id, resource_group_name, r).replace("resourceGroup", "resourcegroup")
@@ -987,7 +987,7 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
                 containerapp_def["identity"]["userAssignedIdentities"][r]
                 logger.warning("User identity {} is already assigned to containerapp".format(old_id))
             except:
-                containerapp_def["identity"]["userAssignedIdentities"][r] = {}  
+                containerapp_def["identity"]["userAssignedIdentities"][r] = {} 
 
     try:
         r = ContainerAppClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
@@ -997,7 +997,7 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
     except Exception as e:
         handle_raw_exception(e)
 
-    
+
 def remove_managed_identity(cmd, name, resource_group_name, identities, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -1010,7 +1010,7 @@ def remove_managed_identity(cmd, name, resource_group_name, identities, no_wait=
     remove_user_identities = list(set(remove_user_identities))
     if remove_id_size != len(remove_user_identities):
         logger.warning("At least one identity was passed twice.")
-        
+
     containerapp_def = None
     # Get containerapp properties of CA we are updating
     try:
@@ -1024,7 +1024,7 @@ def remove_managed_identity(cmd, name, resource_group_name, identities, no_wait=
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
     # If identity not returned
-    try: 
+    try:
         containerapp_def["identity"]
         containerapp_def["identity"]["type"]
     except:
@@ -1041,9 +1041,9 @@ def remove_managed_identity(cmd, name, resource_group_name, identities, no_wait=
 
     if remove_user_identities:
         subscription_id = get_subscription_id(cmd.cli_ctx)
-        try: 
+        try:
             containerapp_def["identity"]["userAssignedIdentities"]
-        except: 
+        except:
             containerapp_def["identity"]["userAssignedIdentities"] = {}
         for id in remove_user_identities:
             given_id = id
@@ -1062,14 +1062,14 @@ def remove_managed_identity(cmd, name, resource_group_name, identities, no_wait=
         if containerapp_def["identity"]["userAssignedIdentities"] == {}:
             containerapp_def["identity"]["userAssignedIdentities"] = None
             containerapp_def["identity"]["type"] = ("None" if containerapp_def["identity"]["type"] == "UserAssigned" else "SystemAssigned")
-    
+
     try:
         r = ContainerAppClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
         return r["identity"]
     except Exception as e:
         handle_raw_exception(e)
-    
-    
+
+
 def show_managed_identity(cmd, name, resource_group_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -1080,7 +1080,7 @@ def show_managed_identity(cmd, name, resource_group_name):
 
     try:
         return r["identity"]
-    except: 
+    except:
         r["identity"] = {}
         r["identity"]["type"] = "None"
         return r["identity"]
@@ -1115,7 +1115,7 @@ def create_or_update_github_action(cmd,
         repo = repo_url.split('/')
         if len(repo) >= 2:
             repo = '/'.join(repo[-2:])
-        
+
         if repo:
             g = Github(token)
             github_repo = None
@@ -1201,13 +1201,13 @@ def create_or_update_github_action(cmd,
 
     headers = ["x-ms-github-auxiliary={}".format(token)]
 
-    try: 
+    try:
         r = GitHubActionClient.create_or_update(cmd = cmd, resource_group_name=resource_group_name, name=name, github_action_envelope=source_control_info, headers = headers)
         return r
     except Exception as e:
         handle_raw_exception(e)
-    
-        
+
+
 def show_github_action(cmd, name, resource_group_name):
     try:
         return GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
@@ -1217,7 +1217,7 @@ def show_github_action(cmd, name, resource_group_name):
 
 def delete_github_action(cmd, name, resource_group_name, token=None, login_with_github=False):
     # Check if there is an existing source control to delete
-    try: 
+    try:
         github_action_config = GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
     except Exception as e:
         handle_raw_exception(e)
@@ -1242,7 +1242,7 @@ def delete_github_action(cmd, name, resource_group_name, token=None, login_with_
         repo = repo_url.split('/')
         if len(repo) >= 2:
             repo = '/'.join(repo[-2:])
-        
+
         if repo:
             g = Github(token)
             github_repo = None
@@ -1264,7 +1264,7 @@ def delete_github_action(cmd, name, resource_group_name, token=None, login_with_
     except Exception as ex:
         # If exception due to github package missing, etc just continue without validating the repo and rely on api validation
         pass
-        
+
     headers = ["x-ms-github-auxiliary={}".format(token)]
 
     try:
@@ -1539,7 +1539,7 @@ def set_revision_mode(cmd, resource_group_name, name, mode, no_wait=False):
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
         return r["properties"]["configuration"]["activeRevisionsMode"]
-    except Exception as e: 
+    except Exception as e:
         handle_raw_exception(e)
 
 def show_ingress(cmd, name, resource_group_name):
@@ -1585,7 +1585,7 @@ def enable_ingress(cmd, name, resource_group_name, type, target_port, transport,
         ingress_def["targetPort"] = target_port
         ingress_def["transport"] = transport
         ingress_def["allowInsecure"] = allow_insecure
- 
+
     containerapp_def["properties"]["configuration"]["ingress"] = ingress_def
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
@@ -1594,7 +1594,7 @@ def enable_ingress(cmd, name, resource_group_name, type, target_port, transport,
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
         return r["properties"]["configuration"]["ingress"]
-    except Exception as e: 
+    except Exception as e:
         handle_raw_exception(e)
 
 def disable_ingress(cmd, name, resource_group_name, no_wait=False):
@@ -1617,8 +1617,8 @@ def disable_ingress(cmd, name, resource_group_name, no_wait=False):
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
         logger.warning("Ingress has been disabled successfully.")
-        return 
-    except Exception as e: 
+        return
+    except Exception as e:
         handle_raw_exception(e)
 
 def set_ingress_traffic(cmd, name, resource_group_name, traffic_weights, no_wait=False):
@@ -1635,7 +1635,7 @@ def set_ingress_traffic(cmd, name, resource_group_name, traffic_weights, no_wait
 
     try:
         containerapp_def["properties"]["configuration"]["ingress"]
-    except: 
+    except:
         raise CLIError("Ingress must be enabled to set ingress traffic. Try running `az containerapp ingress -h` for more info.")
 
     if traffic_weights is not None:
@@ -1647,7 +1647,7 @@ def set_ingress_traffic(cmd, name, resource_group_name, traffic_weights, no_wait
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
         return r["properties"]["configuration"]["ingress"]["traffic"]
-    except Exception as e: 
+    except Exception as e:
         handle_raw_exception(e)
 
 def show_ingress_traffic(cmd, name, resource_group_name):
@@ -1664,7 +1664,7 @@ def show_ingress_traffic(cmd, name, resource_group_name):
 
     try:
         return containerapp_def["properties"]["configuration"]["ingress"]["traffic"]
-    except: 
+    except:
         raise CLIError("Ingress must be enabled to show ingress traffic. Try running `az containerapp ingress -h` for more info.")
 
 def show_registry(cmd, name, resource_group_name, server):
@@ -1681,7 +1681,7 @@ def show_registry(cmd, name, resource_group_name, server):
 
     try:
         containerapp_def["properties"]["configuration"]["registries"]
-    except: 
+    except:
         raise CLIError("The containerapp {} has no assigned registries.".format(name))
 
     registries_def = containerapp_def["properties"]["configuration"]["registries"]
@@ -1705,7 +1705,7 @@ def list_registry(cmd, name, resource_group_name):
 
     try:
         return containerapp_def["properties"]["configuration"]["registries"]
-    except: 
+    except:
         raise CLIError("The containerapp {} has no assigned registries.".format(name))
 
 def set_registry(cmd, name, resource_group_name, server, username=None, password=None, no_wait=False):
@@ -1801,7 +1801,7 @@ def remove_registry(cmd, name, resource_group_name, server, no_wait=False):
 
     try:
         containerapp_def["properties"]["configuration"]["registries"]
-    except: 
+    except:
         raise CLIError("The containerapp {} has no assigned registries.".format(name))
 
     registries_def = containerapp_def["properties"]["configuration"]["registries"]
@@ -1844,7 +1844,7 @@ def list_secrets(cmd, name, resource_group_name):
 
     try:
         return ContainerAppClient.list_secrets(cmd=cmd, resource_group_name=resource_group_name, name=name)["value"]
-    except: 
+    except:
         raise CLIError("The containerapp {} has no assigned secrets.".format(name))
 
 def show_secret(cmd, name, resource_group_name, secret_name):
@@ -1900,9 +1900,9 @@ def remove_secrets(cmd, name, resource_group_name, secret_names, no_wait = False
     except Exception as e:
         handle_raw_exception(e)
 
-def set_secrets(cmd, name, resource_group_name, secrets, 
+def set_secrets(cmd, name, resource_group_name, secrets,
                 #secrets=None,
-                #yaml=None, 
+                #yaml=None,
                 no_wait = False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -1911,7 +1911,7 @@ def set_secrets(cmd, name, resource_group_name, secrets,
 
     # if not secrets:
     #     secrets = []
-    
+
     # if yaml:
     #     yaml_secrets = load_yaml_file(yaml).split(' ')
     #     try:
@@ -1956,13 +1956,13 @@ def enable_dapr(cmd, name, resource_group_name, dapr_app_id=None, dapr_app_port=
 
     if 'dapr' not in containerapp_def['properties']:
         containerapp_def['properties']['dapr'] = {}
-    
+
     if dapr_app_id:
         containerapp_def['properties']['dapr']['dapr_app_id'] = dapr_app_id
-    
+
     if dapr_app_port:
         containerapp_def['properties']['dapr']['dapr_app_port'] = dapr_app_port
-    
+
     if dapr_app_protocol:
         containerapp_def['properties']['dapr']['dapr_app_protocol'] = dapr_app_protocol
 
@@ -1975,7 +1975,7 @@ def enable_dapr(cmd, name, resource_group_name, dapr_app_id=None, dapr_app_port=
     except Exception as e:
         handle_raw_exception(e)
 
-def disable_dapr(cmd, name, resource_group_name, no_wait=False): 
+def disable_dapr(cmd, name, resource_group_name, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     containerapp_def = None
@@ -2047,7 +2047,7 @@ def create_or_update_dapr_component(cmd, resource_group_name, environment_name, 
 def remove_dapr_component(cmd, resource_group_name, dapr_component_name, environment_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
-    try: 
+    try:
         DaprComponentClient.show(cmd, resource_group_name, environment_name, name=dapr_component_name)
     except:
         raise CLIError("Dapr component not found.")
@@ -2058,4 +2058,3 @@ def remove_dapr_component(cmd, resource_group_name, dapr_component_name, environ
         return r
     except Exception as e:
         handle_raw_exception(e)
-
