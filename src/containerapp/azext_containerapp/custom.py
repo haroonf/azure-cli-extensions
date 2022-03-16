@@ -1319,10 +1319,10 @@ def deactivate_revision(cmd, resource_group_name, revision_name, name=None):
         handle_raw_exception(e)
 
 def copy_revision(cmd,
-                  name,
                   resource_group_name,
                   from_revision=None,
                   #label=None,
+                  name=None,
                   yaml=None,
                   image=None,
                   container_name=None,
@@ -1340,6 +1340,12 @@ def copy_revision(cmd,
                   tags=None,
                   no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
+
+    if not name and not from_revision:
+        raise RequiredArgumentMissingError('Usage error: --name is required if not using --from-revision.')
+
+    if not name:
+        name = _get_app_from_revision(from_revision)
 
     if yaml:
         if image or min_replicas or max_replicas or\
