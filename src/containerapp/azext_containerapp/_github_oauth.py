@@ -23,6 +23,7 @@ GITHUB_OAUTH_SCOPES = [
     "workflow"
 ]
 
+
 def get_github_access_token(cmd, scope_list=None):  # pylint: disable=unused-argument
     if scope_list:
         for scope in scope_list:

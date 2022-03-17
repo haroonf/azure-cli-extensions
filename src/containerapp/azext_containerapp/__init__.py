@@ -17,7 +17,7 @@ class ContainerappCommandsLoader(AzCommandsLoader):
             operations_tmpl='azext_containerapp.custom#{}',
             client_factory=None)
         super(ContainerappCommandsLoader, self).__init__(cli_ctx=cli_ctx,
-                                                  custom_command_type=containerapp_custom)
+                                                         custom_command_type=containerapp_custom)
 
     def load_command_table(self, args):
         from azext_containerapp.commands import load_command_table
