@@ -2,11 +2,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
+# pylint: disable=line-too-long, super-with-arguments, too-many-instance-attributes, consider-using-f-string, no-else-return, no-self-use
+
 import json
 import time
 import sys
 
-from sys import api_version
 from azure.cli.core.util import send_raw_request
 from azure.cli.core.commands.client_factory import get_subscription_id
 from knack.log import get_logger
@@ -37,7 +38,7 @@ class PollingAnimation():
         sys.stdout.write("\033[K")
 
 
-def poll(cmd, request_url, poll_if_status):
+def poll(cmd, request_url, poll_if_status): # pylint: disable=inconsistent-return-statements
     try:
         start = time.time()
         end = time.time() + POLLING_TIMEOUT
@@ -59,14 +60,11 @@ def poll(cmd, request_url, poll_if_status):
 
         animation.flush()
         return r.json()
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-except
         animation.flush()
 
-        if poll_if_status == "scheduledfordelete": # Catch "not found" errors if polling for delete
-            return
-
-        raise e
-
+        if not poll_if_status == "scheduledfordelete": # Catch "not found" errors if polling for delete
+            raise e
 
 class ContainerAppClient():
     @classmethod
@@ -144,7 +142,6 @@ class ContainerAppClient():
 
         if r.status_code == 202:
             logger.warning('Containerapp successfully deleted')
-        return
 
     @classmethod
     def show(cls, cmd, resource_group_name, name):
@@ -222,7 +219,6 @@ class ContainerAppClient():
 
     @classmethod
     def list_secrets(cls, cmd, resource_group_name, name):
-        secrets = []
 
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
         api_version = NEW_API_VERSION
@@ -705,4 +701,3 @@ class DaprComponentClient():
                 app_list.append(formatted)
 
         return app_list
-
