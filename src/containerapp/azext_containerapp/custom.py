@@ -2,23 +2,21 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
+# pylint: disable=line-too-long, consider-using-f-string, multiple-imports, logging-format-interpolation, inconsistent-return-statements, broad-except, bare-except, too-many-statements, too-many-locals, too-many-boolean-expressions, too-many-branches, too-many-nested-blocks, pointless-statement
 
+from urllib.parse import urlparse
 from azure.cli.command_modules.appservice.custom import (_get_acr_cred)
-from azure.cli.core.azclierror import (RequiredArgumentMissingError, ResourceNotFoundError, ValidationError)
+from azure.cli.core.azclierror import (RequiredArgumentMissingError, ValidationError)
 from azure.cli.core.commands.client_factory import get_subscription_id
-from azure.cli.core.util import sdk_no_wait
 from knack.util import CLIError
 from knack.log import get_logger
-from urllib.parse import urlparse
 
 from msrestazure.tools import parse_resource_id, is_valid_resource_id
 from msrest.exceptions import DeserializationError
-from azure.cli.command_modules.appservice.custom import _get_acr_cred
-from urllib.parse import urlparse
 
 from ._client_factory import handle_raw_exception
 from ._clients import ManagedEnvironmentClient, ContainerAppClient, GitHubActionClient, DaprComponentClient
-from ._sdk_models import *
+from ._sdk_models import * # pylint: disable=wildcard-import, unused-wildcard-import
 from ._github_oauth import get_github_access_token
 from ._models import (
     ManagedEnvironment as ManagedEnvironmentModel,
@@ -40,7 +38,7 @@ from ._models import (
     SourceControl as SourceControlModel,
     ManagedServiceIdentity as ManagedServiceIdentityModel)
 from ._utils import (_validate_subscription_registered, _get_location_from_resource_group, _ensure_location_allowed,
-                    parse_secret_flags, store_as_secret_and_return_secret_ref, parse_list_of_strings, parse_env_var_flags,
+                    parse_secret_flags, store_as_secret_and_return_secret_ref, parse_env_var_flags,
                     _generate_log_analytics_if_not_provided, _get_existing_secrets, _convert_object_from_snake_to_camel_case,
                     _object_to_dict, _add_or_update_secrets, _remove_additional_attributes, _remove_readonly_attributes,
                     _add_or_update_env_vars, _add_or_update_tags, update_nested_dictionary, _update_traffic_weights,
@@ -70,14 +68,14 @@ def load_yaml_file(file_name):
     import errno
 
     try:
-        with open(file_name) as stream:
+        with open(file_name) as stream: # pylint: disable=unspecified-encoding
             return yaml.safe_load(stream)
     except (IOError, OSError) as ex:
         if getattr(ex, 'errno', 0) == errno.ENOENT:
-            raise CLIError('{} does not exist'.format(file_name))
+            raise CLIError('{} does not exist'.format(file_name)) from ex
         raise
     except (yaml.parser.ParserError, UnicodeDecodeError) as ex:
-        raise CLIError('Error parsing {} ({})'.format(file_name, str(ex)))
+        raise CLIError('Error parsing {} ({})'.format(file_name, str(ex))) from ex
 
 
 def create_deserializer():
@@ -95,7 +93,7 @@ def create_deserializer():
 
 def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_revision=None, no_wait=False):
     yaml_containerapp = process_loaded_yaml(load_yaml_file(file_name))
-    if type(yaml_containerapp) != dict:
+    if type(yaml_containerapp) != dict: # pylint: disable=unidiomatic-typecheck
         raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
 
     if not yaml_containerapp.get('name'):
@@ -114,7 +112,7 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
     containerapp_def = None
     try:
         current_containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
-    except Exception as ex:
+    except Exception:
         pass
 
     if not current_containerapp_def:
@@ -136,7 +134,7 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
 
         containerapp_def = deserializer('ContainerApp', yaml_containerapp)
     except DeserializationError as ex:
-        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
+        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.') from ex
 
     # Remove tags before converting from snake case to camel case, then re-add tags. We don't want to change the case of the tags. Need this since we're not using SDK
     tags = None
@@ -158,54 +156,6 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
     _remove_additional_attributes(current_containerapp_def)
     _remove_readonly_attributes(current_containerapp_def)
 
-    '''
-    # Not sure if update should replace items that are a list, or do createOrUpdate. This commented out section is the implementation for createOrUpdate.
-    # (If a property is a list, do createOrUpdate, rather than just replace with new list)
-
-    if 'properties' in containerapp_def and 'template' in containerapp_def['properties']:
-        # Containers
-        if 'containers' in containerapp_def['properties']['template'] and containerapp_def['properties']['template']['containers']:
-            for new_container in containerapp_def['properties']['template']['containers']:
-                if "name" not in new_container or not new_container["name"]:
-                    raise ValidationError("The container name is not specified.")
-
-                # Check if updating existing container
-                updating_existing_container = False
-                for existing_container in current_containerapp_def["properties"]["template"]["containers"]:
-                    if existing_container['name'].lower() == new_container['name'].lower():
-                        updating_existing_container = True
-
-                        if 'image' in new_container and new_container['image']:
-                            existing_container['image'] = new_container['image']
-                        if 'env' in new_container and new_container['env']:
-                            if 'env' not in existing_container or not existing_container['env']:
-                                existing_container['env'] = []
-                            _add_or_update_env_vars(existing_container['env'], new_container['env'])
-                        if 'command' in new_container and new_container['command']:
-                            existing_container['command'] = new_container['command']
-                        if 'args' in new_container and new_container['args']:
-                            existing_container['args'] = new_container['args']
-                        if 'resources' in new_container and new_container['resources']:
-                            if 'cpu' in new_container['resources'] and new_container['resources']['cpu'] is not None:
-                                existing_container['resources']['cpu'] = new_container['resources']['cpu']
-                            if 'memory' in new_container['resources'] and new_container['resources']['memory'] is not None:
-                                existing_container['resources']['memory'] = new_container['resources']['memory']
-
-                # If not updating existing container, add as new container
-                if not updating_existing_container:
-                    current_containerapp_def["properties"]["template"]["containers"].append(new_container)
-
-    # Traffic Weights
-
-    # Secrets
-
-    # Registries
-
-    # Scale rules
-
-    # Source Controls
-
-    '''
     try:
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=current_containerapp_def, no_wait=no_wait)
@@ -222,7 +172,7 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
 
 def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=False):
     yaml_containerapp = process_loaded_yaml(load_yaml_file(file_name))
-    if type(yaml_containerapp) != dict:
+    if type(yaml_containerapp) != dict: # pylint: disable=unidiomatic-typecheck
         raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
 
     if not yaml_containerapp.get('name'):
@@ -244,7 +194,7 @@ def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=
 
         containerapp_def = deserializer('ContainerApp', yaml_containerapp)
     except DeserializationError as ex:
-        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
+        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.') from ex
 
     # Remove tags before converting from snake case to camel case, then re-add tags. We don't want to change the case of the tags. Need this since we're not using SDK
     tags = None
@@ -271,7 +221,7 @@ def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=
     env_rg = None
     env_info = None
 
-    if (is_valid_resource_id(env_id)):
+    if is_valid_resource_id(env_id):
         parsed_managed_env = parse_resource_id(env_id)
         env_name = parsed_managed_env['name']
         env_rg = parsed_managed_env['resource_group']
@@ -334,14 +284,14 @@ def create_containerapp(cmd,
                         args=None,
                         tags=None,
                         no_wait=False,
-                        assign_identity=[]):
+                        assign_identity=None):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     if yaml:
         if image or managed_env or min_replicas or max_replicas or target_port or ingress or\
             revisions_mode or secrets or env_vars or cpu or memory or registry_server or\
             registry_user or registry_pass or dapr_enabled or dapr_app_port or dapr_app_id or\
-            location or startup_command or args or tags:
+            startup_command or args or tags:
             logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
         return create_containerapp_yaml(cmd=cmd, name=name, resource_group_name=resource_group_name, file_name=yaml, no_wait=no_wait)
 
@@ -350,6 +300,9 @@ def create_containerapp(cmd,
 
     if managed_env is None:
         raise RequiredArgumentMissingError('Usage error: --environment is required if not using --yaml')
+
+    if assign_identity is None:
+        assign_identity = []
 
     # Validate managed environment
     parsed_managed_env = parse_resource_id(managed_env)
@@ -427,7 +380,7 @@ def create_containerapp(cmd,
 
         for r in assign_user_identities:
             r = _ensure_identity_resource_id(subscription_id, resource_group_name, r)
-            identity_def["userAssignedIdentities"][r] = {}
+            identity_def["userAssignedIdentities"][r] = {} # pylint: disable=unsupported-assignment-operation
 
     scale_def = None
     if min_replicas is not None or max_replicas is not None:
@@ -793,7 +746,7 @@ def create_managed_environment(cmd,
 
     # Microsoft.ContainerService RP registration is required for vnet enabled environments
     if infrastructure_subnet_resource_id is not None or app_subnet_resource_id is not None:
-        if (is_valid_resource_id(app_subnet_resource_id)):
+        if is_valid_resource_id(app_subnet_resource_id):
             parsed_app_subnet_resource_id = parse_resource_id(app_subnet_resource_id)
             subnet_subscription = parsed_app_subnet_resource_id["subscription"]
             _validate_subscription_registered(cmd, "Microsoft.ContainerService", subnet_subscription)
@@ -867,23 +820,6 @@ def update_managed_environment(cmd,
                             tags=None,
                             no_wait=False):
     raise CLIError('Containerapp env update is not yet supported.')
-
-    _validate_subscription_registered(cmd, "Microsoft.App")
-
-    managed_env_def = ManagedEnvironmentModel
-    managed_env_def["tags"] = tags
-
-    try:
-        r = ManagedEnvironmentClient.update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, managed_environment_envelope=managed_env_def, no_wait=no_wait)
-
-        if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
-            logger.warning('Containerapp environment update in progress. Please monitor the creation using `az containerapp env show -n {} -g {}`'.format(name, resource_group_name))
-
-        return r
-    except Exception as e:
-        handle_raw_exception(e)
-
 
 def show_managed_environment(cmd, name, resource_group_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
@@ -987,7 +923,7 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
                 containerapp_def["identity"]["userAssignedIdentities"][r]
                 logger.warning("User identity {} is already assigned to containerapp".format(old_id))
             except:
-                containerapp_def["identity"]["userAssignedIdentities"][r] = {} 
+                containerapp_def["identity"]["userAssignedIdentities"][r] = {}
 
     try:
         r = ContainerAppClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
@@ -1045,13 +981,13 @@ def remove_managed_identity(cmd, name, resource_group_name, identities, no_wait=
             containerapp_def["identity"]["userAssignedIdentities"]
         except:
             containerapp_def["identity"]["userAssignedIdentities"] = {}
-        for id in remove_user_identities:
-            given_id = id
-            id = _ensure_identity_resource_id(subscription_id, resource_group_name, id)
+        for remove_id in remove_user_identities:
+            given_id = remove_id
+            remove_id = _ensure_identity_resource_id(subscription_id, resource_group_name, remove_id)
             wasRemoved = False
 
             for old_user_identity in containerapp_def["identity"]["userAssignedIdentities"]:
-                if old_user_identity.lower() == id.lower():
+                if old_user_identity.lower() == remove_id.lower():
                     containerapp_def["identity"]["userAssignedIdentities"].pop(old_user_identity)
                     wasRemoved = True
                     break
@@ -1109,7 +1045,7 @@ def create_or_update_github_action(cmd,
     try:
         # Verify github repo
         from github import Github, GithubException
-        from github.GithubException import BadCredentialsException, UnknownObjectException
+        from github.GithubException import BadCredentialsException
 
         repo = None
         repo = repo_url.split('/')
@@ -1129,20 +1065,20 @@ def create_or_update_github_action(cmd,
                     error_msg = "Encountered GitHub error when accessing {} branch in {} repo.".format(branch, repo)
                     if e.data and e.data['message']:
                         error_msg += " Error: {}".format(e.data['message'])
-                    raise CLIError(error_msg)
+                    raise CLIError(error_msg) from e
                 logger.warning('Verified GitHub repo and branch')
-            except BadCredentialsException:
+            except BadCredentialsException as e:
                 raise CLIError("Could not authenticate to the repository. Please create a Personal Access Token and use "
                             "the --token argument. Run 'az webapp deployment github-actions add --help' "
-                            "for more information.")
+                            "for more information.") from e
             except GithubException as e:
                 error_msg = "Encountered GitHub error when accessing {} repo".format(repo)
                 if e.data and e.data['message']:
                     error_msg += " Error: {}".format(e.data['message'])
-                raise CLIError(error_msg)
+                raise CLIError(error_msg) from e
     except CLIError as clierror:
         raise clierror
-    except Exception as ex:
+    except Exception:
         # If exception due to github package missing, etc just continue without validating the repo and rely on api validation
         pass
 
@@ -1154,7 +1090,7 @@ def create_or_update_github_action(cmd,
 
     except Exception as ex:
         if not service_principal_client_id or not service_principal_client_secret or not service_principal_tenant_id:
-            raise RequiredArgumentMissingError('Service principal client ID, secret and tenant ID are required to add github actions for the first time. Please create one using the command \"az ad sp create-for-rbac --name \{name\} --role contributor --scopes /subscriptions/\{subscription\}/resourceGroups/\{resourceGroup\} --sdk-auth\"')
+            raise RequiredArgumentMissingError('Service principal client ID, secret and tenant ID are required to add github actions for the first time. Please create one using the command \"az ad sp create-for-rbac --name {{name}} --role contributor --scopes /subscriptions/{{subscription}}/resourceGroups/{{resourceGroup}} --sdk-auth\"') from ex
         source_control_info = SourceControlModel
 
     source_control_info["properties"]["repoUrl"] = repo_url
@@ -1185,7 +1121,7 @@ def create_or_update_github_action(cmd,
         try:
             registry_username, registry_password = _get_acr_cred(cmd.cli_ctx, registry_name)
         except Exception as ex:
-            raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password')
+            raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
 
     registry_info = RegistryInfoModel
     registry_info["registryUrl"] = registry_url
@@ -1236,7 +1172,7 @@ def delete_github_action(cmd, name, resource_group_name, token=None, login_with_
     try:
         # Verify github repo
         from github import Github, GithubException
-        from github.GithubException import BadCredentialsException, UnknownObjectException
+        from github.GithubException import BadCredentialsException
 
         repo = None
         repo = repo_url.split('/')
@@ -1250,18 +1186,18 @@ def delete_github_action(cmd, name, resource_group_name, token=None, login_with_
                 github_repo = g.get_repo(repo)
                 if not github_repo.permissions.push or not github_repo.permissions.maintain:
                     raise CLIError("The token does not have appropriate access rights to repository {}.".format(repo))
-            except BadCredentialsException:
+            except BadCredentialsException as e:
                 raise CLIError("Could not authenticate to the repository. Please create a Personal Access Token and use "
                             "the --token argument. Run 'az webapp deployment github-actions add --help' "
-                            "for more information.")
+                            "for more information.") from e
             except GithubException as e:
                 error_msg = "Encountered GitHub error when accessing {} repo".format(repo)
                 if e.data and e.data['message']:
                     error_msg += " Error: {}".format(e.data['message'])
-                raise CLIError(error_msg)
+                raise CLIError(error_msg) from e
     except CLIError as clierror:
         raise clierror
-    except Exception as ex:
+    except Exception:
         # If exception due to github package missing, etc just continue without validating the repo and rely on api validation
         pass
 
@@ -1556,10 +1492,10 @@ def show_ingress(cmd, name, resource_group_name):
 
     try:
         return containerapp_def["properties"]["configuration"]["ingress"]
-    except:
-        raise CLIError("The containerapp '{}' does not have ingress enabled.".format(name))
+    except Exception as e:
+        raise CLIError("The containerapp '{}' does not have ingress enabled.".format(name)) from e
 
-def enable_ingress(cmd, name, resource_group_name, type, target_port, transport, allow_insecure=False, no_wait=False):
+def enable_ingress(cmd, name, resource_group_name, type, target_port, transport, allow_insecure=False, no_wait=False): # pylint: disable=redefined-builtin
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     containerapp_def = None
@@ -1614,7 +1550,7 @@ def disable_ingress(cmd, name, resource_group_name, no_wait=False):
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
     try:
-        r = ContainerAppClient.create_or_update(
+        ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
         logger.warning("Ingress has been disabled successfully.")
         return
@@ -1635,8 +1571,8 @@ def set_ingress_traffic(cmd, name, resource_group_name, traffic_weights, no_wait
 
     try:
         containerapp_def["properties"]["configuration"]["ingress"]
-    except:
-        raise CLIError("Ingress must be enabled to set ingress traffic. Try running `az containerapp ingress -h` for more info.")
+    except Exception as e:
+        raise CLIError("Ingress must be enabled to set ingress traffic. Try running `az containerapp ingress -h` for more info.") from e
 
     if traffic_weights is not None:
         _update_traffic_weights(containerapp_def, traffic_weights)
@@ -1664,8 +1600,8 @@ def show_ingress_traffic(cmd, name, resource_group_name):
 
     try:
         return containerapp_def["properties"]["configuration"]["ingress"]["traffic"]
-    except:
-        raise CLIError("Ingress must be enabled to show ingress traffic. Try running `az containerapp ingress -h` for more info.")
+    except Exception as e:
+        raise CLIError("Ingress must be enabled to show ingress traffic. Try running `az containerapp ingress -h` for more info.") from e
 
 def show_registry(cmd, name, resource_group_name, server):
     _validate_subscription_registered(cmd, "Microsoft.App")
@@ -1681,8 +1617,8 @@ def show_registry(cmd, name, resource_group_name, server):
 
     try:
         containerapp_def["properties"]["configuration"]["registries"]
-    except:
-        raise CLIError("The containerapp {} has no assigned registries.".format(name))
+    except Exception as e:
+        raise CLIError("The containerapp {} has no assigned registries.".format(name)) from e
 
     registries_def = containerapp_def["properties"]["configuration"]["registries"]
 
@@ -1705,8 +1641,8 @@ def list_registry(cmd, name, resource_group_name):
 
     try:
         return containerapp_def["properties"]["configuration"]["registries"]
-    except:
-        raise CLIError("The containerapp {} has no assigned registries.".format(name))
+    except Exception as e:
+        raise CLIError("The containerapp {} has no assigned registries.".format(name)) from e
 
 def set_registry(cmd, name, resource_group_name, server, username=None, password=None, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
@@ -1741,7 +1677,7 @@ def set_registry(cmd, name, resource_group_name, server, username=None, password
         try:
             username, password = _get_acr_cred(cmd.cli_ctx, registry_name)
         except Exception as ex:
-            raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password')
+            raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
 
     # Check if updating existing registry
     updating_existing_registry = False
@@ -1773,7 +1709,7 @@ def set_registry(cmd, name, resource_group_name, server, username=None, password
             # Should this be false? ^
 
         registries_def.append(registry)
-   
+
     try:
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
@@ -1797,18 +1733,17 @@ def remove_registry(cmd, name, resource_group_name, server, no_wait=False):
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
     registries_def = None
-    registry = None
 
     try:
         containerapp_def["properties"]["configuration"]["registries"]
-    except:
-        raise CLIError("The containerapp {} has no assigned registries.".format(name))
+    except Exception as e:
+        raise CLIError("The containerapp {} has no assigned registries.".format(name)) from e
 
     registries_def = containerapp_def["properties"]["configuration"]["registries"]
 
     wasRemoved = False
-    for i in range(0, len(registries_def)):
-        r = registries_def[i]
+    for i, value in enumerate(registries_def):
+        r = value
         if r['server'].lower() == server.lower():
             registries_def.pop(i)
             _remove_registry_secret(containerapp_def=containerapp_def, server=server, username=r["username"])
@@ -1827,8 +1762,8 @@ def remove_registry(cmd, name, resource_group_name, server, no_wait=False):
         logger.warning("Registry successfully removed.")
         return r["properties"]["configuration"]["registries"]
     # No registries to return, so return nothing
-    except Exception as e:
-        return
+    except Exception:
+        pass
 
 def list_secrets(cmd, name, resource_group_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
@@ -1844,8 +1779,8 @@ def list_secrets(cmd, name, resource_group_name):
 
     try:
         return ContainerAppClient.list_secrets(cmd=cmd, resource_group_name=resource_group_name, name=name)["value"]
-    except:
-        raise CLIError("The containerapp {} has no assigned secrets.".format(name))
+    except Exception as e:
+        raise CLIError("The containerapp {} has no assigned secrets.".format(name)) from e
 
 def show_secret(cmd, name, resource_group_name, secret_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
@@ -2012,7 +1947,7 @@ def create_or_update_dapr_component(cmd, resource_group_name, environment_name, 
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     yaml_containerapp = load_yaml_file(yaml)
-    if type(yaml_containerapp) != dict:
+    if type(yaml_containerapp) != dict: # pylint: disable=unidiomatic-typecheck
         raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
 
     # Deserialize the yaml into a DaprComponent object. Need this since we're not using SDK
@@ -2022,7 +1957,7 @@ def create_or_update_dapr_component(cmd, resource_group_name, environment_name, 
 
         daprcomponent_def = deserializer('DaprComponent', yaml_containerapp)
     except DeserializationError as ex:
-        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
+        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.') from ex
 
     #daprcomponent_def = _object_to_dict(daprcomponent_def)
     daprcomponent_def = _convert_object_from_snake_to_camel_case(_object_to_dict(daprcomponent_def))
@@ -2049,8 +1984,8 @@ def remove_dapr_component(cmd, resource_group_name, dapr_component_name, environ
 
     try:
         DaprComponentClient.show(cmd, resource_group_name, environment_name, name=dapr_component_name)
-    except:
-        raise CLIError("Dapr component not found.")
+    except Exception as e:
+        raise CLIError("Dapr component not found.") from e
 
     try:
         r = DaprComponentClient.delete(cmd, resource_group_name, environment_name, name=dapr_component_name)
