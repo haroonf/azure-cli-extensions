@@ -70,8 +70,8 @@ def load_command_table(self, _):
 
     with self.command_group('containerapp github-action') as g:
         g.custom_command('add', 'create_or_update_github_action', exception_handler=ex_handler_factory())
-        g.custom_command('show', 'show_github_action',  exception_handler=ex_handler_factory())
-        g.custom_command('delete', 'delete_github_action',  exception_handler=ex_handler_factory())
+        g.custom_command('show', 'show_github_action', exception_handler=ex_handler_factory())
+        g.custom_command('delete', 'delete_github_action', exception_handler=ex_handler_factory())
 
     with self.command_group('containerapp revision') as g:
         g.custom_command('activate', 'activate_revision')

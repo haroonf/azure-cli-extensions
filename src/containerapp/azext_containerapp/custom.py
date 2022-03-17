@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
-# pylint: disable=line-too-long, consider-using-f-string, multiple-imports, logging-format-interpolation, inconsistent-return-statements, broad-except, bare-except, too-many-statements, too-many-locals, too-many-boolean-expressions, too-many-branches, too-many-nested-blocks, pointless-statement
+# pylint: disable=line-too-long, consider-using-f-string, logging-format-interpolation, inconsistent-return-statements, broad-except, bare-except, too-many-statements, too-many-locals, too-many-boolean-expressions, too-many-branches, too-many-nested-blocks, pointless-statement
 
 from urllib.parse import urlparse
 from azure.cli.command_modules.appservice.custom import (_get_acr_cred)
@@ -16,7 +16,7 @@ from msrest.exceptions import DeserializationError
 
 from ._client_factory import handle_raw_exception
 from ._clients import ManagedEnvironmentClient, ContainerAppClient, GitHubActionClient, DaprComponentClient
-from ._sdk_models import * # pylint: disable=wildcard-import, unused-wildcard-import
+# from ._sdk_models import *  # pylint: disable=wildcard-import, unused-wildcard-import
 from ._github_oauth import get_github_access_token
 from ._models import (
     ManagedEnvironment as ManagedEnvironmentModel,
@@ -38,12 +38,12 @@ from ._models import (
     SourceControl as SourceControlModel,
     ManagedServiceIdentity as ManagedServiceIdentityModel)
 from ._utils import (_validate_subscription_registered, _get_location_from_resource_group, _ensure_location_allowed,
-                    parse_secret_flags, store_as_secret_and_return_secret_ref, parse_env_var_flags,
-                    _generate_log_analytics_if_not_provided, _get_existing_secrets, _convert_object_from_snake_to_camel_case,
-                    _object_to_dict, _add_or_update_secrets, _remove_additional_attributes, _remove_readonly_attributes,
-                    _add_or_update_env_vars, _add_or_update_tags, update_nested_dictionary, _update_traffic_weights,
-                    _get_app_from_revision, raise_missing_token_suggestion, _infer_acr_credentials, _remove_registry_secret, _remove_secret,
-                    _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars, _update_revision_env_secretrefs)
+                     parse_secret_flags, store_as_secret_and_return_secret_ref, parse_env_var_flags,
+                     _generate_log_analytics_if_not_provided, _get_existing_secrets, _convert_object_from_snake_to_camel_case,
+                     _object_to_dict, _add_or_update_secrets, _remove_additional_attributes, _remove_readonly_attributes,
+                     _add_or_update_env_vars, _add_or_update_tags, update_nested_dictionary, _update_traffic_weights,
+                     _get_app_from_revision, raise_missing_token_suggestion, _infer_acr_credentials, _remove_registry_secret, _remove_secret,
+                     _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars, _update_revision_env_secretrefs)
 
 logger = get_logger(__name__)
 
@@ -68,7 +68,7 @@ def load_yaml_file(file_name):
     import errno
 
     try:
-        with open(file_name) as stream: # pylint: disable=unspecified-encoding
+        with open(file_name) as stream:  # pylint: disable=unspecified-encoding
             return yaml.safe_load(stream)
     except (IOError, OSError) as ex:
         if getattr(ex, 'errno', 0) == errno.ENOENT:
@@ -80,7 +80,8 @@ def load_yaml_file(file_name):
 
 def create_deserializer():
     from msrest import Deserializer
-    import sys, inspect
+    import sys
+    import inspect
 
     sdkClasses = inspect.getmembers(sys.modules["azext_containerapp._sdk_models"])
     deserializer = {}
@@ -93,7 +94,7 @@ def create_deserializer():
 
 def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_revision=None, no_wait=False):
     yaml_containerapp = process_loaded_yaml(load_yaml_file(file_name))
-    if type(yaml_containerapp) != dict: # pylint: disable=unidiomatic-typecheck
+    if type(yaml_containerapp) != dict:  # pylint: disable=unidiomatic-typecheck
         raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
 
     if not yaml_containerapp.get('name'):
@@ -172,7 +173,7 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
 
 def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=False):
     yaml_containerapp = process_loaded_yaml(load_yaml_file(file_name))
-    if type(yaml_containerapp) != dict: # pylint: disable=unidiomatic-typecheck
+    if type(yaml_containerapp) != dict:  # pylint: disable=unidiomatic-typecheck
         raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
 
     if not yaml_containerapp.get('name'):
@@ -291,7 +292,7 @@ def create_containerapp(cmd,
         if image or managed_env or min_replicas or max_replicas or target_port or ingress or\
             revisions_mode or secrets or env_vars or cpu or memory or registry_server or\
             registry_user or registry_pass or dapr_enabled or dapr_app_port or dapr_app_id or\
-            startup_command or args or tags:
+                startup_command or args or tags:
             logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
         return create_containerapp_yaml(cmd=cmd, name=name, resource_group_name=resource_group_name, file_name=yaml, no_wait=no_wait)
 
@@ -380,7 +381,7 @@ def create_containerapp(cmd,
 
         for r in assign_user_identities:
             r = _ensure_identity_resource_id(subscription_id, resource_group_name, r)
-            identity_def["userAssignedIdentities"][r] = {} # pylint: disable=unsupported-assignment-operation
+            identity_def["userAssignedIdentities"][r] = {}  # pylint: disable=unsupported-assignment-operation
 
     scale_def = None
     if min_replicas is not None or max_replicas is not None:
@@ -470,9 +471,9 @@ def update_containerapp(cmd,
 
     if yaml:
         if image or min_replicas or max_replicas or\
-            revisions_mode or secrets or set_env_vars or remove_env_vars or replace_env_vars or remove_all_env_vars or cpu or memory or registry_server or\
-            registry_user or registry_pass or\
-            startup_command or args or tags:
+           revisions_mode or secrets or set_env_vars or remove_env_vars or replace_env_vars or remove_all_env_vars or cpu or memory or registry_server or\
+           registry_user or registry_pass or\
+           startup_command or args or tags:
             logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
         return update_containerapp_yaml(cmd=cmd, name=name, resource_group_name=resource_group_name, file_name=yaml, no_wait=no_wait)
 
@@ -724,20 +725,20 @@ def delete_containerapp(cmd, name, resource_group_name):
 
 
 def create_managed_environment(cmd,
-                              name,
-                              resource_group_name,
-                              logs_customer_id=None,
-                              logs_key=None,
-                              location=None,
-                              instrumentation_key=None,
-                              infrastructure_subnet_resource_id=None,
-                              app_subnet_resource_id=None,
-                              docker_bridge_cidr=None,
-                              platform_reserved_cidr=None,
-                              platform_reserved_dns_ip=None,
-                              internal_only=False,
-                              tags=None,
-                              no_wait=False):
+                               name,
+                               resource_group_name,
+                               logs_customer_id=None,
+                               logs_key=None,
+                               location=None,
+                               instrumentation_key=None,
+                               infrastructure_subnet_resource_id=None,
+                               app_subnet_resource_id=None,
+                               docker_bridge_cidr=None,
+                               platform_reserved_cidr=None,
+                               platform_reserved_dns_ip=None,
+                               internal_only=False,
+                               tags=None,
+                               no_wait=False):
 
     location = location or _get_location_from_resource_group(cmd.cli_ctx, resource_group_name)
 
@@ -815,11 +816,12 @@ def create_managed_environment(cmd,
 
 
 def update_managed_environment(cmd,
-                            name,
-                            resource_group_name,
-                            tags=None,
-                            no_wait=False):
+                               name,
+                               resource_group_name,
+                               tags=None,
+                               no_wait=False):
     raise CLIError('Containerapp env update is not yet supported.')
+
 
 def show_managed_environment(cmd, name, resource_group_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
@@ -1020,6 +1022,8 @@ def show_managed_identity(cmd, name, resource_group_name):
         r["identity"] = {}
         r["identity"]["type"] = "None"
         return r["identity"]
+
+
 def create_or_update_github_action(cmd,
                                    name,
                                    resource_group_name,
@@ -1069,8 +1073,8 @@ def create_or_update_github_action(cmd,
                 logger.warning('Verified GitHub repo and branch')
             except BadCredentialsException as e:
                 raise CLIError("Could not authenticate to the repository. Please create a Personal Access Token and use "
-                            "the --token argument. Run 'az webapp deployment github-actions add --help' "
-                            "for more information.") from e
+                               "the --token argument. Run 'az webapp deployment github-actions add --help' "
+                               "for more information.") from e
             except GithubException as e:
                 error_msg = "Encountered GitHub error when accessing {} repo".format(repo)
                 if e.data and e.data['message']:
@@ -1085,7 +1089,6 @@ def create_or_update_github_action(cmd,
     source_control_info = None
 
     try:
-        #source_control_info = client.get_source_control_info(resource_group_name, name).properties
         source_control_info = GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
 
     except Exception as ex:
@@ -1138,7 +1141,7 @@ def create_or_update_github_action(cmd,
     headers = ["x-ms-github-auxiliary={}".format(token)]
 
     try:
-        r = GitHubActionClient.create_or_update(cmd = cmd, resource_group_name=resource_group_name, name=name, github_action_envelope=source_control_info, headers = headers)
+        r = GitHubActionClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, github_action_envelope=source_control_info, headers=headers)
         return r
     except Exception as e:
         handle_raw_exception(e)
@@ -1188,8 +1191,8 @@ def delete_github_action(cmd, name, resource_group_name, token=None, login_with_
                     raise CLIError("The token does not have appropriate access rights to repository {}.".format(repo))
             except BadCredentialsException as e:
                 raise CLIError("Could not authenticate to the repository. Please create a Personal Access Token and use "
-                            "the --token argument. Run 'az webapp deployment github-actions add --help' "
-                            "for more information.") from e
+                               "the --token argument. Run 'az webapp deployment github-actions add --help' "
+                               "for more information.") from e
             except GithubException as e:
                 error_msg = "Encountered GitHub error when accessing {} repo".format(repo)
                 if e.data and e.data['message']:
@@ -1245,6 +1248,7 @@ def activate_revision(cmd, resource_group_name, revision_name, name=None):
     except CLIError as e:
         handle_raw_exception(e)
 
+
 def deactivate_revision(cmd, resource_group_name, revision_name, name=None):
     if not name:
         name = _get_app_from_revision(revision_name)
@@ -1254,10 +1258,11 @@ def deactivate_revision(cmd, resource_group_name, revision_name, name=None):
     except CLIError as e:
         handle_raw_exception(e)
 
+
 def copy_revision(cmd,
                   resource_group_name,
                   from_revision=None,
-                  #label=None,
+                  # label=None,
                   name=None,
                   yaml=None,
                   image=None,
@@ -1287,7 +1292,7 @@ def copy_revision(cmd,
         if image or min_replicas or max_replicas or\
             set_env_vars or replace_env_vars or remove_env_vars or \
             remove_all_env_vars or cpu or memory or \
-            startup_command or args or tags:
+                startup_command or args or tags:
             logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
         return update_containerapp_yaml(cmd=cmd, name=name, resource_group_name=resource_group_name, file_name=yaml, from_revision=from_revision, no_wait=no_wait)
 
@@ -1455,6 +1460,7 @@ def copy_revision(cmd,
     except Exception as e:
         handle_raw_exception(e)
 
+
 def set_revision_mode(cmd, resource_group_name, name, mode, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -1478,6 +1484,7 @@ def set_revision_mode(cmd, resource_group_name, name, mode, no_wait=False):
     except Exception as e:
         handle_raw_exception(e)
 
+
 def show_ingress(cmd, name, resource_group_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -1495,7 +1502,8 @@ def show_ingress(cmd, name, resource_group_name):
     except Exception as e:
         raise CLIError("The containerapp '{}' does not have ingress enabled.".format(name)) from e
 
-def enable_ingress(cmd, name, resource_group_name, type, target_port, transport, allow_insecure=False, no_wait=False): # pylint: disable=redefined-builtin
+
+def enable_ingress(cmd, name, resource_group_name, type, target_port, transport, allow_insecure=False, no_wait=False):  # pylint: disable=redefined-builtin
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     containerapp_def = None
@@ -1533,6 +1541,7 @@ def enable_ingress(cmd, name, resource_group_name, type, target_port, transport,
     except Exception as e:
         handle_raw_exception(e)
 
+
 def disable_ingress(cmd, name, resource_group_name, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -1556,6 +1565,7 @@ def disable_ingress(cmd, name, resource_group_name, no_wait=False):
         return
     except Exception as e:
         handle_raw_exception(e)
+
 
 def set_ingress_traffic(cmd, name, resource_group_name, traffic_weights, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
@@ -1586,6 +1596,7 @@ def set_ingress_traffic(cmd, name, resource_group_name, traffic_weights, no_wait
     except Exception as e:
         handle_raw_exception(e)
 
+
 def show_ingress_traffic(cmd, name, resource_group_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -1602,6 +1613,7 @@ def show_ingress_traffic(cmd, name, resource_group_name):
         return containerapp_def["properties"]["configuration"]["ingress"]["traffic"]
     except Exception as e:
         raise CLIError("Ingress must be enabled to show ingress traffic. Try running `az containerapp ingress -h` for more info.") from e
+
 
 def show_registry(cmd, name, resource_group_name, server):
     _validate_subscription_registered(cmd, "Microsoft.App")
@@ -1627,6 +1639,7 @@ def show_registry(cmd, name, resource_group_name, server):
             return r
     raise CLIError("The containerapp {} does not have specified registry assigned.".format(name))
 
+
 def list_registry(cmd, name, resource_group_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -1643,6 +1656,7 @@ def list_registry(cmd, name, resource_group_name):
         return containerapp_def["properties"]["configuration"]["registries"]
     except Exception as e:
         raise CLIError("The containerapp {} has no assigned registries.".format(name)) from e
+
 
 def set_registry(cmd, name, resource_group_name, server, username=None, password=None, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
@@ -1706,7 +1720,6 @@ def set_registry(cmd, name, resource_group_name, server, username=None, password
             server,
             password,
             update_existing_secret=True)
-            # Should this be false? ^
 
         registries_def.append(registry)
 
@@ -1717,6 +1730,7 @@ def set_registry(cmd, name, resource_group_name, server, username=None, password
         return r["properties"]["configuration"]["registries"]
     except Exception as e:
         handle_raw_exception(e)
+
 
 def remove_registry(cmd, name, resource_group_name, server, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
@@ -1765,6 +1779,7 @@ def remove_registry(cmd, name, resource_group_name, server, no_wait=False):
     except Exception:
         pass
 
+
 def list_secrets(cmd, name, resource_group_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -1781,6 +1796,7 @@ def list_secrets(cmd, name, resource_group_name):
         return ContainerAppClient.list_secrets(cmd=cmd, resource_group_name=resource_group_name, name=name)["value"]
     except Exception as e:
         raise CLIError("The containerapp {} has no assigned secrets.".format(name)) from e
+
 
 def show_secret(cmd, name, resource_group_name, secret_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
@@ -1800,7 +1816,8 @@ def show_secret(cmd, name, resource_group_name, secret_name):
             return secret
     raise CLIError("The containerapp {} does not have a secret assigned with name {}.".format(name, secret_name))
 
-def remove_secrets(cmd, name, resource_group_name, secret_names, no_wait = False):
+
+def remove_secrets(cmd, name, resource_group_name, secret_names, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     containerapp_def = None
@@ -1835,10 +1852,10 @@ def remove_secrets(cmd, name, resource_group_name, secret_names, no_wait = False
     except Exception as e:
         handle_raw_exception(e)
 
+
 def set_secrets(cmd, name, resource_group_name, secrets,
-                #secrets=None,
-                #yaml=None,
-                no_wait = False):
+                # yaml=None,
+                no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     # if not yaml and not secrets:
@@ -1875,6 +1892,7 @@ def set_secrets(cmd, name, resource_group_name, secrets,
     except Exception as e:
         handle_raw_exception(e)
 
+
 def enable_dapr(cmd, name, resource_group_name, dapr_app_id=None, dapr_app_port=None, dapr_app_protocol=None, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -1910,6 +1928,7 @@ def enable_dapr(cmd, name, resource_group_name, dapr_app_id=None, dapr_app_port=
     except Exception as e:
         handle_raw_exception(e)
 
+
 def disable_dapr(cmd, name, resource_group_name, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -1933,21 +1952,24 @@ def disable_dapr(cmd, name, resource_group_name, no_wait=False):
     except Exception as e:
         handle_raw_exception(e)
 
+
 def list_dapr_components(cmd, resource_group_name, environment_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     return DaprComponentClient.list(cmd, resource_group_name, environment_name)
+
 
 def show_dapr_component(cmd, resource_group_name, dapr_component_name, environment_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     return DaprComponentClient.show(cmd, resource_group_name, environment_name, name=dapr_component_name)
 
+
 def create_or_update_dapr_component(cmd, resource_group_name, environment_name, dapr_component_name, yaml):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     yaml_containerapp = load_yaml_file(yaml)
-    if type(yaml_containerapp) != dict: # pylint: disable=unidiomatic-typecheck
+    if type(yaml_containerapp) != dict:  # pylint: disable=unidiomatic-typecheck
         raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
 
     # Deserialize the yaml into a DaprComponent object. Need this since we're not using SDK
@@ -1959,7 +1981,6 @@ def create_or_update_dapr_component(cmd, resource_group_name, environment_name, 
     except DeserializationError as ex:
         raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.') from ex
 
-    #daprcomponent_def = _object_to_dict(daprcomponent_def)
     daprcomponent_def = _convert_object_from_snake_to_camel_case(_object_to_dict(daprcomponent_def))
 
     # Remove "additionalProperties" and read-only attributes that are introduced in the deserialization. Need this since we're not using SDK
@@ -1978,6 +1999,7 @@ def create_or_update_dapr_component(cmd, resource_group_name, environment_name, 
         return r
     except Exception as e:
         handle_raw_exception(e)
+
 
 def remove_dapr_component(cmd, resource_group_name, dapr_component_name, environment_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
