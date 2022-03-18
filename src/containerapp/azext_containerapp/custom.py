@@ -731,7 +731,7 @@ def create_managed_environment(cmd,
                                location=None,
                                instrumentation_key=None,
                                infrastructure_subnet_resource_id=None,
-                               app_subnet_resource_id=None,
+                               # app_subnet_resource_id=None,
                                docker_bridge_cidr=None,
                                platform_reserved_cidr=None,
                                platform_reserved_dns_ip=None,
@@ -745,13 +745,13 @@ def create_managed_environment(cmd,
     _ensure_location_allowed(cmd, location, "Microsoft.App", "managedEnvironments")
 
     # Microsoft.ContainerService RP registration is required for vnet enabled environments
-    if infrastructure_subnet_resource_id is not None or app_subnet_resource_id is not None:
-        if is_valid_resource_id(app_subnet_resource_id):
-            parsed_app_subnet_resource_id = parse_resource_id(app_subnet_resource_id)
-            subnet_subscription = parsed_app_subnet_resource_id["subscription"]
-            _validate_subscription_registered(cmd, "Microsoft.ContainerService", subnet_subscription)
-        else:
-            raise ValidationError('Subnet resource ID is invalid.')
+    # if infrastructure_subnet_resource_id is not None or app_subnet_resource_id is not None:
+    #     if is_valid_resource_id(app_subnet_resource_id):
+    #         parsed_app_subnet_resource_id = parse_resource_id(app_subnet_resource_id)
+    #         subnet_subscription = parsed_app_subnet_resource_id["subscription"]
+    #         _validate_subscription_registered(cmd, "Microsoft.ContainerService", subnet_subscription)
+    #     else:
+    #         raise ValidationError('Subnet resource ID is invalid.')
 
     if logs_customer_id is None or logs_key is None:
         logs_customer_id, logs_key = _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, location, resource_group_name)
@@ -773,18 +773,11 @@ def create_managed_environment(cmd,
     if instrumentation_key is not None:
         managed_env_def["properties"]["daprAIInstrumentationKey"] = instrumentation_key
 
-    if infrastructure_subnet_resource_id or app_subnet_resource_id or docker_bridge_cidr or platform_reserved_cidr or platform_reserved_dns_ip:
+    if infrastructure_subnet_resource_id or docker_bridge_cidr or platform_reserved_cidr or platform_reserved_dns_ip:
         vnet_config_def = VnetConfigurationModel
 
         if infrastructure_subnet_resource_id is not None:
-            if not app_subnet_resource_id:
-                raise ValidationError('App subnet resource ID needs to be supplied with infrastructure subnet resource ID.')
             vnet_config_def["infrastructureSubnetId"] = infrastructure_subnet_resource_id
-
-        if app_subnet_resource_id is not None:
-            if not infrastructure_subnet_resource_id:
-                raise ValidationError('Infrastructure subnet resource ID needs to be supplied with app subnet resource ID.')
-            vnet_config_def["runtimeSubnetId"] = app_subnet_resource_id
 
         if docker_bridge_cidr is not None:
             vnet_config_def["dockerBridgeCidr"] = docker_bridge_cidr
@@ -798,8 +791,8 @@ def create_managed_environment(cmd,
         managed_env_def["properties"]["vnetConfiguration"] = vnet_config_def
 
     if internal_only:
-        if not infrastructure_subnet_resource_id or not app_subnet_resource_id:
-            raise ValidationError('Infrastructure subnet resource ID and App subnet resource ID need to be supplied for internal only environments.')
+        if not infrastructure_subnet_resource_id:
+            raise ValidationError('Infrastructure subnet resource ID needs to be supplied for internal only environments.')
         managed_env_def["properties"]["internalLoadBalancerEnabled"] = True
 
     try:
