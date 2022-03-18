@@ -848,6 +848,11 @@ def delete_managed_environment(cmd, name, resource_group_name, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     try:
+        ManagedEnvironmentClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except CLIError as e:
+        handle_raw_exception(e)
+
+    try:
         return ManagedEnvironmentClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name, no_wait=no_wait)
     except CLIError as e:
         handle_raw_exception(e)
