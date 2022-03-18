@@ -124,6 +124,14 @@ def _update_revision_env_secretrefs(containers, name):
                     var["secretRef"] = var["secretRef"].replace("{}-".format(name), "")
 
 
+def _update_revision_env_secretrefs(containers, name):
+    for container in containers:
+        if "env" in container:
+            for var in container["env"]:
+                if "secretRef" in var:
+                    var["secretRef"] = var["secretRef"].replace("{}-".format(name), "")
+
+
 def store_as_secret_and_return_secret_ref(secrets_list, registry_user, registry_server, registry_pass, update_existing_secret=False):
     if registry_pass.startswith("secretref:"):
         # If user passed in registry password using a secret
@@ -372,6 +380,23 @@ def _add_or_update_env_vars(existing_env_vars, new_env_vars, is_add=False):
             if not is_add:
                 logger.warning("Environment variable {} does not exist. Adding as new environment variable.".format(new_env_var["name"]))  # pylint: disable=logging-format-interpolation
             existing_env_vars.append(new_env_var)
+
+
+def _remove_env_vars(existing_env_vars, remove_env_vars):
+    for old_env_var in remove_env_vars:
+
+        # Check if updating existing env var
+        is_existing = False
+        for i, value in enumerate(existing_env_vars):
+            existing_env_var = value
+            if existing_env_var["name"].lower() == old_env_var.lower():
+                is_existing = True
+                existing_env_vars.pop(i)
+                break
+
+        # If not updating existing env var, add it as a new env var
+        if not is_existing:
+            logger.warning("Environment variable {} does not exist.".format(old_env_var))  # pylint: disable=logging-format-interpolation
 
 
 def _remove_env_vars(existing_env_vars, remove_env_vars):

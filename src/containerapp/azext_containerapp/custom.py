@@ -125,7 +125,6 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
             r = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=from_revision)
         except CLIError as e:
             handle_raw_exception(e)
-
         _update_revision_env_secretrefs(r["properties"]["template"]["containers"], name)
         current_containerapp_def["properties"]["template"] = r["properties"]["template"]
 
