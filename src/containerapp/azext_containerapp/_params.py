@@ -21,7 +21,7 @@ def load_arguments(self, _):
 
     with self.argument_context('containerapp') as c:
         # Base arguments
-        c.argument('name', name_type, metavar='NAME', id_part='name')
+        c.argument('name', name_type, metavar='NAME', id_part='name', help="The name of the Containerapp.")
         c.argument('resource_group_name', arg_type=resource_group_name_type)
         c.argument('location', arg_type=get_location_type(self.cli_ctx))
 
@@ -43,7 +43,7 @@ def load_arguments(self, _):
 
     # Env vars
     with self.argument_context('containerapp', arg_group='Environment variables (Creates new revision)') as c:
-        c.argument('set_env_vars', options_list=['--set-env-vars, --env-vars'], nargs='*', help="A list of environment variable(s) to add to the container. Space-separated values in 'key=value' format. If stored as a secret, value must start with \'secretref:\' followed by the secret name.")
+        c.argument('set_env_vars', nargs='*', help="A list of environment variable(s) to add to the container. Space-separated values in 'key=value' format. If stored as a secret, value must start with \'secretref:\' followed by the secret name.")
         c.argument('remove_env_vars', nargs='*', help="A list of environment variable(s) to remove from container. Space-separated env var name values.")
         c.argument('replace_env_vars', nargs='*', help="A list of environment variable(s) to replace from the container. Space-separated values in 'key=value' format. If stored as a secret, value must start with \'secretref:\' followed by the secret name.")
         c.argument('remove_all_env_vars', help="Option to remove all environment variable(s) from the container.")
