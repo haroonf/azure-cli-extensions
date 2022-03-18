@@ -97,7 +97,7 @@ def load_arguments(self, _):
         c.argument('instrumentation_key', options_list=['--dapr-instrumentation-key'], help='Azure Monitor instrumentation key used by Dapr to export Service to Service communication telemetry')
 
     with self.argument_context('containerapp env', arg_group='Virtual Network') as c:
-        c.argument('infrastructure_subnet_resource_id', type=str, options_list=['--infrastructure-subnet-resource-id'], help='Resource ID of a subnet for infrastructure components. This subnet must be in the same VNET as the subnet defined in appSubnetResourceId.')
+        c.argument('infrastructure_subnet_resource_id', type=str, options_list=['--infrastructure-subnet-resource-id'], help='Resource ID of a subnet for infrastructure components and user app containers.')
         c.argument('app_subnet_resource_id', type=str, options_list=['--app-subnet-resource-id'], help='Resource ID of a subnet that Container App containers are injected into. This subnet must be in the same VNET as the subnet defined in infrastructureSubnetResourceId.')
         c.argument('docker_bridge_cidr', type=str, options_list=['--docker-bridge-cidr'], help='CIDR notation IP range assigned to the Docker bridge. It must not overlap with any Subnet IP ranges or the IP range defined in Platform Reserved CIDR, if defined')
         c.argument('platform_reserved_cidr', type=str, options_list=['--platform-reserved-cidr'], help='IP range in CIDR notation that can be reserved for environment infrastructure IP addresses. It must not overlap with any other Subnet IP ranges')
