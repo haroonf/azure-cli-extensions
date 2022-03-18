@@ -718,6 +718,11 @@ def delete_containerapp(cmd, name, resource_group_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     try:
+        ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except CLIError as e:
+        handle_raw_exception(e)
+
+    try:
         return ContainerAppClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name)
     except CLIError as e:
         handle_raw_exception(e)
