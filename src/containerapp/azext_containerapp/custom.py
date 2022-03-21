@@ -6,9 +6,8 @@
 
 from urllib.parse import urlparse
 from azure.cli.command_modules.appservice.custom import (_get_acr_cred)
-from azure.cli.core.azclierror import (RequiredArgumentMissingError, ValidationError)
+from azure.cli.core.azclierror import (RequiredArgumentMissingError, ValidationError, ResourceNotFoundError, CLIInternalError, InvalidArgumentValueError)
 from azure.cli.core.commands.client_factory import get_subscription_id
-from knack.util import CLIError
 from knack.log import get_logger
 
 from msrestazure.tools import parse_resource_id, is_valid_resource_id
@@ -72,10 +71,10 @@ def load_yaml_file(file_name):
             return yaml.safe_load(stream)
     except (IOError, OSError) as ex:
         if getattr(ex, 'errno', 0) == errno.ENOENT:
-            raise CLIError('{} does not exist'.format(file_name)) from ex
+            raise ValidationError('{} does not exist'.format(file_name)) from ex
         raise
     except (yaml.parser.ParserError, UnicodeDecodeError) as ex:
-        raise CLIError('Error parsing {} ({})'.format(file_name, str(ex))) from ex
+        raise ValidationError('Error parsing {} ({})'.format(file_name, str(ex))) from ex
 
 
 def create_deserializer():
@@ -123,7 +122,7 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
     if from_revision:
         try:
             r = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=from_revision)
-        except CLIError as e:
+        except CLIInternalError as e:
             handle_raw_exception(e)
         _update_revision_env_secretrefs(r["properties"]["template"]["containers"], name)
         current_containerapp_def["properties"]["template"] = r["properties"]["template"]
@@ -483,7 +482,7 @@ def update_containerapp(cmd,
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     # Doing this while API has bug. If env var is an empty string, API doesn't return "value" even though the "value" should be an empty string
     if "properties" in containerapp_def and "template" in containerapp_def["properties"] and "containers" in containerapp_def["properties"]["template"]:
@@ -695,7 +694,7 @@ def show_containerapp(cmd, name, resource_group_name):
 
     try:
         return ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
-    except CLIError as e:
+    except CLIInternalError as e:
         handle_raw_exception(e)
 
 
@@ -710,7 +709,7 @@ def list_containerapp(cmd, resource_group_name=None):
             containerapps = ContainerAppClient.list_by_resource_group(cmd=cmd, resource_group_name=resource_group_name)
 
         return containerapps
-    except CLIError as e:
+    except CLIInternalError as e:
         handle_raw_exception(e)
 
 
@@ -719,12 +718,12 @@ def delete_containerapp(cmd, name, resource_group_name):
 
     try:
         ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
-    except CLIError as e:
+    except CLIInternalError as e:
         handle_raw_exception(e)
 
     try:
         return ContainerAppClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name)
-    except CLIError as e:
+    except CLIInternalError as e:
         handle_raw_exception(e)
 
 
@@ -817,7 +816,7 @@ def update_managed_environment(cmd,
                                resource_group_name,
                                tags=None,
                                no_wait=False):
-    raise CLIError('Containerapp env update is not yet supported.')
+    raise CLIInternalError('Containerapp env update is not yet supported.')
 
 
 def show_managed_environment(cmd, name, resource_group_name):
@@ -825,7 +824,7 @@ def show_managed_environment(cmd, name, resource_group_name):
 
     try:
         return ManagedEnvironmentClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
-    except CLIError as e:
+    except CLIInternalError as e:
         handle_raw_exception(e)
 
 
@@ -840,7 +839,7 @@ def list_managed_environments(cmd, resource_group_name=None):
             managed_envs = ManagedEnvironmentClient.list_by_resource_group(cmd=cmd, resource_group_name=resource_group_name)
 
         return managed_envs
-    except CLIError as e:
+    except CLIInternalError as e:
         handle_raw_exception(e)
 
 
@@ -849,12 +848,12 @@ def delete_managed_environment(cmd, name, resource_group_name, no_wait=False):
 
     try:
         ManagedEnvironmentClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
-    except CLIError as e:
+    except CLIInternalError as e:
         handle_raw_exception(e)
 
     try:
         return ManagedEnvironmentClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name, no_wait=no_wait)
-    except CLIError as e:
+    except CLIInternalError as e:
         handle_raw_exception(e)
 
 
@@ -879,7 +878,7 @@ def assign_managed_identity(cmd, name, resource_group_name, identities=None, no_
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
@@ -959,7 +958,7 @@ def remove_managed_identity(cmd, name, resource_group_name, identities, no_wait=
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
@@ -972,11 +971,11 @@ def remove_managed_identity(cmd, name, resource_group_name, identities, no_wait=
         containerapp_def["identity"]["type"] = "None"
 
     if containerapp_def["identity"]["type"] == "None":
-        raise CLIError("The containerapp {} has no system or user assigned identities.".format(name))
+        raise InvalidArgumentValueError("The containerapp {} has no system or user assigned identities.".format(name))
 
     if remove_system_identity:
         if containerapp_def["identity"]["type"] == "UserAssigned":
-            raise CLIError("The containerapp {} has no system assigned identities.".format(name))
+            raise InvalidArgumentValueError("The containerapp {} has no system assigned identities.".format(name))
         containerapp_def["identity"]["type"] = ("None" if containerapp_def["identity"]["type"] == "SystemAssigned" else "UserAssigned")
 
     if remove_user_identities:
@@ -997,7 +996,7 @@ def remove_managed_identity(cmd, name, resource_group_name, identities, no_wait=
                     break
 
             if not wasRemoved:
-                raise CLIError("The containerapp does not have specified user identity '{}' assigned, so it cannot be removed.".format(given_id))
+                raise InvalidArgumentValueError("The containerapp does not have specified user identity '{}' assigned, so it cannot be removed.".format(given_id))
 
         if containerapp_def["identity"]["userAssignedIdentities"] == {}:
             containerapp_def["identity"]["userAssignedIdentities"] = None
@@ -1015,7 +1014,7 @@ def show_managed_identity(cmd, name, resource_group_name):
 
     try:
         r = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
-    except CLIError as e:
+    except CLIInternalError as e:
         handle_raw_exception(e)
 
     try:
@@ -1064,25 +1063,25 @@ def create_or_update_github_action(cmd,
             try:
                 github_repo = g.get_repo(repo)
                 if not github_repo.permissions.push or not github_repo.permissions.maintain:
-                    raise CLIError("The token does not have appropriate access rights to repository {}.".format(repo))
+                    raise ValidationError("The token does not have appropriate access rights to repository {}.".format(repo))
                 try:
                     github_repo.get_branch(branch=branch)
                 except GithubException as e:
                     error_msg = "Encountered GitHub error when accessing {} branch in {} repo.".format(branch, repo)
                     if e.data and e.data['message']:
                         error_msg += " Error: {}".format(e.data['message'])
-                    raise CLIError(error_msg) from e
+                    raise CLIInternalError(error_msg) from e
                 logger.warning('Verified GitHub repo and branch')
             except BadCredentialsException as e:
-                raise CLIError("Could not authenticate to the repository. Please create a Personal Access Token and use "
+                raise ValidationError("Could not authenticate to the repository. Please create a Personal Access Token and use "
                                "the --token argument. Run 'az webapp deployment github-actions add --help' "
                                "for more information.") from e
             except GithubException as e:
                 error_msg = "Encountered GitHub error when accessing {} repo".format(repo)
                 if e.data and e.data['message']:
                     error_msg += " Error: {}".format(e.data['message'])
-                raise CLIError(error_msg) from e
-    except CLIError as clierror:
+                raise CLIInternalError(error_msg) from e
+    except CLIInternalError as clierror:
         raise clierror
     except Exception:
         # If exception due to github package missing, etc just continue without validating the repo and rely on api validation
@@ -1190,17 +1189,17 @@ def delete_github_action(cmd, name, resource_group_name, token=None, login_with_
             try:
                 github_repo = g.get_repo(repo)
                 if not github_repo.permissions.push or not github_repo.permissions.maintain:
-                    raise CLIError("The token does not have appropriate access rights to repository {}.".format(repo))
+                    raise ValidationError("The token does not have appropriate access rights to repository {}.".format(repo))
             except BadCredentialsException as e:
-                raise CLIError("Could not authenticate to the repository. Please create a Personal Access Token and use "
+                raise CLIInternalError("Could not authenticate to the repository. Please create a Personal Access Token and use "
                                "the --token argument. Run 'az webapp deployment github-actions add --help' "
                                "for more information.") from e
             except GithubException as e:
                 error_msg = "Encountered GitHub error when accessing {} repo".format(repo)
                 if e.data and e.data['message']:
                     error_msg += " Error: {}".format(e.data['message'])
-                raise CLIError(error_msg) from e
-    except CLIError as clierror:
+                raise CLIInternalError(error_msg) from e
+    except CLIInternalError as clierror:
         raise clierror
     except Exception:
         # If exception due to github package missing, etc just continue without validating the repo and rely on api validation
@@ -1217,7 +1216,7 @@ def delete_github_action(cmd, name, resource_group_name, token=None, login_with_
 def list_revisions(cmd, name, resource_group_name):
     try:
         return ContainerAppClient.list_revisions(cmd=cmd, resource_group_name=resource_group_name, name=name)
-    except CLIError as e:
+    except CLIInternalError as e:
         handle_raw_exception(e)
 
 
@@ -1227,7 +1226,7 @@ def show_revision(cmd, resource_group_name, revision_name, name=None):
 
     try:
         return ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=revision_name)
-    except CLIError as e:
+    except CLIInternalError as e:
         handle_raw_exception(e)
 
 
@@ -1237,7 +1236,7 @@ def restart_revision(cmd, resource_group_name, revision_name, name=None):
 
     try:
         return ContainerAppClient.restart_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=revision_name)
-    except CLIError as e:
+    except CLIInternalError as e:
         handle_raw_exception(e)
 
 
@@ -1247,7 +1246,7 @@ def activate_revision(cmd, resource_group_name, revision_name, name=None):
 
     try:
         return ContainerAppClient.activate_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=revision_name)
-    except CLIError as e:
+    except CLIInternalError as e:
         handle_raw_exception(e)
 
 
@@ -1257,7 +1256,7 @@ def deactivate_revision(cmd, resource_group_name, revision_name, name=None):
 
     try:
         return ContainerAppClient.deactivate_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=revision_name)
-    except CLIError as e:
+    except CLIInternalError as e:
         handle_raw_exception(e)
 
 
@@ -1305,12 +1304,12 @@ def copy_revision(cmd,
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     if from_revision:
         try:
             r = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=from_revision)
-        except CLIError as e:
+        except CLIInternalError as e:
             # Error handle the case where revision not found?
             handle_raw_exception(e)
 
@@ -1473,7 +1472,7 @@ def set_revision_mode(cmd, resource_group_name, name, mode, no_wait=False):
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     containerapp_def["properties"]["configuration"]["activeRevisionsMode"] = mode.lower()
 
@@ -1497,12 +1496,12 @@ def show_ingress(cmd, name, resource_group_name):
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     try:
         return containerapp_def["properties"]["configuration"]["ingress"]
     except Exception as e:
-        raise CLIError("The containerapp '{}' does not have ingress enabled.".format(name)) from e
+        raise ValidationError("The containerapp '{}' does not have ingress enabled.".format(name)) from e
 
 
 def enable_ingress(cmd, name, resource_group_name, type, target_port, transport, allow_insecure=False, no_wait=False):  # pylint: disable=redefined-builtin
@@ -1515,7 +1514,7 @@ def enable_ingress(cmd, name, resource_group_name, type, target_port, transport,
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     external_ingress = None
     if type is not None:
@@ -1554,7 +1553,7 @@ def disable_ingress(cmd, name, resource_group_name, no_wait=False):
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     containerapp_def["properties"]["configuration"]["ingress"] = None
 
@@ -1579,12 +1578,12 @@ def set_ingress_traffic(cmd, name, resource_group_name, traffic_weights, no_wait
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     try:
         containerapp_def["properties"]["configuration"]["ingress"]
     except Exception as e:
-        raise CLIError("Ingress must be enabled to set ingress traffic. Try running `az containerapp ingress -h` for more info.") from e
+        raise ValidationError("Ingress must be enabled to set ingress traffic. Try running `az containerapp ingress -h` for more info.") from e
 
     if traffic_weights is not None:
         _update_traffic_weights(containerapp_def, traffic_weights)
@@ -1609,12 +1608,12 @@ def show_ingress_traffic(cmd, name, resource_group_name):
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     try:
         return containerapp_def["properties"]["configuration"]["ingress"]["traffic"]
     except Exception as e:
-        raise CLIError("Ingress must be enabled to show ingress traffic. Try running `az containerapp ingress -h` for more info.") from e
+        raise ValidationError("Ingress must be enabled to show ingress traffic. Try running `az containerapp ingress -h` for more info.") from e
 
 
 def show_registry(cmd, name, resource_group_name, server):
@@ -1627,19 +1626,19 @@ def show_registry(cmd, name, resource_group_name, server):
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     try:
         containerapp_def["properties"]["configuration"]["registries"]
     except Exception as e:
-        raise CLIError("The containerapp {} has no assigned registries.".format(name)) from e
+        raise ValidationError("The containerapp {} has no assigned registries.".format(name)) from e
 
     registries_def = containerapp_def["properties"]["configuration"]["registries"]
 
     for r in registries_def:
         if r['server'].lower() == server.lower():
             return r
-    raise CLIError("The containerapp {} does not have specified registry assigned.".format(name))
+    raise InvalidArgumentValueError("The containerapp {} does not have specified registry assigned.".format(name))
 
 
 def list_registry(cmd, name, resource_group_name):
@@ -1652,12 +1651,12 @@ def list_registry(cmd, name, resource_group_name):
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     try:
         return containerapp_def["properties"]["configuration"]["registries"]
     except Exception as e:
-        raise CLIError("The containerapp {} has no assigned registries.".format(name)) from e
+        raise ValidationError("The containerapp {} has no assigned registries.".format(name)) from e
 
 
 def set_registry(cmd, name, resource_group_name, server, username=None, password=None, no_wait=False):
@@ -1670,7 +1669,7 @@ def set_registry(cmd, name, resource_group_name, server, username=None, password
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
@@ -1744,7 +1743,7 @@ def remove_registry(cmd, name, resource_group_name, server, no_wait=False):
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
@@ -1753,7 +1752,7 @@ def remove_registry(cmd, name, resource_group_name, server, no_wait=False):
     try:
         containerapp_def["properties"]["configuration"]["registries"]
     except Exception as e:
-        raise CLIError("The containerapp {} has no assigned registries.".format(name)) from e
+        raise ValidationError("The containerapp {} has no assigned registries.".format(name)) from e
 
     registries_def = containerapp_def["properties"]["configuration"]["registries"]
 
@@ -1767,7 +1766,7 @@ def remove_registry(cmd, name, resource_group_name, server, no_wait=False):
             break
 
     if not wasRemoved:
-        raise CLIError("Containerapp does not have registry server {} assigned.".format(server))
+        raise ValidationError("Containerapp does not have registry server {} assigned.".format(server))
 
     if len(containerapp_def["properties"]["configuration"]["registries"]) == 0:
         containerapp_def["properties"]["configuration"].pop("registries")
@@ -1792,12 +1791,12 @@ def list_secrets(cmd, name, resource_group_name):
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     try:
         return ContainerAppClient.list_secrets(cmd=cmd, resource_group_name=resource_group_name, name=name)["value"]
     except Exception as e:
-        raise CLIError("The containerapp {} has no assigned secrets.".format(name)) from e
+        raise ValidationError("The containerapp {} has no assigned secrets.".format(name)) from e
 
 
 def show_secret(cmd, name, resource_group_name, secret_name):
@@ -1810,13 +1809,13 @@ def show_secret(cmd, name, resource_group_name, secret_name):
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     r = ContainerAppClient.list_secrets(cmd=cmd, resource_group_name=resource_group_name, name=name)
     for secret in r["value"]:
         if secret["name"].lower() == secret_name.lower():
             return secret
-    raise CLIError("The containerapp {} does not have a secret assigned with name {}.".format(name, secret_name))
+    raise ValidationError("The containerapp {} does not have a secret assigned with name {}.".format(name, secret_name))
 
 
 def remove_secrets(cmd, name, resource_group_name, secret_names, no_wait=False):
@@ -1829,7 +1828,7 @@ def remove_secrets(cmd, name, resource_group_name, secret_names, no_wait=False):
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
@@ -1841,7 +1840,7 @@ def remove_secrets(cmd, name, resource_group_name, secret_names, no_wait=False):
                 wasRemoved = True
                 break
         if not wasRemoved:
-            raise CLIError("The containerapp {} does not have a secret assigned with name {}.".format(name, secret_name))
+            raise ValidationError("The containerapp {} does not have a secret assigned with name {}.".format(name, secret_name))
     try:
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
@@ -1871,7 +1870,7 @@ def set_secrets(cmd, name, resource_group_name, secrets,
     #     try:
     #         parse_secret_flags(yaml_secrets)
     #     except:
-    #         raise CLIError("YAML secrets must be a list of secrets in key=value format, delimited by new line.")
+    #         raise ValidationError("YAML secrets must be a list of secrets in key=value format, delimited by new line.")
     #     for secret in yaml_secrets:
     #         secrets.append(secret.strip())
 
@@ -1882,7 +1881,7 @@ def set_secrets(cmd, name, resource_group_name, secrets,
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
     _add_or_update_secrets(containerapp_def, parse_secret_flags(secrets))
@@ -1905,7 +1904,7 @@ def enable_dapr(cmd, name, resource_group_name, dapr_app_id=None, dapr_app_port=
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
@@ -1941,7 +1940,7 @@ def disable_dapr(cmd, name, resource_group_name, no_wait=False):
         pass
 
     if not containerapp_def:
-        raise CLIError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
@@ -2009,7 +2008,7 @@ def remove_dapr_component(cmd, resource_group_name, dapr_component_name, environ
     try:
         DaprComponentClient.show(cmd, resource_group_name, environment_name, name=dapr_component_name)
     except Exception as e:
-        raise CLIError("Dapr component not found.") from e
+        raise ResourceNotFoundError("Dapr component not found.") from e
 
     try:
         r = DaprComponentClient.delete(cmd, resource_group_name, environment_name, name=dapr_component_name)
