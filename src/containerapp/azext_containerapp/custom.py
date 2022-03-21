@@ -717,11 +717,6 @@ def delete_containerapp(cmd, name, resource_group_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     try:
-        ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
-    except CLIInternalError as e:
-        handle_raw_exception(e)
-
-    try:
         return ContainerAppClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name)
     except CLIInternalError as e:
         handle_raw_exception(e)
@@ -735,7 +730,6 @@ def create_managed_environment(cmd,
                                location=None,
                                instrumentation_key=None,
                                infrastructure_subnet_resource_id=None,
-                               # app_subnet_resource_id=None,
                                docker_bridge_cidr=None,
                                platform_reserved_cidr=None,
                                platform_reserved_dns_ip=None,
@@ -747,15 +741,6 @@ def create_managed_environment(cmd,
 
     _validate_subscription_registered(cmd, "Microsoft.App")
     _ensure_location_allowed(cmd, location, "Microsoft.App", "managedEnvironments")
-
-    # Microsoft.ContainerService RP registration is required for vnet enabled environments
-    # if infrastructure_subnet_resource_id is not None or app_subnet_resource_id is not None:
-    #     if is_valid_resource_id(app_subnet_resource_id):
-    #         parsed_app_subnet_resource_id = parse_resource_id(app_subnet_resource_id)
-    #         subnet_subscription = parsed_app_subnet_resource_id["subscription"]
-    #         _validate_subscription_registered(cmd, "Microsoft.ContainerService", subnet_subscription)
-    #     else:
-    #         raise ValidationError('Subnet resource ID is invalid.')
 
     if logs_customer_id is None or logs_key is None:
         logs_customer_id, logs_key = _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, location, resource_group_name)
@@ -845,11 +830,6 @@ def list_managed_environments(cmd, resource_group_name=None):
 
 def delete_managed_environment(cmd, name, resource_group_name, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
-
-    try:
-        ManagedEnvironmentClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
-    except CLIInternalError as e:
-        handle_raw_exception(e)
 
     try:
         return ManagedEnvironmentClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name, no_wait=no_wait)
