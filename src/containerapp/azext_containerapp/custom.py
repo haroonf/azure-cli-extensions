@@ -47,13 +47,15 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      _object_to_dict, _add_or_update_secrets, _remove_additional_attributes, _remove_readonly_attributes,
                      _add_or_update_env_vars, _add_or_update_tags, update_nested_dictionary, _update_traffic_weights,
                      _get_app_from_revision, raise_missing_token_suggestion, _infer_acr_credentials, _remove_registry_secret, _remove_secret,
-                     _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars, _update_revision_env_secretrefs)
+                     _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _remove_env_vars, _update_revision_env_secretrefs)
 
 logger = get_logger(__name__)
 
 
 # These properties should be under the "properties" attribute. Move the properties under "properties" attribute
 def process_loaded_yaml(yaml_containerapp):
+    if yaml_containerapp.get('systemData'):
+        yaml_containerapp['systemData'] = {}
     if not yaml_containerapp.get('properties'):
         yaml_containerapp['properties'] = {}
 
@@ -73,7 +75,7 @@ def load_yaml_file(file_name):
 
     try:
         with open(file_name) as stream:  # pylint: disable=unspecified-encoding
-            return yaml.safe_load(stream)
+            return yaml.safe_load(stream.read().replace('\x00', ''))
     except (IOError, OSError) as ex:
         if getattr(ex, 'errno', 0) == errno.ENOENT:
             raise ValidationError('{} does not exist'.format(file_name)) from ex
@@ -1431,7 +1433,7 @@ def show_ingress(cmd, name, resource_group_name):
         raise ValidationError("The containerapp '{}' does not have ingress enabled.".format(name)) from e
 
 
-def enable_ingress(cmd, name, resource_group_name, type, target_port, transport, allow_insecure=False, no_wait=False):  # pylint: disable=redefined-builtin
+def enable_ingress(cmd, name, resource_group_name, type, target_port, transport="auto", allow_insecure=False, no_wait=False):  # pylint: disable=redefined-builtin
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     containerapp_def = None
@@ -1708,22 +1710,28 @@ def remove_registry(cmd, name, resource_group_name, server, no_wait=False):
         pass
 
 
-def list_secrets(cmd, name, resource_group_name):
+def list_secrets(cmd, name, resource_group_name, show_values=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     containerapp_def = None
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        r = containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
     except:
         pass
 
     if not containerapp_def:
         raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
+    if not show_values:
+        try:
+            return r["properties"]["configuration"]["secrets"]
+        except:
+            return []
     try:
         return ContainerAppClient.list_secrets(cmd=cmd, resource_group_name=resource_group_name, name=name)["value"]
-    except Exception as e:
-        raise ValidationError("The containerapp {} has no assigned secrets.".format(name)) from e
+    except Exception:
+        return []
+        # raise ValidationError("The containerapp {} has no assigned secrets.".format(name)) from e
 
 
 def show_secret(cmd, name, resource_group_name, secret_name):
@@ -1816,6 +1824,7 @@ def set_secrets(cmd, name, resource_group_name, secrets,
     try:
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        logger.warning("Containerapp must be restarted in order for secret changes to take effect.")
         return r["properties"]["configuration"]["secrets"]
     except Exception as e:
         handle_raw_exception(e)
