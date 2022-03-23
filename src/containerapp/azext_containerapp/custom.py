@@ -100,7 +100,7 @@ def create_deserializer():
 def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_revision=None, no_wait=False):
     yaml_containerapp = process_loaded_yaml(load_yaml_file(file_name))
     if type(yaml_containerapp) != dict:  # pylint: disable=unidiomatic-typecheck
-        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
+        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.')
 
     if not yaml_containerapp.get('name'):
         yaml_containerapp['name'] = name
@@ -139,7 +139,7 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
 
         containerapp_def = deserializer('ContainerApp', yaml_containerapp)
     except DeserializationError as ex:
-        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.') from ex
+        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.') from ex
 
     # Remove tags before converting from snake case to camel case, then re-add tags. We don't want to change the case of the tags. Need this since we're not using SDK
     tags = None
@@ -178,7 +178,7 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
 def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=False):
     yaml_containerapp = process_loaded_yaml(load_yaml_file(file_name))
     if type(yaml_containerapp) != dict:  # pylint: disable=unidiomatic-typecheck
-        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
+        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.')
 
     if not yaml_containerapp.get('name'):
         yaml_containerapp['name'] = name
@@ -199,7 +199,7 @@ def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=
 
         containerapp_def = deserializer('ContainerApp', yaml_containerapp)
     except DeserializationError as ex:
-        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.') from ex
+        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.') from ex
 
     # Remove tags before converting from snake case to camel case, then re-add tags. We don't want to change the case of the tags. Need this since we're not using SDK
     tags = None
@@ -219,7 +219,7 @@ def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=
 
     # Validate managed environment
     if not containerapp_def["properties"].get('managedEnvironmentId'):
-        raise RequiredArgumentMissingError('managedEnvironmentId is required. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
+        raise RequiredArgumentMissingError('managedEnvironmentId is required. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.')
 
     env_id = containerapp_def["properties"]['managedEnvironmentId']
     env_name = None
@@ -358,11 +358,20 @@ def create_containerapp(cmd,
             secrets_def = []
         registries_def["passwordSecretRef"] = store_as_secret_and_return_secret_ref(secrets_def, registry_user, registry_server, registry_pass)
 
+    dapr_def = None
+    if dapr_enabled:
+        dapr_def = DaprModel
+        dapr_def["enabled"] = True
+        dapr_def["appId"] = dapr_app_id
+        dapr_def["appPort"] = dapr_app_port
+        dapr_def["appProtocol"] = dapr_app_protocol
+
     config_def = ConfigurationModel
     config_def["secrets"] = secrets_def
     config_def["activeRevisionsMode"] = revisions_mode
     config_def["ingress"] = ingress_def
     config_def["registries"] = [registries_def] if registries_def is not None else None
+    config_def["dapr"] = dapr_def
 
     # Identity actions
     identity_def = ManagedServiceIdentityModel
@@ -455,7 +464,6 @@ def update_containerapp(cmd,
                         container_name=None,
                         min_replicas=None,
                         max_replicas=None,
-                        revisions_mode=None,
                         set_env_vars=None,
                         remove_env_vars=None,
                         replace_env_vars=None,
@@ -471,7 +479,7 @@ def update_containerapp(cmd,
 
     if yaml:
         if image or min_replicas or max_replicas or\
-           revisions_mode or set_env_vars or remove_env_vars or replace_env_vars or remove_all_env_vars or cpu or memory or\
+           set_env_vars or remove_env_vars or replace_env_vars or remove_all_env_vars or cpu or memory or\
            startup_command or args or tags:
             logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
         return update_containerapp_yaml(cmd=cmd, name=name, resource_group_name=resource_group_name, file_name=yaml, no_wait=no_wait)
@@ -496,7 +504,6 @@ def update_containerapp(cmd,
     update_map = {}
     update_map['scale'] = min_replicas or max_replicas
     update_map['container'] = image or container_name or set_env_vars is not None or remove_env_vars is not None or replace_env_vars is not None or remove_all_env_vars or cpu or memory or startup_command is not None or args is not None
-    update_map['configuration'] = revisions_mode is not None
 
     if tags:
         _add_or_update_tags(containerapp_def, tags)
@@ -618,10 +625,6 @@ def update_containerapp(cmd,
             containerapp_def["properties"]["template"]["scale"]["minReplicas"] = min_replicas
         if max_replicas is not None:
             containerapp_def["properties"]["template"]["scale"]["maxReplicas"] = max_replicas
-
-    # Configuration
-    if revisions_mode is not None:
-        containerapp_def["properties"]["configuration"]["activeRevisionsMode"] = revisions_mode
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
@@ -1908,7 +1911,7 @@ def create_or_update_dapr_component(cmd, resource_group_name, environment_name, 
 
     yaml_containerapp = load_yaml_file(yaml)
     if type(yaml_containerapp) != dict:  # pylint: disable=unidiomatic-typecheck
-        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
+        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.')
 
     # Deserialize the yaml into a DaprComponent object. Need this since we're not using SDK
     daprcomponent_def = None
@@ -1917,7 +1920,7 @@ def create_or_update_dapr_component(cmd, resource_group_name, environment_name, 
 
         daprcomponent_def = deserializer('DaprComponent', yaml_containerapp)
     except DeserializationError as ex:
-        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.') from ex
+        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.') from ex
 
     daprcomponent_def = _convert_object_from_snake_to_camel_case(_object_to_dict(daprcomponent_def))
 
