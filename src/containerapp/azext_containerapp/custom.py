@@ -254,11 +254,6 @@ def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=
                 name, resource_group_name
             ))
 
-        if "ingress" in containerapp_def["properties"]["configuration"] and "fqdn" in containerapp_def["properties"]["configuration"]["ingress"]:
-            logger.warning("\nContainer app created. Access your app at https://{}/\n".format(r["properties"]["configuration"]["ingress"]["fqdn"]))
-        else:
-            logger.warning("\nContainer app created. To access it over HTTPS, enable ingress: az containerapp ingress enable --help\n")
-
         return r
     except Exception as e:
         handle_raw_exception(e)
@@ -423,11 +418,10 @@ def create_containerapp(cmd,
         dapr_def["appPort"] = dapr_app_port
         dapr_def["appProtocol"] = dapr_app_protocol
 
-    config_def["dapr"] = dapr_def
-
     template_def = TemplateModel
     template_def["containers"] = [container_def]
     template_def["scale"] = scale_def
+    template_def["dapr"] = dapr_def
 
     if revision_suffix is not None:
         template_def["revisionSuffix"] = revision_suffix
@@ -446,10 +440,7 @@ def create_containerapp(cmd,
 
         if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
             logger.warning('Containerapp creation in progress. Please monitor the creation using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
-        if ingress is not None and target_port is not None:
-            logger.warning("\nContainer app created. Access your app at https://{}/\n".format(r["properties"]["configuration"]["ingress"]["fqdn"]))
-        else:
-            logger.warning("\nContainer app created. To access it over HTTPS, enable ingress: az containerapp ingress enable --help\n")
+
         return r
     except Exception as e:
         handle_raw_exception(e)
@@ -747,7 +738,6 @@ def create_managed_environment(cmd,
         if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
             logger.warning('Containerapp environment creation in progress. Please monitor the creation using `az containerapp env show -n {} -g {}`'.format(name, resource_group_name))
 
-        logger.warning("\nContainer Apps environment created. To deploy a container app, use: az containerapp create --help\n")
         return r
     except Exception as e:
         handle_raw_exception(e)
@@ -1475,7 +1465,6 @@ def enable_ingress(cmd, name, resource_group_name, type, target_port, transport,
     try:
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
-        logger.warning("\nIngress enabled. Access your app at https://{}/\n".format(r["properties"]["configuration"]["ingress"]["fqdn"]))
         return r["properties"]["configuration"]["ingress"]
     except Exception as e:
         handle_raw_exception(e)
@@ -1850,13 +1839,13 @@ def enable_dapr(cmd, name, resource_group_name, dapr_app_id=None, dapr_app_port=
         containerapp_def['properties']['dapr'] = {}
 
     if dapr_app_id:
-        containerapp_def['properties']['dapr']['appId'] = dapr_app_id
+        containerapp_def['properties']['dapr']['dapr_app_id'] = dapr_app_id
 
     if dapr_app_port:
-        containerapp_def['properties']['dapr']['appPort'] = dapr_app_port
+        containerapp_def['properties']['dapr']['dapr_app_port'] = dapr_app_port
 
     if dapr_app_protocol:
-        containerapp_def['properties']['dapr']['appProtocol'] = dapr_app_protocol
+        containerapp_def['properties']['dapr']['dapr_app_protocol'] = dapr_app_protocol
 
     containerapp_def['properties']['dapr']['enabled'] = True
 
