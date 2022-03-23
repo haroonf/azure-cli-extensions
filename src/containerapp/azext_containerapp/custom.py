@@ -418,10 +418,11 @@ def create_containerapp(cmd,
         dapr_def["appPort"] = dapr_app_port
         dapr_def["appProtocol"] = dapr_app_protocol
 
+    config_def["dapr"] = dapr_def
+
     template_def = TemplateModel
     template_def["containers"] = [container_def]
     template_def["scale"] = scale_def
-    template_def["dapr"] = dapr_def
 
     if revision_suffix is not None:
         template_def["revisionSuffix"] = revision_suffix
@@ -1842,13 +1843,13 @@ def enable_dapr(cmd, name, resource_group_name, dapr_app_id=None, dapr_app_port=
         containerapp_def['properties']['configuration']['dapr'] = {}
 
     if dapr_app_id:
-        containerapp_def['properties']['configuration']['dapr']['dapr_app_id'] = dapr_app_id
+        containerapp_def['properties']['configuration']['dapr']['appId'] = dapr_app_id
 
     if dapr_app_port:
-        containerapp_def['properties']['configuration']['dapr']['dapr_app_port'] = dapr_app_port
+        containerapp_def['properties']['configuration']['dapr']['appPort'] = dapr_app_port
 
     if dapr_app_protocol:
-        containerapp_def['properties']['configuration']['dapr']['dapr_app_protocol'] = dapr_app_protocol
+        containerapp_def['properties']['configuration']['dapr']['appProtocol'] = dapr_app_protocol
 
     containerapp_def['properties']['configuration']['dapr']['enabled'] = True
 
