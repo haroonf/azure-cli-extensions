@@ -150,7 +150,10 @@ Template = {
     "revisionSuffix": None,
     "containers": None,  # [Container]
     "scale": Scale,
+<<<<<<< HEAD
     "dapr": Dapr,
+=======
+>>>>>>> containerapp
     "volumes": None  # [Volume]
 }
 
@@ -158,6 +161,10 @@ Configuration = {
     "secrets": None,  # [Secret]
     "activeRevisionsMode": None,  # 'multiple' or 'single'
     "ingress": None,  # Ingress
+<<<<<<< HEAD
+=======
+    "dapr": Dapr,
+>>>>>>> containerapp
     "registries": None  # [RegistryCredentials]
 }
 

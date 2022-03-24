@@ -429,7 +429,18 @@ def _add_or_update_tags(containerapp_def, tags):
 
 def _object_to_dict(obj):
     import json
+<<<<<<< HEAD
     return json.loads(json.dumps(obj, default=lambda o: o.__dict__))
+=======
+    import datetime
+
+    def default_handler(x):
+        if isinstance(x, datetime.datetime):
+            return x.isoformat()
+        return x.__dict__
+
+    return json.loads(json.dumps(obj, default=default_handler))
+>>>>>>> containerapp
 
 
 def _to_camel_case(snake_str):
@@ -499,10 +510,17 @@ def _remove_dapr_readonly_attributes(daprcomponent_def):
 
 def update_nested_dictionary(orig_dict, new_dict):
     # Recursively update a nested dictionary. If the value is a list, replace the old list with new list
+<<<<<<< HEAD
     import collections
 
     for key, val in new_dict.items():
         if isinstance(val, collections.Mapping):
+=======
+    from collections.abc import Mapping
+
+    for key, val in new_dict.items():
+        if isinstance(val, Mapping):
+>>>>>>> containerapp
             tmp = update_nested_dictionary(orig_dict.get(key, {}), val)
             orig_dict[key] = tmp
         elif isinstance(val, list):

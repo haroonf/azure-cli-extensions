@@ -47,15 +47,13 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      _object_to_dict, _add_or_update_secrets, _remove_additional_attributes, _remove_readonly_attributes,
                      _add_or_update_env_vars, _add_or_update_tags, update_nested_dictionary, _update_traffic_weights,
                      _get_app_from_revision, raise_missing_token_suggestion, _infer_acr_credentials, _remove_registry_secret, _remove_secret,
-                     _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _remove_env_vars, _update_revision_env_secretrefs)
+                     _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars, _update_revision_env_secretrefs)
 
 logger = get_logger(__name__)
 
 
 # These properties should be under the "properties" attribute. Move the properties under "properties" attribute
 def process_loaded_yaml(yaml_containerapp):
-    if yaml_containerapp.get('systemData'):
-        yaml_containerapp['systemData'] = {}
     if not yaml_containerapp.get('properties'):
         yaml_containerapp['properties'] = {}
 
@@ -75,7 +73,7 @@ def load_yaml_file(file_name):
 
     try:
         with open(file_name) as stream:  # pylint: disable=unspecified-encoding
-            return yaml.safe_load(stream.read().replace('\x00', ''))
+            return yaml.safe_load(stream)
     except (IOError, OSError) as ex:
         if getattr(ex, 'errno', 0) == errno.ENOENT:
             raise ValidationError('{} does not exist'.format(file_name)) from ex
@@ -102,7 +100,7 @@ def create_deserializer():
 def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_revision=None, no_wait=False):
     yaml_containerapp = process_loaded_yaml(load_yaml_file(file_name))
     if type(yaml_containerapp) != dict:  # pylint: disable=unidiomatic-typecheck
-        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
+        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.')
 
     if not yaml_containerapp.get('name'):
         yaml_containerapp['name'] = name
@@ -141,7 +139,7 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
 
         containerapp_def = deserializer('ContainerApp', yaml_containerapp)
     except DeserializationError as ex:
-        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.') from ex
+        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.') from ex
 
     # Remove tags before converting from snake case to camel case, then re-add tags. We don't want to change the case of the tags. Need this since we're not using SDK
     tags = None
@@ -180,7 +178,7 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
 def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=False):
     yaml_containerapp = process_loaded_yaml(load_yaml_file(file_name))
     if type(yaml_containerapp) != dict:  # pylint: disable=unidiomatic-typecheck
-        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
+        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.')
 
     if not yaml_containerapp.get('name'):
         yaml_containerapp['name'] = name
@@ -201,7 +199,7 @@ def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=
 
         containerapp_def = deserializer('ContainerApp', yaml_containerapp)
     except DeserializationError as ex:
-        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.') from ex
+        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.') from ex
 
     # Remove tags before converting from snake case to camel case, then re-add tags. We don't want to change the case of the tags. Need this since we're not using SDK
     tags = None
@@ -221,7 +219,7 @@ def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=
 
     # Validate managed environment
     if not containerapp_def["properties"].get('managedEnvironmentId'):
-        raise RequiredArgumentMissingError('managedEnvironmentId is required. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
+        raise RequiredArgumentMissingError('managedEnvironmentId is required. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.')
 
     env_id = containerapp_def["properties"]['managedEnvironmentId']
     env_name = None
@@ -255,6 +253,11 @@ def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=
             logger.warning('Containerapp creation in progress. Please monitor the creation using `az containerapp show -n {} -g {}`'.format(
                 name, resource_group_name
             ))
+
+        if "configuration" in r["properties"] and "ingress" in r["properties"]["configuration"] and "fqdn" in r["properties"]["configuration"]["ingress"]:
+            logger.warning("\nContainer app created. Access your app at https://{}/\n".format(r["properties"]["configuration"]["ingress"]["fqdn"]))
+        else:
+            logger.warning("\nContainer app created. To access it over HTTPS, enable ingress: az containerapp ingress enable --help\n")
 
         return r
     except Exception as e:
@@ -360,11 +363,20 @@ def create_containerapp(cmd,
             secrets_def = []
         registries_def["passwordSecretRef"] = store_as_secret_and_return_secret_ref(secrets_def, registry_user, registry_server, registry_pass)
 
+    dapr_def = None
+    if dapr_enabled:
+        dapr_def = DaprModel
+        dapr_def["enabled"] = True
+        dapr_def["appId"] = dapr_app_id
+        dapr_def["appPort"] = dapr_app_port
+        dapr_def["appProtocol"] = dapr_app_protocol
+
     config_def = ConfigurationModel
     config_def["secrets"] = secrets_def
     config_def["activeRevisionsMode"] = revisions_mode
     config_def["ingress"] = ingress_def
     config_def["registries"] = [registries_def] if registries_def is not None else None
+    config_def["dapr"] = dapr_def
 
     # Identity actions
     identity_def = ManagedServiceIdentityModel
@@ -412,18 +424,9 @@ def create_containerapp(cmd,
     if resources_def is not None:
         container_def["resources"] = resources_def
 
-    dapr_def = None
-    if dapr_enabled:
-        dapr_def = DaprModel
-        dapr_def["daprEnabled"] = True
-        dapr_def["appId"] = dapr_app_id
-        dapr_def["appPort"] = dapr_app_port
-        dapr_def["appProtocol"] = dapr_app_protocol
-
     template_def = TemplateModel
     template_def["containers"] = [container_def]
     template_def["scale"] = scale_def
-    template_def["dapr"] = dapr_def
 
     if revision_suffix is not None:
         template_def["revisionSuffix"] = revision_suffix
@@ -443,6 +446,11 @@ def create_containerapp(cmd,
         if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
             logger.warning('Containerapp creation in progress. Please monitor the creation using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
 
+        if "configuration" in r["properties"] and "ingress" in r["properties"]["configuration"] and "fqdn" in r["properties"]["configuration"]["ingress"]:
+            logger.warning("\nContainer app created. Access your app at https://{}/\n".format(r["properties"]["configuration"]["ingress"]["fqdn"]))
+        else:
+            logger.warning("\nContainer app created. To access it over HTTPS, enable ingress: az containerapp ingress enable --help\n")
+
         return r
     except Exception as e:
         handle_raw_exception(e)
@@ -456,7 +464,6 @@ def update_containerapp(cmd,
                         container_name=None,
                         min_replicas=None,
                         max_replicas=None,
-                        revisions_mode=None,
                         set_env_vars=None,
                         remove_env_vars=None,
                         replace_env_vars=None,
@@ -478,7 +485,6 @@ def update_containerapp(cmd,
                                      container_name,
                                      min_replicas,
                                      max_replicas,
-                                     revisions_mode,
                                      set_env_vars,
                                      remove_env_vars,
                                      replace_env_vars,
@@ -552,7 +558,6 @@ def update_containerapp_logic(cmd,
     update_map = {}
     update_map['scale'] = min_replicas or max_replicas
     update_map['container'] = image or container_name or set_env_vars is not None or remove_env_vars is not None or replace_env_vars is not None or remove_all_env_vars or cpu or memory or startup_command is not None or args is not None
-    update_map['configuration'] = revisions_mode is not None
 
     if tags:
         _add_or_update_tags(containerapp_def, tags)
@@ -675,10 +680,6 @@ def update_containerapp_logic(cmd,
         if max_replicas is not None:
             containerapp_def["properties"]["template"]["scale"]["maxReplicas"] = max_replicas
 
-    # Configuration
-    if revisions_mode is not None:
-        containerapp_def["properties"]["configuration"]["activeRevisionsMode"] = revisions_mode
-
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
     try:
@@ -794,6 +795,8 @@ def create_managed_environment(cmd,
 
         if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
             logger.warning('Containerapp environment creation in progress. Please monitor the creation using `az containerapp env show -n {} -g {}`'.format(name, resource_group_name))
+
+        logger.warning("\nContainer Apps environment created. To deploy a container app, use: az containerapp create --help\n")
 
         return r
     except Exception as e:
@@ -1252,7 +1255,6 @@ def copy_revision(cmd,
                   yaml=None,
                   image=None,
                   container_name=None,
-                  revisions_mode=None,
                   min_replicas=None,
                   max_replicas=None,
                   set_env_vars=None,
@@ -1282,7 +1284,6 @@ def copy_revision(cmd,
                                      container_name,
                                      min_replicas,
                                      max_replicas,
-                                     revisions_mode,
                                      set_env_vars,
                                      remove_env_vars,
                                      replace_env_vars,
@@ -1373,6 +1374,7 @@ def enable_ingress(cmd, name, resource_group_name, type, target_port, transport=
     try:
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        logger.warning("\nIngress enabled. Access your app at https://{}/\n".format(r["properties"]["configuration"]["ingress"]["fqdn"]))
         return r["properties"]["configuration"]["ingress"]
     except Exception as e:
         handle_raw_exception(e)
@@ -1750,24 +1752,27 @@ def enable_dapr(cmd, name, resource_group_name, dapr_app_id=None, dapr_app_port=
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
-    if 'dapr' not in containerapp_def['properties']:
-        containerapp_def['properties']['dapr'] = {}
+    if 'configuration' not in containerapp_def['properties']:
+        containerapp_def['properties']['configuration'] = {}
+
+    if 'dapr' not in containerapp_def['properties']['configuration']:
+        containerapp_def['properties']['configuration']['dapr'] = {}
 
     if dapr_app_id:
-        containerapp_def['properties']['dapr']['dapr_app_id'] = dapr_app_id
+        containerapp_def['properties']['configuration']['dapr']['appId'] = dapr_app_id
 
     if dapr_app_port:
-        containerapp_def['properties']['dapr']['dapr_app_port'] = dapr_app_port
+        containerapp_def['properties']['configuration']['dapr']['appPort'] = dapr_app_port
 
     if dapr_app_protocol:
-        containerapp_def['properties']['dapr']['dapr_app_protocol'] = dapr_app_protocol
+        containerapp_def['properties']['configuration']['dapr']['appProtocol'] = dapr_app_protocol
 
-    containerapp_def['properties']['dapr']['enabled'] = True
+    containerapp_def['properties']['configuration']['dapr']['enabled'] = True
 
     try:
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
-        return r["properties"]['dapr']
+        return r["properties"]['configuration']['dapr']
     except Exception as e:
         handle_raw_exception(e)
 
@@ -1786,12 +1791,18 @@ def disable_dapr(cmd, name, resource_group_name, no_wait=False):
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
-    containerapp_def['properties']['dapr']['enabled'] = False
+    if 'configuration' not in containerapp_def['properties']:
+        containerapp_def['properties']['configuration'] = {}
+
+    if 'dapr' not in containerapp_def['properties']['configuration']:
+        containerapp_def['properties']['configuration']['dapr'] = {}
+
+    containerapp_def['properties']['configuration']['dapr']['enabled'] = False
 
     try:
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
-        return r["properties"]['dapr']
+        return r["properties"]['configuration']['dapr']
     except Exception as e:
         handle_raw_exception(e)
 
@@ -1813,7 +1824,7 @@ def create_or_update_dapr_component(cmd, resource_group_name, environment_name, 
 
     yaml_containerapp = load_yaml_file(yaml)
     if type(yaml_containerapp) != dict:  # pylint: disable=unidiomatic-typecheck
-        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.')
+        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.')
 
     # Deserialize the yaml into a DaprComponent object. Need this since we're not using SDK
     daprcomponent_def = None
@@ -1822,7 +1833,7 @@ def create_or_update_dapr_component(cmd, resource_group_name, environment_name, 
 
         daprcomponent_def = deserializer('DaprComponent', yaml_containerapp)
     except DeserializationError as ex:
-        raise ValidationError('Invalid YAML provided. Please see https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples for a valid containerapps YAML spec.') from ex
+        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.') from ex
 
     daprcomponent_def = _convert_object_from_snake_to_camel_case(_object_to_dict(daprcomponent_def))
 

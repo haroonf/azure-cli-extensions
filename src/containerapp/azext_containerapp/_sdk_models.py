@@ -851,6 +851,11 @@ class Configuration(Model):
      ~commondefinitions.models.ActiveRevisionsMode
     :param ingress: Ingress configurations.
     :type ingress: ~commondefinitions.models.Ingress
+<<<<<<< HEAD
+=======
+    :param dapr: Dapr configuration for the Container App.
+    :type dapr: ~commondefinitions.models.Dapr
+>>>>>>> containerapp
     :param registries: Collection of private container registry credentials
      for containers used by the Container app
     :type registries: list[~commondefinitions.models.RegistryCredentials]
@@ -860,6 +865,10 @@ class Configuration(Model):
         'secrets': {'key': 'secrets', 'type': '[Secret]'},
         'active_revisions_mode': {'key': 'activeRevisionsMode', 'type': 'str'},
         'ingress': {'key': 'ingress', 'type': 'Ingress'},
+<<<<<<< HEAD
+=======
+        'dapr': {'key': 'dapr', 'type': 'Dapr'},
+>>>>>>> containerapp
         'registries': {'key': 'registries', 'type': '[RegistryCredentials]'},
     }
 
@@ -868,6 +877,10 @@ class Configuration(Model):
         self.secrets = kwargs.get('secrets', None)
         self.active_revisions_mode = kwargs.get('active_revisions_mode', None)
         self.ingress = kwargs.get('ingress', None)
+<<<<<<< HEAD
+=======
+        self.dapr = kwargs.get('dapr', None)
+>>>>>>> containerapp
         self.registries = kwargs.get('registries', None)
 
 
@@ -3175,8 +3188,11 @@ class Template(Model):
     :type containers: list[~commondefinitions.models.Container]
     :param scale: Scaling properties for the Container App.
     :type scale: ~commondefinitions.models.Scale
+<<<<<<< HEAD
     :param dapr: Dapr configuration for the Container App.
     :type dapr: ~commondefinitions.models.Dapr
+=======
+>>>>>>> containerapp
     :param volumes: List of volume definitions for the Container App.
     :type volumes: list[~commondefinitions.models.Volume]
     """
@@ -3185,7 +3201,10 @@ class Template(Model):
         'revision_suffix': {'key': 'revisionSuffix', 'type': 'str'},
         'containers': {'key': 'containers', 'type': '[Container]'},
         'scale': {'key': 'scale', 'type': 'Scale'},
+<<<<<<< HEAD
         'dapr': {'key': 'dapr', 'type': 'Dapr'},
+=======
+>>>>>>> containerapp
         'volumes': {'key': 'volumes', 'type': '[Volume]'},
     }
 
@@ -3194,7 +3213,10 @@ class Template(Model):
         self.revision_suffix = kwargs.get('revision_suffix', None)
         self.containers = kwargs.get('containers', None)
         self.scale = kwargs.get('scale', None)
+<<<<<<< HEAD
         self.dapr = kwargs.get('dapr', None)
+=======
+>>>>>>> containerapp
         self.volumes = kwargs.get('volumes', None)
 
 
