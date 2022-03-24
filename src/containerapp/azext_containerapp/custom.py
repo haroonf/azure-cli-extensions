@@ -456,48 +456,6 @@ def create_containerapp(cmd,
         handle_raw_exception(e)
 
 
-def update_containerapp(cmd,
-                        name,
-                        resource_group_name,
-                        yaml=None,
-                        image=None,
-                        container_name=None,
-                        min_replicas=None,
-                        max_replicas=None,
-                        set_env_vars=None,
-                        remove_env_vars=None,
-                        replace_env_vars=None,
-                        remove_all_env_vars=False,
-                        cpu=None,
-                        memory=None,
-                        revision_suffix=None,
-                        startup_command=None,
-                        args=None,
-                        tags=None,
-                        no_wait=False):
-    _validate_subscription_registered(cmd, "Microsoft.App")
-
-    return update_containerapp_logic(cmd,
-                                     name,
-                                     resource_group_name,
-                                     yaml,
-                                     image,
-                                     container_name,
-                                     min_replicas,
-                                     max_replicas,
-                                     set_env_vars,
-                                     remove_env_vars,
-                                     replace_env_vars,
-                                     remove_all_env_vars,
-                                     cpu,
-                                     memory,
-                                     revision_suffix,
-                                     startup_command,
-                                     args,
-                                     tags,
-                                     no_wait)
-
-
 def update_containerapp_logic(cmd,
                               name,
                               resource_group_name,
@@ -506,7 +464,6 @@ def update_containerapp_logic(cmd,
                               container_name=None,
                               min_replicas=None,
                               max_replicas=None,
-                              revisions_mode=None,
                               set_env_vars=None,
                               remove_env_vars=None,
                               replace_env_vars=None,
@@ -523,7 +480,7 @@ def update_containerapp_logic(cmd,
 
     if yaml:
         if image or min_replicas or max_replicas or\
-           revisions_mode or set_env_vars or remove_env_vars or replace_env_vars or remove_all_env_vars or cpu or memory or\
+           set_env_vars or remove_env_vars or replace_env_vars or remove_all_env_vars or cpu or memory or\
            startup_command or args or tags:
             logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
         return update_containerapp_yaml(cmd=cmd, name=name, resource_group_name=resource_group_name, file_name=yaml, no_wait=no_wait, from_revision=from_revision)
@@ -692,6 +649,48 @@ def update_containerapp_logic(cmd,
         return r
     except Exception as e:
         handle_raw_exception(e)
+
+
+def update_containerapp(cmd,
+                        name,
+                        resource_group_name,
+                        yaml=None,
+                        image=None,
+                        container_name=None,
+                        min_replicas=None,
+                        max_replicas=None,
+                        set_env_vars=None,
+                        remove_env_vars=None,
+                        replace_env_vars=None,
+                        remove_all_env_vars=False,
+                        cpu=None,
+                        memory=None,
+                        revision_suffix=None,
+                        startup_command=None,
+                        args=None,
+                        tags=None,
+                        no_wait=False):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    return update_containerapp_logic(cmd,
+                                     name,
+                                     resource_group_name,
+                                     yaml,
+                                     image,
+                                     container_name,
+                                     min_replicas,
+                                     max_replicas,
+                                     set_env_vars,
+                                     remove_env_vars,
+                                     replace_env_vars,
+                                     remove_all_env_vars,
+                                     cpu,
+                                     memory,
+                                     revision_suffix,
+                                     startup_command,
+                                     args,
+                                     tags,
+                                     no_wait)
 
 
 def show_containerapp(cmd, name, resource_group_name):
