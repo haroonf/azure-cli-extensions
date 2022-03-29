@@ -1932,3 +1932,134 @@ def remove_dapr_component(cmd, resource_group_name, dapr_component_name, environ
         return r
     except Exception as e:
         handle_raw_exception(e)
+
+def containerapp_up(cmd, 
+                    name=None, 
+                    resource_group_name=None, 
+                    managed_env=None,
+                    location=None, 
+                    registry=None,  
+                    image=None, 
+                    source=None,
+                    dockerfile=None,
+                    # compose=None,
+                    ingress=None,
+                    port=None,
+                    registry_username=None,
+                    registry_password=None,
+                    env_vars=None,
+                    dryrun=False,
+                    no_wait=False):
+    import os
+    src_dir = os.getcwd()
+    _src_path_escaped = "{}".format(src_dir.replace(os.sep, os.sep + os.sep))
+
+    if not name:
+        if image:
+            name = image.split('/')[-1].split(':')[0].lower()  # <ACR>.azurecr.io/<APP_NAME>:<TIMESTAMP> 
+        if source:
+            name = source.replace('.', '').replace('/', '').lower()
+
+    if not resource_group_name:
+        try:
+            rg_found = False
+            containerapps = list_containerapp(cmd)
+            for containerapp in containerapps:
+                if containerapp["name"].lower() == name.lower():
+                    if rg_found:
+                        raise ValidationError("There are multiple containerapps with name {} on the subscription. Please specify which resource group your Containerapp is in.".format(name))
+                        # could also just do resource_group_name = None here and create a new one, ask Anthony
+                        # break
+                    if containerapp["id"][0] != '/':
+                        containerapp["id"] = '/' + containerapp["id"]
+                    rg_found = True
+                    resource_group_name = containerapp["id"].split('/')[4]
+        except:
+            # error handle maybe
+            pass
+
+    if "azurecr.io" in image:
+        if registry_username is None or registry_password is None:
+            # If registry is Azure Container Registry, we can try inferring credentials
+            logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
+            parsed = urlparse(image)
+            registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
+
+        try:
+            registry_username, registry_password = _get_acr_cred(cmd.cli_ctx, registry_name)
+        except Exception as ex:
+            raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        if not location: 
+            location = "canadacentral"  # check user's default location?
+        if not resource_group_name:
+            user = get_profile_username()
+            rg_name = get_randomized_name(user, resource_group_name)
+            create_resource_group(cmd, rg_name, location)
+            resource_group_name = rg_name
+        if not managed_env:
+            env_name = "{}-env".format(name).replace("_","-")
+            managed_env = create_managed_environment(cmd, env_name, location = "canadacentral", resource_group_name=resource_group_name)["id"]
+        _set_webapp_up_default_args(cmd, resource_group_name, location, name, managed_env)
+        return create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, managed_env=managed_env, target_port=port, registry_server=registry, registry_pass=registry_password, registry_user=registry_username, env_vars=env_vars, ingress=ingress, no_wait=no_wait)
+    else: 
+        return
+
+
+
+def get_randomized_name(prefix, name=None):
+    from random import randint
+    default = "{}_rg_{:04}".format(prefix, randint(0, 9999))
+    if name is not None:
+        return name
+    return default
+
+
+def _set_webapp_up_default_args(cmd, resource_group_name, location, name, managed_env):
+    from azure.cli.core.util import ConfiguredDefaultSetter
+    with ConfiguredDefaultSetter(cmd.cli_ctx.config, True):
+        logger.warning("Setting 'az containerapp up' default arguments for current directory. "
+                       "Manage defaults with 'az configure --scope local'")
+
+
+        cmd.cli_ctx.config.set_value('defaults', 'resource_group_name', resource_group_name)
+        logger.warning("--resource-group/-g default: %s", resource_group_name)
+
+
+        cmd.cli_ctx.config.set_value('defaults', 'location', location)
+        logger.warning("--location/-l default: %s", location)
+
+
+        cmd.cli_ctx.config.set_value('defaults', 'name', name)
+        logger.warning("--name/-n default: %s", name)
+
+        cmd.cli_ctx.config.set_value('defaults', 'managed_env', managed_env)
+        logger.warning("--environment default: %s", managed_env)
+
+
+def get_profile_username():
+    from azure.cli.core._profile import Profile
+    user = Profile().get_current_account_user()
+    user = user.split('@', 1)[0]
+    if len(user.split('#', 1)) > 1:  # on cloudShell user is in format live.com#user@domain.com
+        user = user.split('#', 1)[1]
+    return user
+
+def create_resource_group(cmd, rg_name, location):
+    from azure.cli.core.profiles import ResourceType, get_sdk
+    rcf = _resource_client_factory(cmd.cli_ctx)
+    resource_group = get_sdk(cmd.cli_ctx, ResourceType.MGMT_RESOURCE_RESOURCES, 'ResourceGroup', mod='models')
+    rg_params = resource_group(location=location)
+    return rcf.resource_groups.create_or_update(rg_name, rg_params)
+
+def _resource_client_factory(cli_ctx, **_):
+    from azure.cli.core.commands.client_factory import get_mgmt_service_client
+    from azure.cli.core.profiles import ResourceType
+    return get_mgmt_service_client(cli_ctx, ResourceType.MGMT_RESOURCE_RESOURCES)
