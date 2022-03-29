@@ -1938,7 +1938,7 @@ def containerapp_up(cmd,
                     resource_group_name=None, 
                     managed_env=None,
                     location=None, 
-                    registry=None,  
+                    registry_server=None,  
                     image=None, 
                     source=None,
                     dockerfile=None,
@@ -1982,6 +1982,7 @@ def containerapp_up(cmd,
         if registry_username is None or registry_password is None:
             # If registry is Azure Container Registry, we can try inferring credentials
             logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
+            registry_server=image.split('/')[0]
             parsed = urlparse(image)
             registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
 
@@ -2008,7 +2009,7 @@ def containerapp_up(cmd,
             env_name = "{}-env".format(name).replace("_","-")
             managed_env = create_managed_environment(cmd, env_name, location = "canadacentral", resource_group_name=resource_group_name)["id"]
         _set_webapp_up_default_args(cmd, resource_group_name, location, name, managed_env)
-        return create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, managed_env=managed_env, target_port=port, registry_server=registry, registry_pass=registry_password, registry_user=registry_username, env_vars=env_vars, ingress=ingress, no_wait=no_wait)
+        return create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, managed_env=managed_env, target_port=port, registry_server=registry_server, registry_pass=registry_password, registry_user=registry_username, env_vars=env_vars, ingress=ingress, no_wait=no_wait)
     else: 
         return
 
