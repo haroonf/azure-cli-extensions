@@ -162,7 +162,7 @@ def store_as_secret_and_return_secret_ref(secrets_list, registry_user, registry_
                         raise ValidationError('Found secret with name \"{}\" but value does not equal the supplied registry password.'.format(registry_secret_name))
                 return registry_secret_name
 
-        logger.warning('Adding registry password as a secret with name \"{}\"'.format(registry_secret_name))  # pylint: disable=logging-format-interpolation
+        # logger.warning('Adding registry password as a secret with name \"{}\"'.format(registry_secret_name))  # pylint: disable=logging-format-interpolation
         secrets_list.append({
             "name": registry_secret_name,
             "value": registry_pass
@@ -234,7 +234,7 @@ def _generate_log_analytics_workspace_name(resource_group_name):
 
 def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, location, resource_group_name):
     if logs_customer_id is None and logs_key is None:
-        logger.warning("No Log Analytics workspace provided.")
+        # logger.warning("No Log Analytics workspace provided.")
         try:
             _validate_subscription_registered(cmd, "Microsoft.OperationalInsights")
             log_analytics_client = log_analytics_client_factory(cmd.cli_ctx)
@@ -251,7 +251,7 @@ def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, loc
 
             workspace_name = _generate_log_analytics_workspace_name(resource_group_name)
             workspace_instance = Workspace(location=log_analytics_location)
-            logger.warning("Generating a Log Analytics workspace with name \"{}\"".format(workspace_name))  # pylint: disable=logging-format-interpolation
+            # logger.warning("Generating a Log Analytics workspace with name \"{}\"".format(workspace_name))  # pylint: disable=logging-format-interpolation
 
             poller = log_analytics_client.begin_create_or_update(resource_group_name, workspace_name, workspace_instance)
             log_analytics_workspace = LongRunningOperation(cmd.cli_ctx)(poller)

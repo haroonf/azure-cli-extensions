@@ -292,6 +292,7 @@ def create_containerapp(cmd,
                         startup_command=None,
                         args=None,
                         tags=None,
+                        disable_warnings=False,
                         no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -300,7 +301,7 @@ def create_containerapp(cmd,
             revisions_mode or secrets or env_vars or cpu or memory or registry_server or\
             registry_user or registry_pass or dapr_enabled or dapr_app_port or dapr_app_id or\
                 startup_command or args or tags:
-            logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
+            not disable_warnings and logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
         return create_containerapp_yaml(cmd=cmd, name=name, resource_group_name=resource_group_name, file_name=yaml, no_wait=no_wait)
 
     if not image:
@@ -417,12 +418,12 @@ def create_containerapp(cmd,
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
 
         if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
-            logger.warning('Containerapp creation in progress. Please monitor the creation using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
+            not disable_warnings and logger.warning('Containerapp creation in progress. Please monitor the creation using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
 
         if "configuration" in r["properties"] and "ingress" in r["properties"]["configuration"] and "fqdn" in r["properties"]["configuration"]["ingress"]:
-            logger.warning("\nContainer app created. Access your app at https://{}/\n".format(r["properties"]["configuration"]["ingress"]["fqdn"]))
+            not disable_warnings and logger.warning("\nContainer app created. Access your app at https://{}/\n".format(r["properties"]["configuration"]["ingress"]["fqdn"]))
         else:
-            logger.warning("\nContainer app created. To access it over HTTPS, enable ingress: az containerapp ingress enable --help\n")
+            not disable_warnings and logger.warning("\nContainer app created. To access it over HTTPS, enable ingress: az containerapp ingress enable --help\n")
 
         return r
     except Exception as e:
@@ -447,6 +448,7 @@ def update_containerapp(cmd,
                         startup_command=None,
                         args=None,
                         tags=None,
+                        disable_warnings=False,
                         no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -501,6 +503,9 @@ def update_containerapp(cmd,
                 if image is not None:
                     c["image"] = image
 
+                if remove_all_env_vars:
+                    c["env"] = []
+
                 if set_env_vars is not None:
                     if "env" not in c or not c["env"]:
                         c["env"] = []
@@ -518,9 +523,6 @@ def update_containerapp(cmd,
                         c["env"] = []
                     # env vars
                     _remove_env_vars(c["env"], remove_env_vars)
-
-                if remove_all_env_vars:
-                    c["env"] = []
 
                 if startup_command is not None:
                     if isinstance(startup_command, list) and not startup_command:
@@ -606,7 +608,7 @@ def update_containerapp(cmd,
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
 
         if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
-            logger.warning('Containerapp update in progress. Please monitor the update using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
+            not disable_warnings and logger.warning('Containerapp update in progress. Please monitor the update using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
 
         return r
     except Exception as e:
@@ -659,6 +661,7 @@ def create_managed_environment(cmd,
                                platform_reserved_dns_ip=None,
                                internal_only=False,
                                tags=None,
+                               disable_warnings=False,
                                no_wait=False):
 
     location = location or _get_location_from_resource_group(cmd.cli_ctx, resource_group_name)
@@ -713,9 +716,9 @@ def create_managed_environment(cmd,
             cmd=cmd, resource_group_name=resource_group_name, name=name, managed_environment_envelope=managed_env_def, no_wait=no_wait)
 
         if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
-            logger.warning('Containerapp environment creation in progress. Please monitor the creation using `az containerapp env show -n {} -g {}`'.format(name, resource_group_name))
+            not disable_warnings and logger.warning('Containerapp environment creation in progress. Please monitor the creation using `az containerapp env show -n {} -g {}`'.format(name, resource_group_name))
 
-        logger.warning("\nContainer Apps environment created. To deploy a container app, use: az containerapp create --help\n")
+        not disable_warnings and logger.warning("\nContainer Apps environment created. To deploy a container app, use: az containerapp create --help\n")
 
         return r
     except Exception as e:
@@ -1410,7 +1413,7 @@ def show_ingress(cmd, name, resource_group_name):
         raise ValidationError("The containerapp '{}' does not have ingress enabled.".format(name)) from e
 
 
-def enable_ingress(cmd, name, resource_group_name, type, target_port, transport, allow_insecure=False, no_wait=False):  # pylint: disable=redefined-builtin
+def enable_ingress(cmd, name, resource_group_name, type, target_port, transport, allow_insecure=False, disable_warnings=False, no_wait=False):  # pylint: disable=redefined-builtin
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     containerapp_def = None
@@ -1444,7 +1447,7 @@ def enable_ingress(cmd, name, resource_group_name, type, target_port, transport,
     try:
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
-        logger.warning("\nIngress enabled. Access your app at https://{}/\n".format(r["properties"]["configuration"]["ingress"]["fqdn"]))
+        not disable_warnings and logger.warning("\nIngress enabled. Access your app at https://{}/\n".format(r["properties"]["configuration"]["ingress"]["fqdn"]))
         return r["properties"]["configuration"]["ingress"]
     except Exception as e:
         handle_raw_exception(e)
@@ -1566,7 +1569,7 @@ def list_registry(cmd, name, resource_group_name):
         raise ValidationError("The containerapp {} has no assigned registries.".format(name)) from e
 
 
-def set_registry(cmd, name, resource_group_name, server, username=None, password=None, no_wait=False):
+def set_registry(cmd, name, resource_group_name, server, username=None, password=None, disable_warnings=False, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
     containerapp_def = None
@@ -1592,7 +1595,7 @@ def set_registry(cmd, name, resource_group_name, server, username=None, password
         # If registry is Azure Container Registry, we can try inferring credentials
         if '.azurecr.io' not in server:
             raise RequiredArgumentMissingError('Registry username and password are required if you are not using Azure Container Registry.')
-        logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
+        not disable_warnings and logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
         parsed = urlparse(server)
         registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
 
@@ -1605,7 +1608,7 @@ def set_registry(cmd, name, resource_group_name, server, username=None, password
     updating_existing_registry = False
     for r in registries_def:
         if r['server'].lower() == server.lower():
-            logger.warning("Updating existing registry.")
+            not disable_warnings and logger.warning("Updating existing registry.")
             updating_existing_registry = True
             if username:
                 r["username"] = username
@@ -1933,6 +1936,7 @@ def remove_dapr_component(cmd, resource_group_name, dapr_component_name, environ
     except Exception as e:
         handle_raw_exception(e)
 
+
 def containerapp_up(cmd, 
                     name=None, 
                     resource_group_name=None, 
@@ -1949,6 +1953,8 @@ def containerapp_up(cmd,
                     registry_password=None,
                     env_vars=None,
                     dryrun=False,
+                    logs_customer_id=None,
+                    logs_key=None,
                     no_wait=False):
     import os
     src_dir = os.getcwd()
@@ -1959,6 +1965,10 @@ def containerapp_up(cmd,
             name = image.split('/')[-1].split(':')[0].lower()  # <ACR>.azurecr.io/<APP_NAME>:<TIMESTAMP> 
         if source:
             name = source.replace('.', '').replace('/', '').lower()
+            if not image:
+                image = name  # not sure if both allowed
+                print(image)
+                print(name)
 
     if not resource_group_name:
         try:
@@ -1997,27 +2007,37 @@ def containerapp_up(cmd,
     except:
         pass
 
+    if source:
+        queue_acr_build(cmd, "my-container-apps", "haroonftstregistry", image, source)
+
     if not containerapp_def:
         if not location: 
-            location = "canadacentral"  # check user's default location?
+            location = "eastus2"  # check user's default location? find least populated server?
         if not resource_group_name:
             user = get_profile_username()
             rg_name = get_randomized_name(user, resource_group_name)
+            logger.warning("Creating new resource group {}".format(rg_name))
             create_resource_group(cmd, rg_name, location)
             resource_group_name = rg_name
         if not managed_env:
             env_name = "{}-env".format(name).replace("_","-")
-            managed_env = create_managed_environment(cmd, env_name, location = "canadacentral", resource_group_name=resource_group_name)["id"]
+            logger.warning("Creating new managed environment {}".format(env_name))
+            managed_env = create_managed_environment(cmd, env_name, location = location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True, no_wait=no_wait)["id"]
+    else:
+        location = containerapp_def["location"]
+        managed_env = containerapp_def["properties"]["managedEnvironmentId"]
+        env_name = containerapp_def["properties"]["managedEnvironmentId"].split('/')[8]
+        if logs_customer_id and logs_key:
+            managed_env = create_managed_environment(cmd, env_name, location = location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True, no_wait=no_wait)["id"]
+    if source:
         _set_webapp_up_default_args(cmd, resource_group_name, location, name, managed_env)
-        return create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, managed_env=managed_env, target_port=port, registry_server=registry_server, registry_pass=registry_password, registry_user=registry_username, env_vars=env_vars, ingress=ingress, no_wait=no_wait)
-    else: 
-        return
+    return create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, managed_env=managed_env, target_port=port, registry_server=registry_server, registry_pass=registry_password, registry_user=registry_username, env_vars=env_vars, ingress=ingress, disable_warnings=True, no_wait=no_wait)
 
 
 
-def get_randomized_name(prefix, name=None):
+def get_randomized_name(prefix, name=None, initial="rg"):
     from random import randint
-    default = "{}_rg_{:04}".format(prefix, randint(0, 9999))
+    default = "{}_{}_{:04}".format(prefix, initial, randint(0, 9999))
     if name is not None:
         return name
     return default
@@ -2053,6 +2073,7 @@ def get_profile_username():
         user = user.split('#', 1)[1]
     return user
 
+
 def create_resource_group(cmd, rg_name, location):
     from azure.cli.core.profiles import ResourceType, get_sdk
     rcf = _resource_client_factory(cmd.cli_ctx)
@@ -2060,7 +2081,94 @@ def create_resource_group(cmd, rg_name, location):
     rg_params = resource_group(location=location)
     return rcf.resource_groups.create_or_update(rg_name, rg_params)
 
+
 def _resource_client_factory(cli_ctx, **_):
     from azure.cli.core.commands.client_factory import get_mgmt_service_client
     from azure.cli.core.profiles import ResourceType
     return get_mgmt_service_client(cli_ctx, ResourceType.MGMT_RESOURCE_RESOURCES)
+
+
+def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir):
+    import os, uuid, tempfile
+    from azure.cli.command_modules.acr._archive_utils import upload_source_code
+    from azure.cli.command_modules.acr._stream_utils import stream_logs
+    from azure.cli.command_modules.acr._client_factory import cf_acr_registries_tasks
+
+    from azure.cli.core.commands import LongRunningOperation
+
+    # client_registries = get_acr_service_client(cmd.cli_ctx).registries
+    client_registries = cf_acr_registries_tasks(cmd.cli_ctx)
+
+
+    if not os.path.isdir(src_dir):
+        raise CLIError("Source directory should be a local directory path.")
+
+
+    docker_file_path = os.path.join(src_dir, "Dockerfile")
+    if not os.path.isfile(docker_file_path):
+        raise CLIError("Unable to find '{}'.".format(docker_file_path))
+
+
+    # NOTE: os.path.basename is unable to parse "\" in the file path
+    original_docker_file_name = os.path.basename(docker_file_path.replace("\\", "/"))
+    docker_file_in_tar = '{}_{}'.format(uuid.uuid4().hex, original_docker_file_name)
+    tar_file_path = os.path.join(tempfile.gettempdir(), 'build_archive_{}.tar.gz'.format(uuid.uuid4().hex))
+
+
+    source_location = upload_source_code(cmd, client_registries, registry_name, registry_rg, src_dir, tar_file_path, docker_file_path, docker_file_in_tar)
+
+    # For local source, the docker file is added separately into tar as the new file name (docker_file_in_tar)
+    # So we need to update the docker_file_path
+    docker_file_path = docker_file_in_tar
+
+
+    from azure.cli.core.profiles import ResourceType
+    OS, Architecture = cmd.get_models('OS', 'Architecture', resource_type=ResourceType.MGMT_CONTAINERREGISTRY, operation_group='runs')
+    # Default platform values
+    platform_os = OS.linux.value
+    platform_arch = Architecture.amd64.value
+    platform_variant = None
+
+
+    DockerBuildRequest, PlatformProperties = cmd.get_models('DockerBuildRequest', 'PlatformProperties',
+                                                            resource_type=ResourceType.MGMT_CONTAINERREGISTRY, operation_group='runs')
+    docker_build_request = DockerBuildRequest(
+        image_names=[img_name],
+        is_push_enabled=True,
+        source_location=source_location,
+        platform=PlatformProperties(
+            os=platform_os,
+            architecture=platform_arch,
+            variant=platform_variant
+        ),
+        docker_file_path=docker_file_path,
+        timeout=None,
+        arguments=[])
+
+
+    queued_build = LongRunningOperation(cmd.cli_ctx)(client_registries.begin_schedule_run(
+        resource_group_name=registry_rg,
+        registry_name=registry_name,
+        run_request=docker_build_request))
+
+
+    run_id = queued_build.run_id
+    logger.warning("Queued a build with ID: %s", run_id)
+    logger.warning("Waiting for agent...")
+
+    from azure.cli.command_modules.acr._client_factory import (cf_acr_runs)
+    # client_runs = get_acr_service_client(cmd.cli_ctx).runs
+    client_runs = cf_acr_runs
+
+
+
+    return stream_logs(client_runs, run_id, registry_name, registry_rg, False, True)
+
+
+def get_acr_service_client(cli_ctx, api_version=None):
+    """Returns the client for managing container registries. """
+    from azure.mgmt.containerregistry import ContainerRegistryManagementClient
+    from azure.cli.core.profiles import ResourceType
+    from azure.cli.core.commands.client_factory import get_mgmt_service_client
+
+    return get_mgmt_service_client(cli_ctx, ResourceType.MGMT_CONTAINERREGISTRY, api_version="2019-06-01-preview")
