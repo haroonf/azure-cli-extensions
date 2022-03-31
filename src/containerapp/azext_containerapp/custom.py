@@ -1960,6 +1960,9 @@ def containerapp_up(cmd,
     src_dir = os.getcwd()
     _src_path_escaped = "{}".format(src_dir.replace(os.sep, os.sep + os.sep))
 
+    if source is None and image is None:
+        raise RequiredArgumentMissingError("You must specify either --source or --image.")
+
     if not name:
         if image:
             name = image.split('/')[-1].split(':')[0].lower()  # <ACR>.azurecr.io/<APP_NAME>:<TIMESTAMP> 
@@ -2016,9 +2019,15 @@ def containerapp_up(cmd,
                     raise RequiredArgumentMissingError("Registry usename and password are required if using non-Azure registry.")
         else:
             # create ACR here
+            # set registry_server to created acr
             pass
-        image = registry_server + '/' + name
-        queue_acr_build(cmd, "my-container-apps", "haroonftstregistry", name, source)
+        if image is None:
+            image = registry_server + '/' + name
+            queue_acr_build(cmd, "my-container-apps", "haroonftstregistry", name, source)
+        else:
+            image = registry_server + '/' + image
+            queue_acr_build(cmd, "my-container-apps", "haroonftstregistry", image, source)
+
 
     containerapp_def = None
     try:
