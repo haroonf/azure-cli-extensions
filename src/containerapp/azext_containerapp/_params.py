@@ -182,3 +182,4 @@ def load_arguments(self, _):
         c.argument('location', configured_default='location')
         c.argument('name', configured_default='name')
         c.argument('managed_env', configured_default='managed_env')
+        c.argument('registry_server', configured_default='registry_server')

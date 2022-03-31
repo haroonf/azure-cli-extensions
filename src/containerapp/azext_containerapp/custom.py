@@ -5,7 +5,7 @@
 # pylint: disable=line-too-long, consider-using-f-string, logging-format-interpolation, inconsistent-return-statements, broad-except, bare-except, too-many-statements, too-many-locals, too-many-boolean-expressions, too-many-branches, too-many-nested-blocks, pointless-statement
 
 from urllib.parse import urlparse
-from azure.cli.command_modules.appservice.custom import (_get_acr_cred)
+# from azure.cli.command_modules.appservice.custom import (_get_acr_cred)
 from azure.cli.core.azclierror import (
     RequiredArgumentMissingError,
     ValidationError,
@@ -1972,6 +1972,9 @@ def containerapp_up(cmd,
             if len(name) == 0:
                 name = _src_path_escaped.split('\\')[-1]
 
+    if not location: 
+        location = "eastus2"  # check user's default location? find least populated server?
+
     if not resource_group_name:
         try:
             rg_found = False
@@ -1990,6 +1993,12 @@ def containerapp_up(cmd,
             # error handle maybe
             pass
 
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
     if image is not None and "azurecr.io" in image:
         if registry_username is None or registry_password is None:
             # If registry is Azure Container Registry, we can try inferring credentials
@@ -1997,13 +2006,17 @@ def containerapp_up(cmd,
             registry_server=image.split('/')[0]
             parsed = urlparse(image)
             registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
-
         try:
             registry_username, registry_password = _get_acr_cred(cmd.cli_ctx, registry_name)
         except Exception as ex:
             raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
 
     if source is not None:
+        if containerapp_def:
+            if "registries" in containerapp_def["properties"]["configuration"] and len(containerapp_def["properties"]["configuration"]["registries"]) == 1:
+                registry_server = containerapp_def["properties"]["configuration"]["registries"][0]["server"]
+        registry_name = ""
+        registry_rg = ""
         if registry_server:
             if registry_username is None or registry_password is None:
                 if "azurecr.io" in registry_server:
@@ -2012,32 +2025,25 @@ def containerapp_up(cmd,
                     parsed = urlparse(registry_server)
                     registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
                     try:
-                        registry_username, registry_password = _get_acr_cred(cmd.cli_ctx, registry_name)
+                        registry_username, registry_password, registry_rg = _get_acr_cred(cmd.cli_ctx, registry_name)
                     except Exception as ex:
                         raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
                 else:
                     raise RequiredArgumentMissingError("Registry usename and password are required if using non-Azure registry.")
         else:
-            # create ACR here
-            # set registry_server to created acr
-            pass
-        if image is None:
-            image = registry_server + '/' + name
-            queue_acr_build(cmd, "my-container-apps", "haroonftstregistry", name, source)
-        else:
-            image = registry_server + '/' + image
-            queue_acr_build(cmd, "my-container-apps", "haroonftstregistry", image, source)
+            registry_rg = resource_group_name
+            user = get_profile_username()
+            registry_name = "{}acr".format(name)
+            registry_name = registry_name + str(hash((registry_rg, user, name))).replace("-","")
+            logger.warning("Creating new acr {}".format(registry_name))
+            registry_def = create_new_acr(cmd, registry_name, registry_rg, location)
+            registry_server = registry_def.login_server
 
-
-    containerapp_def = None
-    try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
-    except:
-        pass
+        image_name = image if image is not None else name
+        image = registry_server + '/' + image_name
+        queue_acr_build(cmd, registry_rg, registry_name, image_name, source)
 
     if not containerapp_def:
-        if not location: 
-            location = "eastus2"  # check user's default location? find least populated server?
         if not resource_group_name:
             user = get_profile_username()
             rg_name = get_randomized_name(user, resource_group_name)
@@ -2056,7 +2062,7 @@ def containerapp_up(cmd,
             managed_env = create_managed_environment(cmd, env_name, location = location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True, no_wait=no_wait)["id"]
 
     if source is not None:
-        _set_webapp_up_default_args(cmd, resource_group_name, location, name, managed_env)
+        _set_webapp_up_default_args(cmd, resource_group_name, location, name, managed_env, registry_server)
     return create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, managed_env=managed_env, target_port=port, registry_server=registry_server, registry_pass=registry_password, registry_user=registry_username, env_vars=env_vars, ingress=ingress, disable_warnings=True, no_wait=no_wait)
 
 
@@ -2069,7 +2075,7 @@ def get_randomized_name(prefix, name=None, initial="rg"):
     return default
 
 
-def _set_webapp_up_default_args(cmd, resource_group_name, location, name, managed_env):
+def _set_webapp_up_default_args(cmd, resource_group_name, location, name, managed_env, registry_server):
     from azure.cli.core.util import ConfiguredDefaultSetter
     with ConfiguredDefaultSetter(cmd.cli_ctx.config, True):
         logger.warning("Setting 'az containerapp up' default arguments for current directory. "
@@ -2089,6 +2095,10 @@ def _set_webapp_up_default_args(cmd, resource_group_name, location, name, manage
 
         cmd.cli_ctx.config.set_value('defaults', 'managed_env', managed_env)
         logger.warning("--environment default: %s", managed_env)
+
+        cmd.cli_ctx.config.set_value('defaults', 'registry_server', registry_server)
+        logger.warning("--registry-server default: %s", registry_server)
+
 
 
 def get_profile_username():
@@ -2188,3 +2198,43 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir):
     return stream_logs(cmd, client_runs, run_id, registry_name, registry_rg, None, False, True)
 
 
+def _get_acr_cred(cli_ctx, registry_name):
+    from azure.mgmt.containerregistry import ContainerRegistryManagementClient
+    from azure.cli.core.commands.parameters import get_resources_in_subscription
+    from azure.cli.core.commands.client_factory import get_mgmt_service_client
+
+    client = get_mgmt_service_client(cli_ctx, ContainerRegistryManagementClient).registries
+
+    result = get_resources_in_subscription(cli_ctx, 'Microsoft.ContainerRegistry/registries')
+    result = [item for item in result if item.name.lower() == registry_name]
+    if not result or len(result) > 1:
+        raise ResourceNotFoundError("No resource or more than one were found with name '{}'.".format(registry_name))
+    resource_group_name = parse_resource_id(result[0].id)['resource_group']
+
+    registry = client.get(resource_group_name, registry_name)
+
+    if registry.admin_user_enabled:  # pylint: disable=no-member
+        cred = client.list_credentials(resource_group_name, registry_name)
+        return cred.username, cred.passwords[0].value, resource_group_name
+    raise ResourceNotFoundError("Failed to retrieve container registry credentials. Please either provide the "
+                                "credentials or run 'az acr update -n {} --admin-enabled true' to enable "
+                                "admin first.".format(registry_name))
+
+
+def create_new_acr(cmd, registry_name, resource_group_name, location=None, sku="Basic"):
+    # from azure.cli.command_modules.acr.custom import acr_create
+    from azure.cli.command_modules.acr._client_factory import cf_acr_registries
+    from azure.cli.core.profiles import ResourceType
+
+
+    client = cf_acr_registries(cmd.cli_ctx)
+    # return acr_create(cmd, client, registry_name, resource_group_name, sku, location)
+    
+    Registry, Sku, NetworkRuleSet = cmd.get_models('Registry', 'Sku', 'NetworkRuleSet', resource_type=ResourceType.MGMT_CONTAINERREGISTRY, operation_group="registries")
+    registry = Registry(location=location, sku=Sku(name=sku), admin_user_enabled=True,
+                        zone_redundancy=None, tags=None)
+
+    # lro_poller = client.begin_create(resource_group_name, registry_name, registry, polling=False)
+    lro_poller = client._create_initial(resource_group_name, registry_name, registry)
+
+    return lro_poller
