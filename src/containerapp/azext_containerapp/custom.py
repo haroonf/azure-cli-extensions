@@ -1964,11 +1964,10 @@ def containerapp_up(cmd,
         if image:
             name = image.split('/')[-1].split(':')[0].lower()  # <ACR>.azurecr.io/<APP_NAME>:<TIMESTAMP> 
         if source:
-            name = source.replace('.', '').replace('/', '').lower()
-            if not image:
-                image = name  # not sure if both allowed
-                print(image)
-                print(name)
+            temp = source[1:] if source[0] == '.' else source # replace first . if it exists
+            name = temp.split('/')[-1].lower()  # replace first . if it exists
+            if len(name) == 0:
+                name = _src_path_escaped.split('\\')[-1]
 
     if not resource_group_name:
         try:
@@ -1988,7 +1987,7 @@ def containerapp_up(cmd,
             # error handle maybe
             pass
 
-    if "azurecr.io" in image:
+    if image is not None and "azurecr.io" in image:
         if registry_username is None or registry_password is None:
             # If registry is Azure Container Registry, we can try inferring credentials
             logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
@@ -2001,14 +2000,31 @@ def containerapp_up(cmd,
         except Exception as ex:
             raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
 
+    if source is not None:
+        if registry_server:
+            if registry_username is None or registry_password is None:
+                if "azurecr.io" in registry_server:
+                    # If registry is Azure Container Registry, we can try inferring credentials
+                    logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
+                    parsed = urlparse(registry_server)
+                    registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
+                    try:
+                        registry_username, registry_password = _get_acr_cred(cmd.cli_ctx, registry_name)
+                    except Exception as ex:
+                        raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
+                else:
+                    raise RequiredArgumentMissingError("Registry usename and password are required if using non-Azure registry.")
+        else:
+            # create ACR here
+            pass
+        image = registry_server + '/' + name
+        queue_acr_build(cmd, "my-container-apps", "haroonftstregistry", name, source)
+
     containerapp_def = None
     try:
         containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
     except:
         pass
-
-    if source:
-        queue_acr_build(cmd, "my-container-apps", "haroonftstregistry", image, source)
 
     if not containerapp_def:
         if not location: 
@@ -2029,7 +2045,8 @@ def containerapp_up(cmd,
         env_name = containerapp_def["properties"]["managedEnvironmentId"].split('/')[8]
         if logs_customer_id and logs_key:
             managed_env = create_managed_environment(cmd, env_name, location = location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True, no_wait=no_wait)["id"]
-    if source:
+
+    if source is not None:
         _set_webapp_up_default_args(cmd, resource_group_name, location, name, managed_env)
     return create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, managed_env=managed_env, target_port=port, registry_server=registry_server, registry_pass=registry_password, registry_user=registry_username, env_vars=env_vars, ingress=ingress, disable_warnings=True, no_wait=no_wait)
 
@@ -2157,18 +2174,8 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir):
     logger.warning("Waiting for agent...")
 
     from azure.cli.command_modules.acr._client_factory import (cf_acr_runs)
-    # client_runs = get_acr_service_client(cmd.cli_ctx).runs
-    client_runs = cf_acr_runs
+    client_runs = cf_acr_runs(cmd.cli_ctx)
+
+    return stream_logs(cmd, client_runs, run_id, registry_name, registry_rg, None, False, True)
 
 
-
-    return stream_logs(client_runs, run_id, registry_name, registry_rg, False, True)
-
-
-def get_acr_service_client(cli_ctx, api_version=None):
-    """Returns the client for managing container registries. """
-    from azure.mgmt.containerregistry import ContainerRegistryManagementClient
-    from azure.cli.core.profiles import ResourceType
-    from azure.cli.core.commands.client_factory import get_mgmt_service_client
-
-    return get_mgmt_service_client(cli_ctx, ResourceType.MGMT_CONTAINERREGISTRY, api_version="2019-06-01-preview")
