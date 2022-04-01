@@ -351,7 +351,7 @@ def create_containerapp(cmd,
 
         # Infer credentials if not supplied and its azurecr
         if registry_user is None or registry_pass is None:
-            registry_user, registry_pass = _infer_acr_credentials(cmd, registry_server)
+            registry_user, registry_pass = _infer_acr_credentials(cmd, registry_server, disable_warnings)
 
         registries_def["server"] = registry_server
         registries_def["username"] = registry_user
@@ -1945,7 +1945,7 @@ def containerapp_up(cmd,
                     registry_server=None,  
                     image=None, 
                     source=None,
-                    dockerfile=None,
+                    dockerfile="Dockerfile",
                     # compose=None,
                     ingress=None,
                     port=None,
@@ -1956,7 +1956,7 @@ def containerapp_up(cmd,
                     logs_customer_id=None,
                     logs_key=None,
                     no_wait=False):
-    import os
+    import os, json
     src_dir = os.getcwd()
     _src_path_escaped = "{}".format(src_dir.replace(os.sep, os.sep + os.sep))
 
@@ -1965,12 +1965,15 @@ def containerapp_up(cmd,
 
     if not name:
         if image:
-            name = image.split('/')[-1].split(':')[0].lower()  # <ACR>.azurecr.io/<APP_NAME>:<TIMESTAMP> 
+            name = image.split('/')[-1].split(':')[0].lower()
         if source:
             temp = source[1:] if source[0] == '.' else source # replace first . if it exists
             name = temp.split('/')[-1].lower()  # replace first . if it exists
             if len(name) == 0:
                 name = _src_path_escaped.split('\\')[-1]
+
+    if source and image:
+        image = image.replace(':', '')
 
     if not location: 
         location = "eastus2"  # check user's default location? find least populated server?
@@ -1990,7 +1993,6 @@ def containerapp_up(cmd,
                     rg_found = True
                     resource_group_name = containerapp["id"].split('/')[4]
         except:
-            # error handle maybe
             pass
 
     containerapp_def = None
@@ -1999,7 +2001,30 @@ def containerapp_up(cmd,
     except:
         pass
 
-    if image is not None and "azurecr.io" in image:
+    env_name = "" if not managed_env else managed_env.split('/')[8]
+    if not containerapp_def:
+        if not resource_group_name:
+            user = get_profile_username()
+            rg_name = get_randomized_name(user, resource_group_name)
+            not dryrun and logger.warning("Creating new resource group {}".format(rg_name))
+            not dryrun and create_resource_group(cmd, rg_name, location)
+            resource_group_name = rg_name
+        if not managed_env:
+            env_name = "{}-env".format(name).replace("_","-")
+            if not dryrun:
+                logger.warning("Creating new managed environment {}".format(env_name))
+                managed_env = create_managed_environment(cmd, env_name, location = location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True, no_wait=no_wait)["id"]
+            else:
+                managed_env = env_name
+    else:
+        location = containerapp_def["location"]
+        managed_env = containerapp_def["properties"]["managedEnvironmentId"]
+        env_name = containerapp_def["properties"]["managedEnvironmentId"].split('/')[8]
+        if logs_customer_id and logs_key:
+            if not dryrun:
+                managed_env = create_managed_environment(cmd, env_name, location = location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True, no_wait=no_wait)["id"]
+
+    if image is not None and "azurecr.io" in image and not dryrun:
         if registry_username is None or registry_password is None:
             # If registry is Azure Container Registry, we can try inferring credentials
             logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
@@ -2018,7 +2043,7 @@ def containerapp_up(cmd,
         registry_name = ""
         registry_rg = ""
         if registry_server:
-            if registry_username is None or registry_password is None:
+            if not dryrun and (registry_username is None or registry_password is None):
                 if "azurecr.io" in registry_server:
                     # If registry is Azure Container Registry, we can try inferring credentials
                     logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
@@ -2035,36 +2060,38 @@ def containerapp_up(cmd,
             user = get_profile_username()
             registry_name = "{}acr".format(name)
             registry_name = registry_name + str(hash((registry_rg, user, name))).replace("-","")
-            logger.warning("Creating new acr {}".format(registry_name))
-            registry_def = create_new_acr(cmd, registry_name, registry_rg, location)
-            registry_server = registry_def.login_server
+            not dryrun and logger.warning("Creating new acr {}".format(registry_name))
+            if not dryrun:
+                registry_def = create_new_acr(cmd, registry_name, registry_rg, location)
+                registry_server = registry_def.login_server
+            else:
+                registry_server = registry_name + "azurecr.io"
 
         image_name = image if image is not None else name
+        from datetime import datetime
+        now = datetime.now()
+        image_name += ":{}".format(str(now).replace(' ', '').replace('-','').replace('.','').replace(':',''))
         image = registry_server + '/' + image_name
-        queue_acr_build(cmd, registry_rg, registry_name, image_name, source)
+        not dryrun and queue_acr_build(cmd, registry_rg, registry_name, image_name, source, dockerfile)
+        _set_webapp_up_default_args(cmd, resource_group_name, location, name, registry_server)
+        
+    dry_run_str = r""" {
+                "name" : "%s",
+                "resourcegroup" : "%s",
+                "location" : "%s",
+                "environment" : "%s",
+                "registry": "%s",
+                "image" : "%s",
+                "src_path" : "%s"
+                }
+                """ % (name, resource_group_name, location, env_name, registry_server, image, _src_path_escaped)
 
-    if not containerapp_def:
-        if not resource_group_name:
-            user = get_profile_username()
-            rg_name = get_randomized_name(user, resource_group_name)
-            logger.warning("Creating new resource group {}".format(rg_name))
-            create_resource_group(cmd, rg_name, location)
-            resource_group_name = rg_name
-        if not managed_env:
-            env_name = "{}-env".format(name).replace("_","-")
-            logger.warning("Creating new managed environment {}".format(env_name))
-            managed_env = create_managed_environment(cmd, env_name, location = location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True, no_wait=no_wait)["id"]
-    else:
-        location = containerapp_def["location"]
-        managed_env = containerapp_def["properties"]["managedEnvironmentId"]
-        env_name = containerapp_def["properties"]["managedEnvironmentId"].split('/')[8]
-        if logs_customer_id and logs_key:
-            managed_env = create_managed_environment(cmd, env_name, location = location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True, no_wait=no_wait)["id"]
+    not dryrun and create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, managed_env=managed_env, target_port=port, registry_server=registry_server, registry_pass=registry_password, registry_user=registry_username, env_vars=env_vars, ingress=ingress, disable_warnings=True, no_wait=no_wait)
 
-    if source is not None:
-        _set_webapp_up_default_args(cmd, resource_group_name, location, name, managed_env, registry_server)
-    return create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, managed_env=managed_env, target_port=port, registry_server=registry_server, registry_pass=registry_password, registry_user=registry_username, env_vars=env_vars, ingress=ingress, disable_warnings=True, no_wait=no_wait)
-
+    if dryrun:
+        logger.warning("Containerapp will be created with the below configuration, re-run command "
+                       "without the --dryrun flag to create & deploy a new containerapp.")
+    return json.loads(dry_run_str)      
 
 
 def get_randomized_name(prefix, name=None, initial="rg"):
@@ -2075,7 +2102,7 @@ def get_randomized_name(prefix, name=None, initial="rg"):
     return default
 
 
-def _set_webapp_up_default_args(cmd, resource_group_name, location, name, managed_env, registry_server):
+def _set_webapp_up_default_args(cmd, resource_group_name, location, name, registry_server):
     from azure.cli.core.util import ConfiguredDefaultSetter
     with ConfiguredDefaultSetter(cmd.cli_ctx.config, True):
         logger.warning("Setting 'az containerapp up' default arguments for current directory. "
@@ -2093,8 +2120,8 @@ def _set_webapp_up_default_args(cmd, resource_group_name, location, name, manage
         cmd.cli_ctx.config.set_value('defaults', 'name', name)
         logger.warning("--name/-n default: %s", name)
 
-        cmd.cli_ctx.config.set_value('defaults', 'managed_env', managed_env)
-        logger.warning("--environment default: %s", managed_env)
+        # cmd.cli_ctx.config.set_value('defaults', 'managed_env', managed_env)
+        # logger.warning("--environment default: %s", managed_env)
 
         cmd.cli_ctx.config.set_value('defaults', 'registry_server', registry_server)
         logger.warning("--registry-server default: %s", registry_server)
@@ -2124,7 +2151,7 @@ def _resource_client_factory(cli_ctx, **_):
     return get_mgmt_service_client(cli_ctx, ResourceType.MGMT_RESOURCE_RESOURCES)
 
 
-def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir):
+def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfile="Dockerfile"):
     import os, uuid, tempfile
     from azure.cli.command_modules.acr._archive_utils import upload_source_code
     from azure.cli.command_modules.acr._stream_utils import stream_logs
@@ -2140,7 +2167,7 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir):
         raise CLIError("Source directory should be a local directory path.")
 
 
-    docker_file_path = os.path.join(src_dir, "Dockerfile")
+    docker_file_path = os.path.join(src_dir, dockerfile)
     if not os.path.isfile(docker_file_path):
         raise CLIError("Unable to find '{}'.".format(docker_file_path))
 
@@ -2197,6 +2224,8 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir):
 
     return stream_logs(cmd, client_runs, run_id, registry_name, registry_rg, None, False, True)
 
+    # return client_runs.get(registry_rg, registry_name, run_id)  # returns only the response object
+
 
 def _get_acr_cred(cli_ctx, registry_name):
     from azure.mgmt.containerregistry import ContainerRegistryManagementClient
@@ -2235,6 +2264,4 @@ def create_new_acr(cmd, registry_name, resource_group_name, location=None, sku="
                         zone_redundancy=None, tags=None)
 
     # lro_poller = client.begin_create(resource_group_name, registry_name, registry, polling=False)
-    lro_poller = client._create_initial(resource_group_name, registry_name, registry)
-
-    return lro_poller
+    return client._create_initial(resource_group_name, registry_name, registry)

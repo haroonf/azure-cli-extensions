@@ -562,11 +562,11 @@ def _get_app_from_revision(revision):
     return revision
 
 
-def _infer_acr_credentials(cmd, registry_server):
+def _infer_acr_credentials(cmd, registry_server, disable_warnings=False):
     # If registry is Azure Container Registry, we can try inferring credentials
     if '.azurecr.io' not in registry_server:
         raise RequiredArgumentMissingError('Registry username and password are required if not using Azure Container Registry.')
-    logger.warning('No credential was provided to access Azure Container Registry. Trying to look up credentials...')
+    not disable_warnings and logger.warning('No credential was provided to access Azure Container Registry. Trying to look up credentials...')
     parsed = urlparse(registry_server)
     registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
 
