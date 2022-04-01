@@ -1978,7 +1978,17 @@ def containerapp_up(cmd,
     if not location: 
         location = "eastus2"  # check user's default location? find least populated server?
 
-    if not resource_group_name:
+    custom_rg_name = None
+    # user passes bad resource group name, we create it for them
+    if resource_group_name:
+        try:
+            get_resource_group(cmd, resource_group_name)
+        except:
+            custom_rg_name = resource_group_name
+            resource_group_name = None
+
+    # if custom_rg_name, that means rg doesn't exist no need to look for CA
+    if not resource_group_name and not custom_rg_name:
         try:
             rg_found = False
             containerapps = list_containerapp(cmd)
@@ -2005,7 +2015,7 @@ def containerapp_up(cmd,
     if not containerapp_def:
         if not resource_group_name:
             user = get_profile_username()
-            rg_name = get_randomized_name(user, resource_group_name)
+            rg_name = get_randomized_name(user, resource_group_name) if custom_rg_name is None else custom_rg_name
             not dryrun and logger.warning("Creating new resource group {}".format(rg_name))
             not dryrun and create_resource_group(cmd, rg_name, location)
             resource_group_name = rg_name
@@ -2065,7 +2075,7 @@ def containerapp_up(cmd,
                 registry_def = create_new_acr(cmd, registry_name, registry_rg, location)
                 registry_server = registry_def.login_server
             else:
-                registry_server = registry_name + "azurecr.io"
+                registry_server = registry_name + ".azurecr.io"
 
         image_name = image if image is not None else name
         from datetime import datetime
@@ -2143,6 +2153,13 @@ def create_resource_group(cmd, rg_name, location):
     resource_group = get_sdk(cmd.cli_ctx, ResourceType.MGMT_RESOURCE_RESOURCES, 'ResourceGroup', mod='models')
     rg_params = resource_group(location=location)
     return rcf.resource_groups.create_or_update(rg_name, rg_params)
+
+
+def get_resource_group(cmd, rg_name):
+    from azure.cli.core.profiles import ResourceType, get_sdk
+    rcf = _resource_client_factory(cmd.cli_ctx)
+    resource_group = get_sdk(cmd.cli_ctx, ResourceType.MGMT_RESOURCE_RESOURCES, 'ResourceGroup', mod='models')
+    return rcf.resource_groups.get(rg_name)
 
 
 def _resource_client_factory(cli_ctx, **_):
