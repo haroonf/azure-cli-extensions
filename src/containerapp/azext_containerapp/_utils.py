@@ -637,9 +637,7 @@ def create_resource_group(cmd, rg_name, location):
 
 
 def get_resource_group(cmd, rg_name):
-    from azure.cli.core.profiles import ResourceType, get_sdk
     rcf = _resource_client_factory(cmd.cli_ctx)
-    resource_group = get_sdk(cmd.cli_ctx, ResourceType.MGMT_RESOURCE_RESOURCES, 'ResourceGroup', mod='models')
     return rcf.resource_groups.get(rg_name)
 
 
@@ -650,7 +648,9 @@ def _resource_client_factory(cli_ctx, **_):
 
 
 def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfile="Dockerfile", disable_verbose=False):
-    import os, uuid, tempfile
+    import os
+    import uuid
+    import tempfile
     from azure.cli.command_modules.acr._archive_utils import upload_source_code
     from azure.cli.command_modules.acr._stream_utils import stream_logs
     from azure.cli.command_modules.acr._client_factory import cf_acr_registries_tasks
@@ -661,12 +661,12 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfi
 
 
     if not os.path.isdir(src_dir):
-        raise CLIError("Source directory should be a local directory path.")
+        raise ValidationError("Source directory should be a local directory path.")
 
 
     docker_file_path = os.path.join(src_dir, dockerfile)
     if not os.path.isfile(docker_file_path):
-        raise CLIError("Unable to find '{}'.".format(docker_file_path))
+        raise ValidationError("Unable to find '{}'.".format(docker_file_path))
 
 
     # NOTE: os.path.basename is unable to parse "\" in the file path
@@ -717,25 +717,14 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfi
     not disable_verbose and logger.warning("Waiting for agent...")
 
     from azure.cli.command_modules.acr._client_factory import (cf_acr_runs)
+    from ._acr_run_polling import get_run_with_polling
     client_runs = cf_acr_runs(cmd.cli_ctx)
 
     if disable_verbose:
-        logger.warning("Waiting for build to finish.")
-        finished = False
-        while not finished:
-            try: 
-                res = client_runs.get(registry_rg, registry_name, run_id)
-            except:
-                pass
-            if res.status != "Running":
-                if res.status != "Succeeded":
-                    logger.warning("Build failed.")
-                    return res.status
-                finished = True  # doesn't matter can just do while True
-                logger.warning("Build succeeded.")
-                return res.status
-
-        return client_runs.get(registry_rg, registry_name, run_id)  # returns only the response object
+        lro_poller = get_run_with_polling(cmd, client_runs, run_id, registry_name, registry_rg)
+        acr = LongRunningOperation(cmd.cli_ctx)(lro_poller)
+        logger.warning("Build {}.".format(acr.status.lower()))
+        return acr
 
     return stream_logs(cmd, client_runs, run_id, registry_name, registry_rg, None, False, True)
 
@@ -767,14 +756,15 @@ def create_new_acr(cmd, registry_name, resource_group_name, location=None, sku="
     # from azure.cli.command_modules.acr.custom import acr_create
     from azure.cli.command_modules.acr._client_factory import cf_acr_registries
     from azure.cli.core.profiles import ResourceType
-
+    from azure.cli.core.commands import LongRunningOperation
 
     client = cf_acr_registries(cmd.cli_ctx)
     # return acr_create(cmd, client, registry_name, resource_group_name, sku, location)
-    
-    Registry, Sku, NetworkRuleSet = cmd.get_models('Registry', 'Sku', 'NetworkRuleSet', resource_type=ResourceType.MGMT_CONTAINERREGISTRY, operation_group="registries")
+
+    Registry, Sku = cmd.get_models('Registry', 'Sku', resource_type=ResourceType.MGMT_CONTAINERREGISTRY, operation_group="registries")
     registry = Registry(location=location, sku=Sku(name=sku), admin_user_enabled=True,
                         zone_redundancy=None, tags=None)
 
-    # lro_poller = client.begin_create(resource_group_name, registry_name, registry, polling=False)
-    return client._create_initial(resource_group_name, registry_name, registry)
+    lro_poller = client.begin_create(resource_group_name, registry_name, registry)
+    acr = LongRunningOperation(cmd.cli_ctx)(lro_poller)
+    return acr
