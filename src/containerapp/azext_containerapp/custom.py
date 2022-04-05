@@ -47,7 +47,9 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      _object_to_dict, _add_or_update_secrets, _remove_additional_attributes, _remove_readonly_attributes,
                      _add_or_update_env_vars, _add_or_update_tags, update_nested_dictionary, _update_traffic_weights,
                      _get_app_from_revision, raise_missing_token_suggestion, _infer_acr_credentials, _remove_registry_secret, _remove_secret,
-                     _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars, _update_revision_env_secretrefs)
+                     _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars, 
+                     _update_revision_env_secretrefs, get_randomized_name, _set_webapp_up_default_args, get_profile_username, create_resource_group, 
+                     get_resource_group, queue_acr_build, _get_acr_cred, create_new_acr)
 
 logger = get_logger(__name__)
 
@@ -1955,6 +1957,7 @@ def containerapp_up(cmd,
                     dryrun=False,
                     logs_customer_id=None,
                     logs_key=None,
+                    disable_verbose=False,
                     no_wait=False):
     import os, json
     src_dir = os.getcwd()
@@ -2011,7 +2014,7 @@ def containerapp_up(cmd,
     except:
         pass
 
-    env_name = "" if not managed_env else managed_env.split('/')[8]
+    env_name = "" if not managed_env else managed_env.split('/')[6]
     if not containerapp_def:
         if not resource_group_name:
             user = get_profile_username()
@@ -2082,9 +2085,9 @@ def containerapp_up(cmd,
         now = datetime.now()
         image_name += ":{}".format(str(now).replace(' ', '').replace('-','').replace('.','').replace(':',''))
         image = registry_server + '/' + image_name
-        not dryrun and queue_acr_build(cmd, registry_rg, registry_name, image_name, source, dockerfile)
+        not dryrun and queue_acr_build(cmd, registry_rg, registry_name, image_name, source, dockerfile, disable_verbose)
         _set_webapp_up_default_args(cmd, resource_group_name, location, name, registry_server)
-        
+
     dry_run_str = r""" {
                 "name" : "%s",
                 "resourcegroup" : "%s",
@@ -2102,183 +2105,3 @@ def containerapp_up(cmd,
         logger.warning("Containerapp will be created with the below configuration, re-run command "
                        "without the --dryrun flag to create & deploy a new containerapp.")
     return json.loads(dry_run_str)      
-
-
-def get_randomized_name(prefix, name=None, initial="rg"):
-    from random import randint
-    default = "{}_{}_{:04}".format(prefix, initial, randint(0, 9999))
-    if name is not None:
-        return name
-    return default
-
-
-def _set_webapp_up_default_args(cmd, resource_group_name, location, name, registry_server):
-    from azure.cli.core.util import ConfiguredDefaultSetter
-    with ConfiguredDefaultSetter(cmd.cli_ctx.config, True):
-        logger.warning("Setting 'az containerapp up' default arguments for current directory. "
-                       "Manage defaults with 'az configure --scope local'")
-
-
-        cmd.cli_ctx.config.set_value('defaults', 'resource_group_name', resource_group_name)
-        logger.warning("--resource-group/-g default: %s", resource_group_name)
-
-
-        cmd.cli_ctx.config.set_value('defaults', 'location', location)
-        logger.warning("--location/-l default: %s", location)
-
-
-        cmd.cli_ctx.config.set_value('defaults', 'name', name)
-        logger.warning("--name/-n default: %s", name)
-
-        # cmd.cli_ctx.config.set_value('defaults', 'managed_env', managed_env)
-        # logger.warning("--environment default: %s", managed_env)
-
-        cmd.cli_ctx.config.set_value('defaults', 'registry_server', registry_server)
-        logger.warning("--registry-server default: %s", registry_server)
-
-
-
-def get_profile_username():
-    from azure.cli.core._profile import Profile
-    user = Profile().get_current_account_user()
-    user = user.split('@', 1)[0]
-    if len(user.split('#', 1)) > 1:  # on cloudShell user is in format live.com#user@domain.com
-        user = user.split('#', 1)[1]
-    return user
-
-
-def create_resource_group(cmd, rg_name, location):
-    from azure.cli.core.profiles import ResourceType, get_sdk
-    rcf = _resource_client_factory(cmd.cli_ctx)
-    resource_group = get_sdk(cmd.cli_ctx, ResourceType.MGMT_RESOURCE_RESOURCES, 'ResourceGroup', mod='models')
-    rg_params = resource_group(location=location)
-    return rcf.resource_groups.create_or_update(rg_name, rg_params)
-
-
-def get_resource_group(cmd, rg_name):
-    from azure.cli.core.profiles import ResourceType, get_sdk
-    rcf = _resource_client_factory(cmd.cli_ctx)
-    resource_group = get_sdk(cmd.cli_ctx, ResourceType.MGMT_RESOURCE_RESOURCES, 'ResourceGroup', mod='models')
-    return rcf.resource_groups.get(rg_name)
-
-
-def _resource_client_factory(cli_ctx, **_):
-    from azure.cli.core.commands.client_factory import get_mgmt_service_client
-    from azure.cli.core.profiles import ResourceType
-    return get_mgmt_service_client(cli_ctx, ResourceType.MGMT_RESOURCE_RESOURCES)
-
-
-def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfile="Dockerfile"):
-    import os, uuid, tempfile
-    from azure.cli.command_modules.acr._archive_utils import upload_source_code
-    from azure.cli.command_modules.acr._stream_utils import stream_logs
-    from azure.cli.command_modules.acr._client_factory import cf_acr_registries_tasks
-
-    from azure.cli.core.commands import LongRunningOperation
-
-    # client_registries = get_acr_service_client(cmd.cli_ctx).registries
-    client_registries = cf_acr_registries_tasks(cmd.cli_ctx)
-
-
-    if not os.path.isdir(src_dir):
-        raise CLIError("Source directory should be a local directory path.")
-
-
-    docker_file_path = os.path.join(src_dir, dockerfile)
-    if not os.path.isfile(docker_file_path):
-        raise CLIError("Unable to find '{}'.".format(docker_file_path))
-
-
-    # NOTE: os.path.basename is unable to parse "\" in the file path
-    original_docker_file_name = os.path.basename(docker_file_path.replace("\\", "/"))
-    docker_file_in_tar = '{}_{}'.format(uuid.uuid4().hex, original_docker_file_name)
-    tar_file_path = os.path.join(tempfile.gettempdir(), 'build_archive_{}.tar.gz'.format(uuid.uuid4().hex))
-
-
-    source_location = upload_source_code(cmd, client_registries, registry_name, registry_rg, src_dir, tar_file_path, docker_file_path, docker_file_in_tar)
-
-    # For local source, the docker file is added separately into tar as the new file name (docker_file_in_tar)
-    # So we need to update the docker_file_path
-    docker_file_path = docker_file_in_tar
-
-
-    from azure.cli.core.profiles import ResourceType
-    OS, Architecture = cmd.get_models('OS', 'Architecture', resource_type=ResourceType.MGMT_CONTAINERREGISTRY, operation_group='runs')
-    # Default platform values
-    platform_os = OS.linux.value
-    platform_arch = Architecture.amd64.value
-    platform_variant = None
-
-
-    DockerBuildRequest, PlatformProperties = cmd.get_models('DockerBuildRequest', 'PlatformProperties',
-                                                            resource_type=ResourceType.MGMT_CONTAINERREGISTRY, operation_group='runs')
-    docker_build_request = DockerBuildRequest(
-        image_names=[img_name],
-        is_push_enabled=True,
-        source_location=source_location,
-        platform=PlatformProperties(
-            os=platform_os,
-            architecture=platform_arch,
-            variant=platform_variant
-        ),
-        docker_file_path=docker_file_path,
-        timeout=None,
-        arguments=[])
-
-
-    queued_build = LongRunningOperation(cmd.cli_ctx)(client_registries.begin_schedule_run(
-        resource_group_name=registry_rg,
-        registry_name=registry_name,
-        run_request=docker_build_request))
-
-
-    run_id = queued_build.run_id
-    logger.warning("Queued a build with ID: %s", run_id)
-    logger.warning("Waiting for agent...")
-
-    from azure.cli.command_modules.acr._client_factory import (cf_acr_runs)
-    client_runs = cf_acr_runs(cmd.cli_ctx)
-
-    return stream_logs(cmd, client_runs, run_id, registry_name, registry_rg, None, False, True)
-
-    # return client_runs.get(registry_rg, registry_name, run_id)  # returns only the response object
-
-
-def _get_acr_cred(cli_ctx, registry_name):
-    from azure.mgmt.containerregistry import ContainerRegistryManagementClient
-    from azure.cli.core.commands.parameters import get_resources_in_subscription
-    from azure.cli.core.commands.client_factory import get_mgmt_service_client
-
-    client = get_mgmt_service_client(cli_ctx, ContainerRegistryManagementClient).registries
-
-    result = get_resources_in_subscription(cli_ctx, 'Microsoft.ContainerRegistry/registries')
-    result = [item for item in result if item.name.lower() == registry_name]
-    if not result or len(result) > 1:
-        raise ResourceNotFoundError("No resource or more than one were found with name '{}'.".format(registry_name))
-    resource_group_name = parse_resource_id(result[0].id)['resource_group']
-
-    registry = client.get(resource_group_name, registry_name)
-
-    if registry.admin_user_enabled:  # pylint: disable=no-member
-        cred = client.list_credentials(resource_group_name, registry_name)
-        return cred.username, cred.passwords[0].value, resource_group_name
-    raise ResourceNotFoundError("Failed to retrieve container registry credentials. Please either provide the "
-                                "credentials or run 'az acr update -n {} --admin-enabled true' to enable "
-                                "admin first.".format(registry_name))
-
-
-def create_new_acr(cmd, registry_name, resource_group_name, location=None, sku="Basic"):
-    # from azure.cli.command_modules.acr.custom import acr_create
-    from azure.cli.command_modules.acr._client_factory import cf_acr_registries
-    from azure.cli.core.profiles import ResourceType
-
-
-    client = cf_acr_registries(cmd.cli_ctx)
-    # return acr_create(cmd, client, registry_name, resource_group_name, sku, location)
-    
-    Registry, Sku, NetworkRuleSet = cmd.get_models('Registry', 'Sku', 'NetworkRuleSet', resource_type=ResourceType.MGMT_CONTAINERREGISTRY, operation_group="registries")
-    registry = Registry(location=location, sku=Sku(name=sku), admin_user_enabled=True,
-                        zone_redundancy=None, tags=None)
-
-    # lro_poller = client.begin_create(resource_group_name, registry_name, registry, polling=False)
-    return client._create_initial(resource_group_name, registry_name, registry)
