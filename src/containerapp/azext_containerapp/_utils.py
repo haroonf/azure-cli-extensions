@@ -5,7 +5,7 @@
 # pylint: disable=line-too-long, consider-using-f-string, no-else-return, duplicate-string-formatting-argument
 
 from urllib.parse import urlparse
-from azure.cli.core.azclierror import (ValidationError, RequiredArgumentMissingError)
+from azure.cli.core.azclierror import (ValidationError, RequiredArgumentMissingError, CLIInternalError)
 from azure.cli.core.commands.client_factory import get_subscription_id
 from knack.log import get_logger
 from msrestazure.tools import parse_resource_id
@@ -131,7 +131,7 @@ def _update_revision_env_secretrefs(containers, name):
                     var["secretRef"] = var["secretRef"].replace("{}-".format(name), "")
 
 
-def store_as_secret_and_return_secret_ref(secrets_list, registry_user, registry_server, registry_pass, update_existing_secret=False):
+def store_as_secret_and_return_secret_ref(secrets_list, registry_user, registry_server, registry_pass, update_existing_secret=False, disable_warnings=False):
     if registry_pass.startswith("secretref:"):
         # If user passed in registry password using a secret
 
@@ -161,7 +161,8 @@ def store_as_secret_and_return_secret_ref(secrets_list, registry_user, registry_
                         raise ValidationError('Found secret with name \"{}\" but value does not equal the supplied registry password.'.format(registry_secret_name))
                 return registry_secret_name
 
-        # logger.warning('Adding registry password as a secret with name \"{}\"'.format(registry_secret_name))  # pylint: disable=logging-format-interpolation
+        if not disable_warnings:
+            logger.warning('Adding registry password as a secret with name \"{}\"'.format(registry_secret_name))  # pylint: disable=logging-format-interpolation
         secrets_list.append({
             "name": registry_secret_name,
             "value": registry_pass
@@ -233,7 +234,7 @@ def _generate_log_analytics_workspace_name(resource_group_name):
 
 def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, location, resource_group_name):
     if logs_customer_id is None and logs_key is None:
-        # logger.warning("No Log Analytics workspace provided.")
+        logger.warning("No Log Analytics workspace provided.")
         try:
             _validate_subscription_registered(cmd, "Microsoft.OperationalInsights")
             log_analytics_client = log_analytics_client_factory(cmd.cli_ctx)
@@ -250,7 +251,7 @@ def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, loc
 
             workspace_name = _generate_log_analytics_workspace_name(resource_group_name)
             workspace_instance = Workspace(location=log_analytics_location)
-            # logger.warning("Generating a Log Analytics workspace with name \"{}\"".format(workspace_name))  # pylint: disable=logging-format-interpolation
+            logger.warning("Generating a Log Analytics workspace with name \"{}\"".format(workspace_name))  # pylint: disable=logging-format-interpolation
 
             poller = log_analytics_client.begin_create_or_update(resource_group_name, workspace_name, workspace_instance)
             log_analytics_workspace = LongRunningOperation(cmd.cli_ctx)(poller)
@@ -288,7 +289,7 @@ def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, loc
 
         logs_key = shared_keys.primary_shared_key
 
-    return logs_customer_id, logs_key
+    return logs_customer_id, logs_key, workspace_name
 
 
 def _get_existing_secrets(cmd, resource_group_name, name, containerapp_def):
@@ -565,6 +566,7 @@ def _infer_acr_credentials(cmd, registry_server, disable_warnings=False):
     # If registry is Azure Container Registry, we can try inferring credentials
     if '.azurecr.io' not in registry_server:
         raise RequiredArgumentMissingError('Registry username and password are required if not using Azure Container Registry.')
+    logger.warning("Infer acr credentials")
     not disable_warnings and logger.warning('No credential was provided to access Azure Container Registry. Trying to look up credentials...')
     parsed = urlparse(registry_server)
     registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
@@ -724,6 +726,8 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfi
         lro_poller = get_run_with_polling(cmd, client_runs, run_id, registry_name, registry_rg)
         acr = LongRunningOperation(cmd.cli_ctx)(lro_poller)
         logger.warning("Build {}.".format(acr.status.lower()))
+        if acr.status.lower() != "succeeded":
+            raise CLIInternalError("ACR build {}.".format(acr.status.lower()))
         return acr
 
     return stream_logs(cmd, client_runs, run_id, registry_name, registry_rg, None, False, True)

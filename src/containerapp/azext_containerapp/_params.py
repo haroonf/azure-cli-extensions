@@ -76,6 +76,7 @@ def load_arguments(self, _):
 
     with self.argument_context('containerapp create') as c:
         c.argument('traffic_weights', nargs='*', options_list=['--traffic-weight'], help="A list of revision weight(s) for the container app. Space-separated values in 'revision_name=weight' format. For latest revision, use 'latest=weight'")
+        c.ignore('disable_warnings')
 
     with self.argument_context('containerapp scale') as c:
         c.argument('min_replicas', type=int, help="The minimum number of replicas.")
@@ -180,6 +181,17 @@ def load_arguments(self, _):
     with self.argument_context('containerapp up') as c:
         c.argument('resource_group_name', configured_default='resource_group_name')
         c.argument('location', configured_default='location')
-        c.argument('name', configured_default='name')
+        c.argument('name', configured_default='name', id_part=None)
         c.argument('managed_env', configured_default='managed_env')
         c.argument('registry_server', configured_default='registry_server')
+        c.argument('disable_verbose', help="Disable verbose output from ACR build when using --source.")
+        c.argument('dockerfile', help="Name of the dockerfile.")
+        c.argument('dryrun', help="Show summary of the operation instead of executing it.")
+
+    with self.argument_context('containerapp up', arg_group='Log Analytics (Environment)') as c:
+        c.argument('logs_customer_id', type=str, options_list=['--logs-workspace-id'], help='Name or resource ID of the Log Analytics workspace to send diagnostics logs to. You can use \"az monitor log-analytics workspace create\" to create one. Extra billing may apply.')
+        c.argument('logs_key', type=str, options_list=['--logs-workspace-key'], help='Log Analytics workspace key to configure your Log Analytics workspace. You can use \"az monitor log-analytics workspace get-shared-keys\" to retrieve the key.')
+        c.ignore('no_wait')
+
+    with self.argument_context('containerapp', arg_group='Container') as c:
+        c.argument('source', type=str, help='Local directory path to upload to Azure container registry.')

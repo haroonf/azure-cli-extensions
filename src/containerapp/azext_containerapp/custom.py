@@ -360,7 +360,7 @@ def create_containerapp(cmd,
 
         if secrets_def is None:
             secrets_def = []
-        registries_def["passwordSecretRef"] = store_as_secret_and_return_secret_ref(secrets_def, registry_user, registry_server, registry_pass)
+        registries_def["passwordSecretRef"] = store_as_secret_and_return_secret_ref(secrets_def, registry_user, registry_server, registry_pass, disable_warnings=disable_warnings)
 
     dapr_def = None
     if dapr_enabled:
@@ -1950,15 +1950,14 @@ def containerapp_up(cmd,
                     dockerfile="Dockerfile",
                     # compose=None,
                     ingress=None,
-                    port=None,
-                    registry_username=None,
-                    registry_password=None,
+                    target_port=None,
+                    registry_user=None,
+                    registry_pass=None,
                     env_vars=None,
                     dryrun=False,
                     logs_customer_id=None,
                     logs_key=None,
-                    disable_verbose=False,
-                    no_wait=False):
+                    disable_verbose=False):
     import os, json
     src_dir = os.getcwd()
     _src_path_escaped = "{}".format(src_dir.replace(os.sep, os.sep + os.sep))
@@ -2019,14 +2018,15 @@ def containerapp_up(cmd,
         if not resource_group_name:
             user = get_profile_username()
             rg_name = get_randomized_name(user, resource_group_name) if custom_rg_name is None else custom_rg_name
-            not dryrun and logger.warning("Creating new resource group {}".format(rg_name))
-            not dryrun and create_resource_group(cmd, rg_name, location)
+            if not dryrun:
+                logger.warning("Creating new resource group {}".format(rg_name))
+                create_resource_group(cmd, rg_name, location)
             resource_group_name = rg_name
         if not managed_env:
             env_name = "{}-env".format(name).replace("_","-")
             if not dryrun:
                 logger.warning("Creating new managed environment {}".format(env_name))
-                managed_env = create_managed_environment(cmd, env_name, location = location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True, no_wait=no_wait)["id"]
+                managed_env = create_managed_environment(cmd, env_name, location = location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True)["id"]
             else:
                 managed_env = env_name
     else:
@@ -2035,17 +2035,17 @@ def containerapp_up(cmd,
         env_name = containerapp_def["properties"]["managedEnvironmentId"].split('/')[8]
         if logs_customer_id and logs_key:
             if not dryrun:
-                managed_env = create_managed_environment(cmd, env_name, location = location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True, no_wait=no_wait)["id"]
+                managed_env = create_managed_environment(cmd, env_name, location = location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True)["id"]
 
     if image is not None and "azurecr.io" in image and not dryrun:
-        if registry_username is None or registry_password is None:
+        if registry_user is None or registry_pass is None:
             # If registry is Azure Container Registry, we can try inferring credentials
             logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
             registry_server=image.split('/')[0]
             parsed = urlparse(image)
             registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
         try:
-            registry_username, registry_password = _get_acr_cred(cmd.cli_ctx, registry_name)
+            registry_user, registry_pass = _get_acr_cred(cmd.cli_ctx, registry_name)
         except Exception as ex:
             raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
 
@@ -2056,25 +2056,24 @@ def containerapp_up(cmd,
         registry_name = ""
         registry_rg = ""
         if registry_server:
-            if not dryrun and (registry_username is None or registry_password is None):
-                if "azurecr.io" in registry_server:
-                    # If registry is Azure Container Registry, we can try inferring credentials
-                    logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
-                    parsed = urlparse(registry_server)
-                    registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
-                    try:
-                        registry_username, registry_password, registry_rg = _get_acr_cred(cmd.cli_ctx, registry_name)
-                    except Exception as ex:
-                        raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
-                else:
-                    raise RequiredArgumentMissingError("Registry usename and password are required if using non-Azure registry.")
+            if "azurecr.io" not in registry_server:
+                raise ValidationError("Cannot supply non-Azure registry when using --source.")
+            elif not dryrun and (registry_user is None or registry_pass is None):
+                # If registry is Azure Container Registry, we can try inferring credentials
+                logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
+                parsed = urlparse(registry_server)
+                registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
+                try:
+                    registry_user, registry_pass, registry_rg = _get_acr_cred(cmd.cli_ctx, registry_name)
+                except Exception as ex:
+                    raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
         else:
             registry_rg = resource_group_name
             user = get_profile_username()
             registry_name = "{}acr".format(name)
             registry_name = registry_name + str(hash((registry_rg, user, name))).replace("-","")
-            not dryrun and logger.warning("Creating new acr {}".format(registry_name))
             if not dryrun:
+                logger.warning("Creating new acr {}".format(registry_name))
                 registry_def = create_new_acr(cmd, registry_name, registry_rg, location)
                 registry_server = registry_def.login_server
             else:
@@ -2085,7 +2084,8 @@ def containerapp_up(cmd,
         now = datetime.now()
         image_name += ":{}".format(str(now).replace(' ', '').replace('-','').replace('.','').replace(':',''))
         image = registry_server + '/' + image_name
-        not dryrun and queue_acr_build(cmd, registry_rg, registry_name, image_name, source, dockerfile, disable_verbose)
+        if not dryrun:
+            queue_acr_build(cmd, registry_rg, registry_name, image_name, source, dockerfile, disable_verbose)
         _set_webapp_up_default_args(cmd, resource_group_name, location, name, registry_server)
 
     dry_run_str = r""" {
@@ -2098,10 +2098,10 @@ def containerapp_up(cmd,
                 "src_path" : "%s"
                 }
                 """ % (name, resource_group_name, location, env_name, registry_server, image, _src_path_escaped)
-
-    not dryrun and create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, managed_env=managed_env, target_port=port, registry_server=registry_server, registry_pass=registry_password, registry_user=registry_username, env_vars=env_vars, ingress=ingress, disable_warnings=True, no_wait=no_wait)
-
     if dryrun:
         logger.warning("Containerapp will be created with the below configuration, re-run command "
                        "without the --dryrun flag to create & deploy a new containerapp.")
+    else:
+        create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, managed_env=managed_env, target_port=target_port, registry_server=registry_server, registry_pass=registry_pass, registry_user=registry_user, env_vars=env_vars, ingress=ingress, disable_warnings=True)
+
     return json.loads(dry_run_str)      
