@@ -24,6 +24,7 @@ def load_arguments(self, _):
         c.argument('name', name_type, metavar='NAME', id_part='name', help="The name of the Containerapp.")
         c.argument('resource_group_name', arg_type=resource_group_name_type)
         c.argument('location', arg_type=get_location_type(self.cli_ctx))
+        c.ignore('disable_warnings')
 
     with self.argument_context('containerapp') as c:
         c.argument('tags', arg_type=tags_type)
@@ -76,7 +77,6 @@ def load_arguments(self, _):
 
     with self.argument_context('containerapp create') as c:
         c.argument('traffic_weights', nargs='*', options_list=['--traffic-weight'], help="A list of revision weight(s) for the container app. Space-separated values in 'revision_name=weight' format. For latest revision, use 'latest=weight'")
-        c.ignore('disable_warnings')
 
     with self.argument_context('containerapp scale') as c:
         c.argument('min_replicas', type=int, help="The minimum number of replicas.")

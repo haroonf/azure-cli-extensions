@@ -450,7 +450,6 @@ def update_containerapp(cmd,
                         startup_command=None,
                         args=None,
                         tags=None,
-                        disable_warnings=False,
                         no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -610,7 +609,7 @@ def update_containerapp(cmd,
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
 
         if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
-            not disable_warnings and logger.warning('Containerapp update in progress. Please monitor the update using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
+            logger.warning('Containerapp update in progress. Please monitor the update using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
 
         return r
     except Exception as e:
