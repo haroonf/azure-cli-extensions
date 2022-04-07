@@ -8,6 +8,7 @@ import threading
 import sys
 import time
 from urllib.parse import urlparse
+import requests
 
 from azure.cli.command_modules.appservice.custom import (_get_acr_cred)
 from azure.cli.core.azclierror import (
@@ -1960,7 +1961,7 @@ def get_replica(cmd, resource_group_name, name, replica, revision=None):
                                           replica_name=replica)
 
 
-# TODO token will be read from header at some point
+# TODO token will be read from header at some point -- a PR has apparently been opened for this
 def containerapp_ssh(cmd, resource_group_name, name, container=None, revision=None, replica=None, startup_command=None):
     conn = WebSocketConnection(cmd=cmd, resource_group_name=resource_group_name, name=name, revision=revision,
                                replica=replica, container=container, startup_command=startup_command)
@@ -1982,3 +1983,34 @@ def containerapp_ssh(cmd, resource_group_name, name, container=None, revision=No
             if conn.is_connected:
                 logger.info("Caught KeyboardInterrupt. Sending ctrl+c to server")
                 conn.send(SSH_CTRL_C_MSG)
+
+
+# TODO token will be in header soon (same as SSH)
+def stream_containerapp_logs(cmd, resource_group_name, name, container=None, revision=None, replica=None, follow=False,
+                             tail=None, output_format=None):
+    if tail:
+        if tail < 0 or tail > 300:
+            raise ValidationError("--tail must be between 0 and 300.")
+
+    sub = get_subscription_id(cmd.cli_ctx)
+    token_response = ContainerAppClient.get_auth_token(cmd, resource_group_name, name)
+    token = token_response["properties"]["token"]
+    logstream_endpoint = token_response["properties"]["logStreamEndpoint"]
+    base_url = logstream_endpoint[:logstream_endpoint.index("/subscriptions/")]
+
+    url = (f"{base_url}/subscriptions/{sub}/resourceGroups/{resource_group_name}/containerApps/{name}"
+           f"/revisions/{revision}/replicas/{replica}/containers/{container}/logstream?token={token}")
+
+    logger.warning("connecting to : %s", url)
+    request_params = {"follow": str(follow).lower(), "output": output_format, "tailLines": tail}
+    resp = requests.get(url, timeout=None, stream=True, params=request_params)
+
+    if not resp.ok:
+        ValidationError(f"Got bad status from the logstream API: {resp.status_code}")
+
+    for line in resp.iter_lines():
+        if line:
+            logger.info("received raw log line: %s", line)
+            # these .replaces are needed to display color/quotations properly
+            # for some reason the API returns garbled unicode special characters (may need to add more in the future)
+            print(line.decode("utf-8").replace("\\u0022", "\u0022").replace("\\u001B", "\u001B"))

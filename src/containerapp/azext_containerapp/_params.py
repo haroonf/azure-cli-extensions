@@ -33,8 +33,18 @@ def load_arguments(self, _):
     with self.argument_context('containerapp exec') as c:
         c.argument('container', help="The name of the container to ssh into")
         c.argument('replica', help="The name of the replica (pod) to ssh into. List replicas with 'az containerapp replica list'. A replica may not exist if there is not traffic to your app.")
-        c.argument('revision', help="The name of the container app revision to ssh into")
+        c.argument('revision', help="The name of the container app revision to ssh into. Defaults to the latest revision.")
         c.argument('startup_command', options_list=["--command"], default="sh", help="The startup command (bash, zsh, sh, etc.).")
+        c.argument('name', name_type, id_part=None, help="The name of the Containerapp.")
+        c.argument('resource_group_name', arg_type=resource_group_name_type, id_part=None)
+
+    with self.argument_context('containerapp log tail') as c:
+        c.argument('follow', help="Print logs in real time if present.", arg_type=get_three_state_flag())
+        c.argument('tail', help="The number of past logs to print (0-300)", type=int, default=10)
+        c.argument('container', help="The name of the container")
+        c.argument('output_format', options_list=["--format"], help="Log output format", arg_type=get_enum_type(["json", "text"]), default="json")
+        c.argument('replica', help="The name of the replica (pod). List replicas with 'az containerapp replica list'. A replica may not exist if there is not traffic to your app.")
+        c.argument('revision', help="The name of the container app revision. Defaults to the latest revision.")
         c.argument('name', name_type, id_part=None, help="The name of the Containerapp.")
         c.argument('resource_group_name', arg_type=resource_group_name_type, id_part=None)
 

@@ -3,6 +3,12 @@
 Release History
 ===============
 
+0.2.0
+++++++
+* Open an ssh-like shell in a Container App with 'az containerapp exec'
+* Support for log streaming with 'az containerapp log tail'
+* Replica show and list commands
+
 0.1.0
 ++++++
 * Initial release for Container App support with Microsoft.App RP.

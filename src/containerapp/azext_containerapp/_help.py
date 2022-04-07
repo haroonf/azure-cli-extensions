@@ -101,6 +101,26 @@ helps['containerapp exec'] = """
           az containerapp exec -n MyContainerapp -g MyResourceGroup --command bash
 """
 
+helps['containerapp log'] = """
+    type: group
+    short-summary: Show container app logs
+"""
+
+helps['containerapp log tail'] = """
+    type: command
+    short-summary: Show past logs and/or print logs in real time (with the --follow parameter). Note that the logs are only taken from one revision, replica (pod), and container.
+    examples:
+    - name: Fetch the past 10 lines of logs from an app and return
+      text: |
+          az containerapp log tail -n MyContainerapp -g MyResourceGroup
+    - name: Fetch 20 lines of past logs logs from an app and print logs as they come in
+      text: |
+          az containerapp log tail -n MyContainerapp -g MyResourceGroup --follow
+    - name: Fetch logs for a particular revision, replica, and container
+      text: |
+          az containerapp log tail -n MyContainerapp -g MyResourceGroup --replica MyReplica --revision MyRevision --container MyContainer
+"""
+
 # Replica Commands
 helps['containerapp replica'] = """
     type: group

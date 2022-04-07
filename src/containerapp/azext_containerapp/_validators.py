@@ -148,6 +148,7 @@ def _validate_container_exists(cmd, namespace):
         raise ResourceNotFoundError("Could not find container")
 
 
+# also used to validate logstream
 def validate_ssh(cmd, namespace):
     _set_ssh_defaults(cmd, namespace)
     _validate_revision_exists(cmd, namespace)
