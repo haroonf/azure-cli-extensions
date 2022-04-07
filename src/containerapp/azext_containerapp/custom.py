@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
-# pylint: disable=line-too-long, consider-using-f-string, logging-format-interpolation, inconsistent-return-statements, broad-except, bare-except, too-many-statements, too-many-locals, too-many-boolean-expressions, too-many-branches, too-many-nested-blocks, pointless-statement
+# pylint: disable=line-too-long, consider-using-f-string, logging-format-interpolation, inconsistent-return-statements, broad-except, bare-except, too-many-statements, too-many-locals, too-many-boolean-expressions, too-many-branches, too-many-nested-blocks, pointless-statement, expression-not-assigned, unbalanced-tuple-unpacking
 
 from urllib.parse import urlparse
 # from azure.cli.command_modules.appservice.custom import (_get_acr_cred)
@@ -47,8 +47,8 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      _object_to_dict, _add_or_update_secrets, _remove_additional_attributes, _remove_readonly_attributes,
                      _add_or_update_env_vars, _add_or_update_tags, update_nested_dictionary, _update_traffic_weights,
                      _get_app_from_revision, raise_missing_token_suggestion, _infer_acr_credentials, _remove_registry_secret, _remove_secret,
-                     _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars, 
-                     _update_revision_env_secretrefs, get_randomized_name, _set_webapp_up_default_args, get_profile_username, create_resource_group, 
+                     _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars,
+                     _update_revision_env_secretrefs, get_randomized_name, _set_webapp_up_default_args, get_profile_username, create_resource_group,
                      get_resource_group, queue_acr_build, _get_acr_cred, create_new_acr)
 
 logger = get_logger(__name__)
@@ -1938,13 +1938,13 @@ def remove_dapr_component(cmd, resource_group_name, dapr_component_name, environ
         handle_raw_exception(e)
 
 
-def containerapp_up(cmd, 
-                    name=None, 
-                    resource_group_name=None, 
+def containerapp_up(cmd,
+                    name=None,
+                    resource_group_name=None,
                     managed_env=None,
-                    location=None, 
-                    registry_server=None,  
-                    image=None, 
+                    location=None,
+                    registry_server=None,
+                    image=None,
                     source=None,
                     dockerfile="Dockerfile",
                     # compose=None,
@@ -1957,7 +1957,8 @@ def containerapp_up(cmd,
                     logs_customer_id=None,
                     logs_key=None,
                     quiet=False):
-    import os, json
+    import os
+    import json
     src_dir = os.getcwd()
     _src_path_escaped = "{}".format(src_dir.replace(os.sep, os.sep + os.sep))
 
@@ -1968,15 +1969,15 @@ def containerapp_up(cmd,
         if image:
             name = image.split('/')[-1].split(':')[0].lower()
         if source:
-            temp = source[1:] if source[0] == '.' else source # replace first . if it exists
-            name = temp.split('/')[-1].lower()  # replace first . if it exists
+            temp = source[1:] if source[0] == '.' else source  # replace first . if it exists
+            name = temp.split('/')[-1].lower()  # isolate folder name
             if len(name) == 0:
-                name = _src_path_escaped.split('\\')[-1]
+                name = _src_path_escaped.rsplit('\\', maxsplit=1)[-1]
 
     if source and image:
         image = image.replace(':', '')
 
-    if not location: 
+    if not location:
         location = "eastus2"  # check user's default location? find least populated server?
 
     custom_rg_name = None
@@ -2022,10 +2023,10 @@ def containerapp_up(cmd,
                 create_resource_group(cmd, rg_name, location)
             resource_group_name = rg_name
         if not managed_env:
-            env_name = "{}-env".format(name).replace("_","-")
+            env_name = "{}-env".format(name).replace("_", "-")
             if not dryrun:
                 logger.warning("Creating new managed environment {}".format(env_name))
-                managed_env = create_managed_environment(cmd, env_name, location = location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True)["id"]
+                managed_env = create_managed_environment(cmd, env_name, location=location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True)["id"]
             else:
                 managed_env = env_name
     else:
@@ -2034,13 +2035,13 @@ def containerapp_up(cmd,
         env_name = containerapp_def["properties"]["managedEnvironmentId"].split('/')[8]
         if logs_customer_id and logs_key:
             if not dryrun:
-                managed_env = create_managed_environment(cmd, env_name, location = location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True)["id"]
+                managed_env = create_managed_environment(cmd, env_name, location=location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True)["id"]
 
     if image is not None and "azurecr.io" in image and not dryrun:
         if registry_user is None or registry_pass is None:
             # If registry is Azure Container Registry, we can try inferring credentials
             logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
-            registry_server=image.split('/')[0]
+            registry_server = image.split('/')[0]
             parsed = urlparse(image)
             registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
         try:
@@ -2057,7 +2058,7 @@ def containerapp_up(cmd,
         if registry_server:
             if "azurecr.io" not in registry_server:
                 raise ValidationError("Cannot supply non-Azure registry when using --source.")
-            elif not dryrun and (registry_user is None or registry_pass is None):
+            if not dryrun and (registry_user is None or registry_pass is None):
                 # If registry is Azure Container Registry, we can try inferring credentials
                 logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
                 parsed = urlparse(registry_server)
@@ -2070,7 +2071,7 @@ def containerapp_up(cmd,
             registry_rg = resource_group_name
             user = get_profile_username()
             registry_name = "{}acr".format(name)
-            registry_name = registry_name + str(hash((registry_rg, user, name))).replace("-","")
+            registry_name = registry_name + str(hash((registry_rg, user, name))).replace("-", "")
             if not dryrun:
                 logger.warning("Creating new acr {}".format(registry_name))
                 registry_def = create_new_acr(cmd, registry_name, registry_rg, location)
@@ -2081,7 +2082,7 @@ def containerapp_up(cmd,
         image_name = image if image is not None else name
         from datetime import datetime
         now = datetime.now()
-        image_name += ":{}".format(str(now).replace(' ', '').replace('-','').replace('.','').replace(':',''))
+        image_name += ":{}".format(str(now).replace(' ', '').replace('-', '').replace('.', '').replace(':', ''))
         image = registry_server + '/' + image_name
         if not dryrun:
             queue_acr_build(cmd, registry_rg, registry_name, image_name, source, dockerfile, quiet)
@@ -2103,4 +2104,4 @@ def containerapp_up(cmd,
     else:
         create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, managed_env=managed_env, target_port=target_port, registry_server=registry_server, registry_pass=registry_pass, registry_user=registry_user, env_vars=env_vars, ingress=ingress, disable_warnings=True)
 
-    return json.loads(dry_run_str)      
+    return json.loads(dry_run_str)

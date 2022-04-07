@@ -2,14 +2,15 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
+# pylint: disable=line-too-long, consider-using-f-string
 
 import time
 
-from azure.core.polling import PollingMethod, LROPoller
 from msrest import Deserializer
 from msrestazure.azure_exceptions import CloudError
 from azure.cli.core.profiles import ResourceType
 from azure.cli.command_modules.acr._constants import get_acr_task_models
+from azure.core.polling import PollingMethod, LROPoller
 
 
 def get_run_with_polling(cmd,

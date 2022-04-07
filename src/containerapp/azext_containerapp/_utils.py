@@ -2,10 +2,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
-# pylint: disable=line-too-long, consider-using-f-string, no-else-return, duplicate-string-formatting-argument
+# pylint: disable=line-too-long, consider-using-f-string, no-else-return, duplicate-string-formatting-argument, expression-not-assigned, too-many-locals
 
 from urllib.parse import urlparse
-from azure.cli.core.azclierror import (ValidationError, RequiredArgumentMissingError, CLIInternalError)
+from azure.cli.core.azclierror import (ValidationError, RequiredArgumentMissingError, CLIInternalError, ResourceNotFoundError)
 from azure.cli.core.commands.client_factory import get_subscription_id
 from knack.log import get_logger
 from msrestazure.tools import parse_resource_id
@@ -572,7 +572,7 @@ def _infer_acr_credentials(cmd, registry_server, disable_warnings=False):
     registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
 
     try:
-        registry_user, registry_pass = _get_acr_cred(cmd.cli_ctx, registry_name)
+        registry_user, registry_pass, registry_rg = _get_acr_cred(cmd.cli_ctx, registry_name)  # pylint: disable=unused-variable
         return (registry_user, registry_pass)
     except Exception as ex:
         raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry {}. Please provide the registry username and password'.format(registry_name)) from ex
@@ -602,14 +602,11 @@ def _set_webapp_up_default_args(cmd, resource_group_name, location, name, regist
         logger.warning("Setting 'az containerapp up' default arguments for current directory. "
                        "Manage defaults with 'az configure --scope local'")
 
-
         cmd.cli_ctx.config.set_value('defaults', 'resource_group_name', resource_group_name)
         logger.warning("--resource-group/-g default: %s", resource_group_name)
 
-
         cmd.cli_ctx.config.set_value('defaults', 'location', location)
         logger.warning("--location/-l default: %s", location)
-
 
         cmd.cli_ctx.config.set_value('defaults', 'name', name)
         logger.warning("--name/-n default: %s", name)
@@ -661,21 +658,17 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfi
     # client_registries = get_acr_service_client(cmd.cli_ctx).registries
     client_registries = cf_acr_registries_tasks(cmd.cli_ctx)
 
-
     if not os.path.isdir(src_dir):
         raise ValidationError("Source directory should be a local directory path.")
-
 
     docker_file_path = os.path.join(src_dir, dockerfile)
     if not os.path.isfile(docker_file_path):
         raise ValidationError("Unable to find '{}'.".format(docker_file_path))
 
-
     # NOTE: os.path.basename is unable to parse "\" in the file path
     original_docker_file_name = os.path.basename(docker_file_path.replace("\\", "/"))
     docker_file_in_tar = '{}_{}'.format(uuid.uuid4().hex, original_docker_file_name)
     tar_file_path = os.path.join(tempfile.gettempdir(), 'build_archive_{}.tar.gz'.format(uuid.uuid4().hex))
-
 
     source_location = upload_source_code(cmd, client_registries, registry_name, registry_rg, src_dir, tar_file_path, docker_file_path, docker_file_in_tar)
 
@@ -683,14 +676,12 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfi
     # So we need to update the docker_file_path
     docker_file_path = docker_file_in_tar
 
-
     from azure.cli.core.profiles import ResourceType
     OS, Architecture = cmd.get_models('OS', 'Architecture', resource_type=ResourceType.MGMT_CONTAINERREGISTRY, operation_group='runs')
     # Default platform values
     platform_os = OS.linux.value
     platform_arch = Architecture.amd64.value
     platform_variant = None
-
 
     DockerBuildRequest, PlatformProperties = cmd.get_models('DockerBuildRequest', 'PlatformProperties',
                                                             resource_type=ResourceType.MGMT_CONTAINERREGISTRY, operation_group='runs')
@@ -707,12 +698,10 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfi
         timeout=None,
         arguments=[])
 
-
     queued_build = LongRunningOperation(cmd.cli_ctx)(client_registries.begin_schedule_run(
         resource_group_name=registry_rg,
         registry_name=registry_name,
         run_request=docker_build_request))
-
 
     run_id = queued_build.run_id
     logger.warning("Queued a build with ID: %s", run_id)
@@ -725,7 +714,7 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfi
     if quiet:
         lro_poller = get_run_with_polling(cmd, client_runs, run_id, registry_name, registry_rg)
         acr = LongRunningOperation(cmd.cli_ctx)(lro_poller)
-        logger.warning("Build {}.".format(acr.status.lower()))
+        logger.warning("Build {}.".format(acr.status.lower()))  # pylint: disable=logging-format-interpolation
         if acr.status.lower() != "succeeded":
             raise CLIInternalError("ACR build {}.".format(acr.status.lower()))
         return acr
