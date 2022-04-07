@@ -517,7 +517,7 @@ helps['containerapp dapr'] = """
 
 helps['containerapp dapr enable'] = """
     type: command
-    short-summary: Enable Dapr for a container app.
+    short-summary: Enable Dapr for a container app. Updates existing values.
     examples:
     - name: Enable Dapr for a container app.
       text: |
