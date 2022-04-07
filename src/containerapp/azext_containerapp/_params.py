@@ -184,7 +184,7 @@ def load_arguments(self, _):
         c.argument('name', configured_default='name', id_part=None)
         c.argument('managed_env', configured_default='managed_env')
         c.argument('registry_server', configured_default='registry_server')
-        c.argument('disable_verbose', help="Disable verbose output from ACR build when using --source.")
+        c.argument('quiet', help="Disable logs output from ACR build when using --source.")
         c.argument('dockerfile', help="Name of the dockerfile.")
         c.argument('dryrun', help="Show summary of the operation instead of executing it.")
 

@@ -289,7 +289,7 @@ def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, loc
 
         logs_key = shared_keys.primary_shared_key
 
-    return logs_customer_id, logs_key, workspace_name
+    return logs_customer_id, logs_key
 
 
 def _get_existing_secrets(cmd, resource_group_name, name, containerapp_def):
@@ -649,7 +649,7 @@ def _resource_client_factory(cli_ctx, **_):
     return get_mgmt_service_client(cli_ctx, ResourceType.MGMT_RESOURCE_RESOURCES)
 
 
-def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfile="Dockerfile", disable_verbose=False):
+def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfile="Dockerfile", quiet=False):
     import os
     import uuid
     import tempfile
@@ -716,13 +716,13 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfi
 
     run_id = queued_build.run_id
     logger.warning("Queued a build with ID: %s", run_id)
-    not disable_verbose and logger.warning("Waiting for agent...")
+    not quiet and logger.warning("Waiting for agent...")
 
     from azure.cli.command_modules.acr._client_factory import (cf_acr_runs)
     from ._acr_run_polling import get_run_with_polling
     client_runs = cf_acr_runs(cmd.cli_ctx)
 
-    if disable_verbose:
+    if quiet:
         lro_poller = get_run_with_polling(cmd, client_runs, run_id, registry_name, registry_rg)
         acr = LongRunningOperation(cmd.cli_ctx)(lro_poller)
         logger.warning("Build {}.".format(acr.status.lower()))

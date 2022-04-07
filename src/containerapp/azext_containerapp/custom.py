@@ -1956,7 +1956,7 @@ def containerapp_up(cmd,
                     dryrun=False,
                     logs_customer_id=None,
                     logs_key=None,
-                    disable_verbose=False):
+                    quiet=False):
     import os, json
     src_dir = os.getcwd()
     _src_path_escaped = "{}".format(src_dir.replace(os.sep, os.sep + os.sep))
@@ -2084,7 +2084,7 @@ def containerapp_up(cmd,
         image_name += ":{}".format(str(now).replace(' ', '').replace('-','').replace('.','').replace(':',''))
         image = registry_server + '/' + image_name
         if not dryrun:
-            queue_acr_build(cmd, registry_rg, registry_name, image_name, source, dockerfile, disable_verbose)
+            queue_acr_build(cmd, registry_rg, registry_name, image_name, source, dockerfile, quiet)
         _set_webapp_up_default_args(cmd, resource_group_name, location, name, registry_server)
 
     dry_run_str = r""" {
