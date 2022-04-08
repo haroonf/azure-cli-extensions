@@ -49,7 +49,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      _get_app_from_revision, raise_missing_token_suggestion, _infer_acr_credentials, _remove_registry_secret, _remove_secret,
                      _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars,
                      _update_revision_env_secretrefs, get_randomized_name, _set_webapp_up_default_args, get_profile_username, create_resource_group,
-                     get_resource_group, queue_acr_build, _get_acr_cred, create_new_acr)
+                     get_resource_group, queue_acr_build, _get_acr_cred, create_new_acr, _get_log_analytics_workspace_name)
 
 logger = get_logger(__name__)
 
@@ -1962,6 +1962,11 @@ def containerapp_up(cmd,
     src_dir = os.getcwd()
     _src_path_escaped = "{}".format(src_dir.replace(os.sep, os.sep + os.sep))
 
+    new_rg = "Existing"
+    new_managed_env = "Existing"
+    new_ca = "New"
+    new_cr = "Existing"
+
     if source is None and image is None:
         raise RequiredArgumentMissingError("You must specify either --source or --image.")
 
@@ -2016,6 +2021,7 @@ def containerapp_up(cmd,
     env_name = "" if not managed_env else managed_env.split('/')[6]
     if not containerapp_def:
         if not resource_group_name:
+            new_rg = "New"
             user = get_profile_username()
             rg_name = get_randomized_name(user, resource_group_name) if custom_rg_name is None else custom_rg_name
             if not dryrun:
@@ -2023,6 +2029,7 @@ def containerapp_up(cmd,
                 create_resource_group(cmd, rg_name, location)
             resource_group_name = rg_name
         if not managed_env:
+            new_managed_env = "New"
             env_name = "{}-env".format(name).replace("_", "-")
             if not dryrun:
                 logger.warning("Creating new managed environment {}".format(env_name))
@@ -2030,6 +2037,7 @@ def containerapp_up(cmd,
             else:
                 managed_env = env_name
     else:
+        new_ca = "Existing"
         location = containerapp_def["location"]
         managed_env = containerapp_def["properties"]["managedEnvironmentId"]
         env_name = containerapp_def["properties"]["managedEnvironmentId"].split('/')[8]
@@ -2068,6 +2076,7 @@ def containerapp_up(cmd,
                 except Exception as ex:
                     raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
         else:
+            new_cr = "New"
             registry_rg = resource_group_name
             user = get_profile_username()
             registry_name = "{}acr".format(name)
@@ -2088,20 +2097,48 @@ def containerapp_up(cmd,
             queue_acr_build(cmd, registry_rg, registry_name, image_name, source, dockerfile, quiet)
         _set_webapp_up_default_args(cmd, resource_group_name, location, name, registry_server)
 
-    dry_run_str = r""" {
-                "name" : "%s",
-                "resourcegroup" : "%s",
-                "location" : "%s",
-                "environment" : "%s",
-                "registry": "%s",
-                "image" : "%s",
-                "src_path" : "%s"
-                }
-                """ % (name, resource_group_name, location, env_name, registry_server, image, _src_path_escaped)
+    log_analytics_workspace_name = ""
+    env_def = None
+    try:
+        env_def = show_managed_environment(cmd=cmd, name=env_name, resource_group_name=resource_group_name)
+    except: 
+        pass
+    if env_def and env_def["properties"]["appLogsConfiguration"]["destination"].lower() == "log-analytics":
+        env_customer_id = env_def["properties"]["appLogsConfiguration"]["logAnalyticsConfiguration"]["customerId"]
+        log_analytics_workspace_name = _get_log_analytics_workspace_name(cmd, env_customer_id, resource_group_name)
+
+    containerapp_def = None
+
     if dryrun:
         logger.warning("Containerapp will be created with the below configuration, re-run command "
                        "without the --dryrun flag to create & deploy a new containerapp.")
     else:
-        create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, managed_env=managed_env, target_port=target_port, registry_server=registry_server, registry_pass=registry_pass, registry_user=registry_user, env_vars=env_vars, ingress=ingress, disable_warnings=True)
+        containerapp_def = create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, managed_env=managed_env, target_port=target_port, registry_server=registry_server, registry_pass=registry_pass, registry_user=registry_user, env_vars=env_vars, ingress=ingress, disable_warnings=True)
+
+    fqdn = ""
+
+    dry_run_str = """ {
+                "name" : "%s (%s)",
+                "resourcegroup" : "%s (%s)",
+                "location" : "%s",
+                "environment" : "%s (%s)",
+                "registry": "%s (%s)",
+                "image" : "%s",
+                "src_path" : "%s",
+                """ % (name, new_ca, resource_group_name, new_rg, location, env_name, new_managed_env, registry_server, new_cr, image, _src_path_escaped)
+
+    if containerapp_def:
+        r = containerapp_def
+        if "configuration" in r["properties"] and "ingress" in r["properties"]["configuration"] and "fqdn" in r["properties"]["configuration"]["ingress"]:
+            fqdn = r["properties"]["configuration"]["ingress"]["fqdn"]
+
+    if len(fqdn) > 0:
+        dry_run_str += '"fqdn" : "{}",\n'.format(fqdn)
+
+    if len(log_analytics_workspace_name) > 0:
+        dry_run_str += '"log_analytics_workspace_name" : "{}"\n'.format(log_analytics_workspace_name)
+
+    dry_run_str += '}'
+    print(dry_run_str)
 
     return json.loads(dry_run_str)

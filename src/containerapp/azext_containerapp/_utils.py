@@ -232,6 +232,15 @@ def _generate_log_analytics_workspace_name(resource_group_name):
     return name
 
 
+def _get_log_analytics_workspace_name(cmd, logs_customer_id, resource_group_name):
+    log_analytics_client = log_analytics_client_factory(cmd.cli_ctx)
+    logs_list = log_analytics_client.list_by_resource_group(resource_group_name)
+    for log in logs_list:
+        if log.customer_id.lower() == logs_customer_id.lower():
+            return log.name
+    return ResourceNotFoundError("Cannot find Log Analytics workspace with customer ID {}".format(logs_customer_id))
+
+
 def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, location, resource_group_name):
     if logs_customer_id is None and logs_key is None:
         logger.warning("No Log Analytics workspace provided.")
@@ -566,7 +575,6 @@ def _infer_acr_credentials(cmd, registry_server, disable_warnings=False):
     # If registry is Azure Container Registry, we can try inferring credentials
     if '.azurecr.io' not in registry_server:
         raise RequiredArgumentMissingError('Registry username and password are required if not using Azure Container Registry.')
-    logger.warning("Infer acr credentials")
     not disable_warnings and logger.warning('No credential was provided to access Azure Container Registry. Trying to look up credentials...')
     parsed = urlparse(registry_server)
     registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
