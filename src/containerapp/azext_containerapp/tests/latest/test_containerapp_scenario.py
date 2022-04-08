@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------------------------
 
 import os
+import platform
 from unittest import mock
 
 from azure.cli.testsdk.reverse_dependency import get_dummy_cli
@@ -39,8 +40,6 @@ class ContainerappScenarioTest(ScenarioTest):
     @live_only()  # VCR.py can't seem to handle websockets (only --live works)
     # @ResourceGroupPreparer(location="centraluseuap")
     @mock.patch("azext_containerapp._ssh_utils._resize_terminal")
-    # @mock.patch("azext_containerapp._ssh_utils.enable_vt_mode") -- TODO handle this on windows
-    @mock.patch("tty.setcbreak") # TODO don't do this on windows
     @mock.patch("sys.stdin")
     def test_containerapp_ssh(self, resource_group=None, *args):
         # containerapp_name = self.create_random_name(prefix='capp', length=24)
@@ -89,7 +88,11 @@ class ContainerappScenarioTest(ScenarioTest):
 
         validate_ssh(cmd=cmd, namespace=namespace)  # needed to set values for container, replica, revision
 
-        with mock.patch("builtins.print", side_effect=mock_print):
+        mock_lib = "tty.setcbreak"
+        if platform.system() == "Windows":
+            mock_lib = "azext_containerapp._ssh_utils.enable_vt_mode"
+
+        with mock.patch("builtins.print", side_effect=mock_print), mock.patch(mock_lib):
             with mock.patch("azext_containerapp._ssh_utils._getch_unix", side_effect=mock_getch), mock.patch("azext_containerapp._ssh_utils._getch_windows", side_effect=mock_getch):
                 containerapp_ssh(cmd=cmd, resource_group_name=namespace.resource_group_name, name=namespace.name,
                                     container=namespace.container, revision=namespace.revision, replica=namespace.replica, startup_command="sh")
