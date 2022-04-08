@@ -93,7 +93,7 @@ def validate_ingress(namespace):
 
 
 def _set_ssh_defaults(cmd, namespace):
-    app = ContainerAppClient.show(namespace.cmd, namespace.resource_group_name, namespace.name)
+    app = ContainerAppClient.show(cmd, namespace.resource_group_name, namespace.name)
     if not app:
         raise ResourceNotFoundError("Could not find a container app")
     replicas = []
