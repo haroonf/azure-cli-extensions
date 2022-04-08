@@ -53,7 +53,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      _get_app_from_revision, raise_missing_token_suggestion, _infer_acr_credentials, _remove_registry_secret, _remove_secret,
                      _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _remove_env_vars, _update_revision_env_secretrefs)
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
-                         SSH_BACKUP_ENCODING)
+                         SSH_BACKUP_ENCODING, remove_token)
 
 logger = get_logger(__name__)
 
@@ -2001,7 +2001,7 @@ def stream_containerapp_logs(cmd, resource_group_name, name, container=None, rev
     url = (f"{base_url}/subscriptions/{sub}/resourceGroups/{resource_group_name}/containerApps/{name}"
            f"/revisions/{revision}/replicas/{replica}/containers/{container}/logstream?token={token}")
 
-    logger.warning("connecting to : %s", url)
+    logger.warning("connecting to : %s", remove_token(url))
     request_params = {"follow": str(follow).lower(), "output": output_format, "tailLines": tail}
     resp = requests.get(url, timeout=None, stream=True, params=request_params)
 

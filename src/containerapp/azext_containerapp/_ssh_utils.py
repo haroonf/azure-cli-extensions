@@ -52,22 +52,16 @@ class WebSocketConnection:
         self._url = self._get_url(cmd=cmd, resource_group_name=resource_group_name, name=name, revision=revision,
                                   replica=replica, container=container, startup_command=startup_command)
         self._socket = websocket.WebSocket(enable_multithread=True)
-        logger.warning("Attempting to connect to %s", self._remove_token(self._url))
+        logger.warning("Attempting to connect to %s", remove_token(self._url))
 
         # TODO maybe catch websocket._exceptions.WebSocketBadStatusException: Handshake status 404 Not Found
         self._socket.connect(self._url)
         self.is_connected = True
-        self.windows_conout_mode = None
+        self._windows_conout_mode = None
         self._windows_conin_mode = None
         if is_platform_windows():
             self._windows_conout_mode = _get_conout_mode()
             self._windows_conin_mode = _get_conin_mode()
-
-    @classmethod
-    def _remove_token(cls, url):
-        if "?token=" in url:
-            return url[:url.index("?token=")]
-        return url
 
     @classmethod
     def _get_url(cls, cmd, resource_group_name, name, revision, replica, container, startup_command):
@@ -93,6 +87,12 @@ class WebSocketConnection:
 
     def recv(self, *args, **kwargs):
         return self._socket.recv(*args, **kwargs)
+
+
+def remove_token(url):
+    if "?token=" in url:
+        return url[:url.index("?token=")]
+    return url
 
 
 def _decode_and_output_to_terminal(connection: WebSocketConnection, response, encodings):

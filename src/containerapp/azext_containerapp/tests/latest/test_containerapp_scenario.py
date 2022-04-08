@@ -6,6 +6,7 @@
 import os
 import platform
 from unittest import mock
+from azext_containerapp.custom import containerapp_ssh
 
 from azure.cli.testsdk.reverse_dependency import get_dummy_cli
 from azure.cli.testsdk.scenario_tests import AllowLargeResponse
@@ -98,3 +99,15 @@ class ContainerappScenarioTest(ScenarioTest):
                                     container=namespace.container, revision=namespace.revision, replica=namespace.replica, startup_command="sh")
         for line in expected_output:
             self.assertIn(line, expected_output)
+
+
+    @live_only
+    @ResourceGroupPreparer(location="centraluseuap")
+    def test_containerapp_logstream(self, resource_group):
+        containerapp_name = self.create_random_name(prefix='capp', length=24)
+        env_name = self.create_random_name(prefix='env', length=24)
+
+        self.cmd(f'containerapp env create -g {resource_group} -n {env_name}')
+        self.cmd(f'containerapp create -g {resource_group} -n {containerapp_name} --environment {env_name} --min-replicas 1 --ingress external --target-port 80')
+
+        self.cmd(f'containerapp log tail -n {containerapp_name} -g {resource_group}')
