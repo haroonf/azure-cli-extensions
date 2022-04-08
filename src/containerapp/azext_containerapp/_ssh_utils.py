@@ -6,7 +6,6 @@
 import os
 import sys
 import time
-import platform
 import threading
 import requests
 import websocket
@@ -16,11 +15,13 @@ from azure.cli.core.azclierror import CLIInternalError
 from azure.cli.core.commands.client_factory import get_subscription_id
 
 from ._clients import ContainerAppClient
-from ._utils import safe_get
+from ._utils import safe_get, is_platform_windows
 
-if platform.system() == "Windows":
-    import msvcrt  # pylint: disable=import-error
-    from azure.cli.command_modules.container._vt_helper import enable_vt_mode  # pylint: disable=ungrouped-imports
+# pylint: disable=import-error,ungrouped-imports
+if is_platform_windows():
+    import msvcrt
+    from azure.cli.command_modules.container._vt_helper import (enable_vt_mode, _get_conout_mode,
+                                                                _set_conout_mode, _get_conin_mode, _set_conin_mode)
 
 logger = get_logger(__name__)
 
@@ -56,6 +57,11 @@ class WebSocketConnection:
         # TODO maybe catch websocket._exceptions.WebSocketBadStatusException: Handshake status 404 Not Found
         self._socket.connect(self._url)
         self.is_connected = True
+        self.windows_conout_mode = None
+        self._windows_conin_mode = None
+        if is_platform_windows():
+            self._windows_conout_mode = _get_conout_mode()
+            self._windows_conin_mode = _get_conin_mode()
 
     @classmethod
     def _remove_token(cls, url):
@@ -78,6 +84,9 @@ class WebSocketConnection:
         logger.warning("Disconnecting...")
         self.is_connected = False
         self._socket.close()
+        if self._windows_conout_mode and self._windows_conin_mode:
+            _set_conout_mode(self._windows_conout_mode)
+            _set_conin_mode(self._windows_conin_mode)
 
     def send(self, *args, **kwargs):
         return self._socket.send(*args, **kwargs)
@@ -161,7 +170,7 @@ def ping_container_app(app):
 
 
 def get_stdin_writer(connection: WebSocketConnection):
-    if platform.system() != "Windows":
+    if not is_platform_windows():
         import tty
         tty.setcbreak(sys.stdin.fileno())  # needed to prevent printing arrow key characters
         writer = threading.Thread(target=_send_stdin, args=(connection, _getch_unix))

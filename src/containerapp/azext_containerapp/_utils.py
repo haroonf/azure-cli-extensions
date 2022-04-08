@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------------------------
 # pylint: disable=line-too-long, consider-using-f-string, no-else-return, duplicate-string-formatting-argument
 
+import platform
 from urllib.parse import urlparse
 from azure.cli.command_modules.appservice.custom import (_get_acr_cred)
 from azure.cli.core.azclierror import (ValidationError, RequiredArgumentMissingError)
@@ -593,3 +594,7 @@ def safe_get(model, *keys):
     for k in keys[:-1]:
         model = model.get(k, {})
     return model.get(keys[-1])
+
+
+def is_platform_windows():
+    return platform.system() == "Windows"
