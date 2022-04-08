@@ -49,7 +49,8 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      _get_app_from_revision, raise_missing_token_suggestion, _infer_acr_credentials, _remove_registry_secret, _remove_secret,
                      _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars,
                      _update_revision_env_secretrefs, get_randomized_name, _set_webapp_up_default_args, get_profile_username, create_resource_group,
-                     get_resource_group, queue_acr_build, _get_acr_cred, create_new_acr, _get_log_analytics_workspace_name)
+                     get_resource_group, queue_acr_build, _get_acr_cred, create_new_acr, _get_log_analytics_workspace_name,
+                     _get_default_containerapps_location)
 
 logger = get_logger(__name__)
 
@@ -453,6 +454,8 @@ def update_containerapp(cmd,
                         no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
+    if location:
+        return get
     if yaml:
         if image or min_replicas or max_replicas or\
            set_env_vars or remove_env_vars or replace_env_vars or remove_all_env_vars or cpu or memory or\
@@ -1983,7 +1986,16 @@ def containerapp_up(cmd,
         image = image.replace(':', '')
 
     if not location:
-        location = "eastus2"  # check user's default location? find least populated server?
+        location = _get_default_containerapps_location(cmd)
+
+    # Open dockerfile and check for EXPOSE
+    dockerfile_location = source + '/' + dockerfile
+    with open(dockerfile_location, 'r') as fh:
+        for line in fh:
+            if "EXPOSE" in line:
+                if not target_port and not ingress:
+                    target_port = line.replace('\n', '').split(" ")[1]
+                    ingress = "external"
 
     custom_rg_name = None
     # user passes bad resource group name, we create it for them

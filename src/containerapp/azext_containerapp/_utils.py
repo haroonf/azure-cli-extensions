@@ -205,6 +205,27 @@ def _get_default_log_analytics_location(cmd):
     return default_location
 
 
+def _get_default_containerapps_location(cmd):
+    default_location = "eastus"
+    providers_client = None
+    try:
+        providers_client = providers_client_factory(cmd.cli_ctx, get_subscription_id(cmd.cli_ctx))
+        resource_types = getattr(providers_client.get("Microsoft.App"), 'resource_types', [])
+        res_locations = []
+        for res in resource_types:
+            if res and getattr(res, 'resource_type', "") == "workspaces":
+                res_locations = getattr(res, 'locations', [])
+
+        if len(res_locations) > 0:
+            location = res_locations[0].lower().replace(" ", "").replace("(", "").replace(")", "")
+            if location:
+                return location
+
+    except Exception:  # pylint: disable=broad-except
+        return default_location
+    return default_location
+
+
 # Generate random 4 character string
 def _new_tiny_guid():
     import random
