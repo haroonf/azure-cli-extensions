@@ -2131,27 +2131,25 @@ def containerapp_up(cmd,
 
     fqdn = ""
 
-    dry_run_str = """ {
-                "name" : "%s (%s)",
-                "resourcegroup" : "%s (%s)",
-                "location" : "%s",
-                "environment" : "%s (%s)",
-                "registry": "%s (%s)",
-                "image" : "%s",
-                "src_path" : "%s",
-                """ % (name, new_ca, resource_group_name, new_rg, location, env_name, new_managed_env, registry_server, new_cr, image, _src_path_escaped)
-
+    dry_run = {
+        "location" : location,
+        "registry": registry_server,
+        "image": image,
+        "src_path": _src_path_escaped
+    }
+    dry_run["name"] = "{} ({})".format(name, new_ca)
+    dry_run["resourcegroup"] = "{} ({})".format(resource_group_name, new_rg)
+    dry_run["environment"] = "{} ({})".format(env_name, new_managed_env)
+    if registry_server:
+        dry_run["registry"] = "{} ({})".format(registry_server, new_cr)
+    
     if containerapp_def:
         r = containerapp_def
         if "configuration" in r["properties"] and "ingress" in r["properties"]["configuration"] and "fqdn" in r["properties"]["configuration"]["ingress"]:
             fqdn = r["properties"]["configuration"]["ingress"]["fqdn"]
 
     if len(fqdn) > 0:
-        dry_run_str += '"fqdn" : "{}",\n'.format(fqdn)
-
+        dry_run["fqdn"] = fqdn
     if len(log_analytics_workspace_name) > 0:
-        dry_run_str += '"log_analytics_workspace_name" : "{}"\n'.format(log_analytics_workspace_name)
-
-    dry_run_str += '}'
-
-    return json.loads(dry_run_str)
+        dry_run["log_analytics_workspace_name"] = log_analytics_workspace_name
+    return dry_run
