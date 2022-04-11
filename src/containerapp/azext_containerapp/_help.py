@@ -278,12 +278,15 @@ helps['containerapp identity assign'] = """
     - name: Assign system identity.
       text: |
           az containerapp identity assign -n myContainerapp -g MyResourceGroup --system-assigned
-    - name: Assign user identity.
+    - name: Assign user identity (from the same resource group as the containerapp).
       text: |
-          az containerapp identity assign -n myContainerapp -g MyResourceGroup --user-assigned myAssignedId
+          az containerapp identity assign -n myContainerapp -g MyResourceGroup --user-assigned myUserIdentityName
+    - name: Assign user identity (from a different resource group than the containerapp).
+      text: |
+          az containerapp identity assign -n myContainerapp -g MyResourceGroup --user-assigned myUserIdentityResourceId
     - name: Assign system and user identity.
       text: |
-          az containerapp identity assign -n myContainerapp -g MyResourceGroup --system-assigned --user-assigned myAssignedId
+          az containerapp identity assign -n myContainerapp -g MyResourceGroup --system-assigned --user-assigned myUserIdentityResourceId
 """
 
 helps['containerapp identity remove'] = """
@@ -293,9 +296,12 @@ helps['containerapp identity remove'] = """
     - name: Remove system identity.
       text: |
           az containerapp identity remove -n myContainerapp -g MyResourceGroup --system-assigned
-    - name: Remove system and user identity.
+    - name: Remove user identity (from the same resource group as the containerapp).
       text: |
-          az containerapp identity remove -n myContainerapp -g MyResourceGroup --system-assigned --user-assigned myAssignedId
+          az containerapp identity remove -n myContainerapp -g MyResourceGroup --user-assigned myUserIdentityName
+    - name: Remove system and user identity (from a different resource group than the containerapp).
+      text: |
+          az containerapp identity remove -n myContainerapp -g MyResourceGroup --system-assigned --user-assigned myUserIdentityResourceId
     - name: Remove all user identities.
       text: |
           az containerapp identity remove -n myContainerapp -g MyResourceGroup --user-assigned
