@@ -2151,6 +2151,5 @@ def containerapp_up(cmd,
         dry_run_str += '"log_analytics_workspace_name" : "{}"\n'.format(log_analytics_workspace_name)
 
     dry_run_str += '}'
-    print(dry_run_str)
 
     return json.loads(dry_run_str)
