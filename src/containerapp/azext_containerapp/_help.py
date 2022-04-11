@@ -278,7 +278,7 @@ helps['containerapp identity assign'] = """
     - name: Assign system identity.
       text: |
           az containerapp identity assign -n myContainerapp -g MyResourceGroup --system-assigned
-    - name: Assign user identity (from the same resource group as the containerapp).
+    - name: Assign user identity.
       text: |
           az containerapp identity assign -n myContainerapp -g MyResourceGroup --user-assigned myUserIdentityName
     - name: Assign user identity (from a different resource group than the containerapp).
@@ -296,7 +296,7 @@ helps['containerapp identity remove'] = """
     - name: Remove system identity.
       text: |
           az containerapp identity remove -n myContainerapp -g MyResourceGroup --system-assigned
-    - name: Remove user identity (from the same resource group as the containerapp).
+    - name: Remove user identity.
       text: |
           az containerapp identity remove -n myContainerapp -g MyResourceGroup --user-assigned myUserIdentityName
     - name: Remove system and user identity (from a different resource group than the containerapp).
