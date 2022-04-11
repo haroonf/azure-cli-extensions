@@ -1989,13 +1989,15 @@ def containerapp_up(cmd,
         location = _get_default_containerapps_location(cmd)
 
     # Open dockerfile and check for EXPOSE
-    dockerfile_location = source + '/' + dockerfile
-    with open(dockerfile_location, 'r') as fh:
-        for line in fh:
-            if "EXPOSE" in line:
-                if not target_port and not ingress:
-                    target_port = line.replace('\n', '').split(" ")[1]
-                    ingress = "external"
+    if source:
+        dockerfile_location = source + '/' + dockerfile
+        with open(dockerfile_location, 'r') as fh:
+            for line in fh:
+                if "EXPOSE" in line:
+                    if not target_port and not ingress:
+                        target_port = line.replace('\n', '').split(" ")[1]
+                        ingress = "external"
+                        logger.warning("Adding external ingress port {} based on dockerfile expose.".format(target_port))
 
     custom_rg_name = None
     # user passes bad resource group name, we create it for them
