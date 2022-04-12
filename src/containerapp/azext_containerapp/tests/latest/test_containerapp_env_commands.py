@@ -6,6 +6,7 @@
 import os
 import time
 import unittest
+import yaml
 
 from azure.cli.testsdk.scenario_tests import AllowLargeResponse
 from azure.cli.testsdk import (ScenarioTest, ResourceGroupPreparer, JMESPathCheck)
@@ -40,4 +41,50 @@ class ContainerappEnvScenarioTest(ScenarioTest):
         time.sleep(60)
         self.cmd('containerapp env list -g {}'.format(resource_group), checks=[
             JMESPathCheck('length(@)', 0),
+        ])
+
+    @AllowLargeResponse(8192)
+    @ResourceGroupPreparer(location="centraluseuap")
+    def test_containerapp_env_dapr_components(self, resource_group):
+        env_name = self.create_random_name(prefix='containerapp-e2e-env', length=24)
+        dapr_comp_name = self.create_random_name(prefix='dapr-component', length=24)
+        dapr_yaml_name = self.create_random_name(prefix='dapr-component', length=24)
+
+        dapr_yaml = """
+        name: statestore
+        componentType: state.azure.blobstorage
+        version: v1
+        metadata:
+        - name: accountName
+          secretRef: storage-account-name
+        - name: accountKey
+          secretRef: storage-account-key
+        - name: containerName
+          value: mycontainer
+        secrets:
+        - name: storage-account-name
+          value: storage-account-name
+        - name: storage-account-key
+          value: mycontainer
+        """
+        daprloaded = yaml.safe_load(dapr_yaml)
+
+        with open('{}.yml'.format(dapr_yaml_name), 'w') as outfile:
+            yaml.dump(daprloaded, outfile, default_flow_style=False)
+
+        self.cmd('containerapp env create -g {} -n {}'.format(resource_group, env_name))
+
+        self.cmd('containerapp env dapr-component set -n {} -g {} --dapr-component-name {} --yaml {}.yml'.format(env_name, resource_group, dapr_comp_name, dapr_yaml_name), checks=[
+            JMESPathCheck('name', dapr_comp_name),
+        ])
+
+        os.remove("{}.yml".format(dapr_yaml_name))
+
+        self.cmd('containerapp env dapr-component list -n {} -g {}'.format(env_name, resource_group), checks=[
+            JMESPathCheck('length(@)', 1),
+            JMESPathCheck('[0].name', dapr_comp_name),
+        ])
+
+        self.cmd('containerapp env dapr-component show -n {} -g {} --dapr-component-name {}'.format(env_name, resource_group, dapr_comp_name), checks=[
+            JMESPathCheck('name', dapr_comp_name),
         ])
