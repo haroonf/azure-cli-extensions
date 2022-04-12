@@ -49,13 +49,16 @@ SSH_CTRL_C_MSG = b"\x00\x00\x03"
 
 class WebSocketConnection:
     def __init__(self, cmd, resource_group_name, name, revision, replica, container, startup_command):
+        token_response = ContainerAppClient.get_auth_token(cmd, resource_group_name, name)
+        self._token = token_response["properties"]["token"]
+        self._logstream_endpoint = token_response["properties"]["logStreamEndpoint"]
         self._url = self._get_url(cmd=cmd, resource_group_name=resource_group_name, name=name, revision=revision,
                                   replica=replica, container=container, startup_command=startup_command)
         self._socket = websocket.WebSocket(enable_multithread=True)
         logger.warning("Attempting to connect to %s", remove_token(self._url))
 
         # TODO maybe catch websocket._exceptions.WebSocketBadStatusException: Handshake status 404 Not Found
-        self._socket.connect(self._url)
+        self._socket.connect(self._url, header=[f"Authorization: Bearer {self._token}"])
         self.is_connected = True
         self._windows_conout_mode = None
         self._windows_conin_mode = None
@@ -63,13 +66,11 @@ class WebSocketConnection:
             self._windows_conout_mode = _get_conout_mode()
             self._windows_conin_mode = _get_conin_mode()
 
-    @classmethod
-    def _get_url(cls, cmd, resource_group_name, name, revision, replica, container, startup_command):
+    def _get_url(self, cmd, resource_group_name, name, revision, replica, container, startup_command):
         sub = get_subscription_id(cmd.cli_ctx)
-        token_response = ContainerAppClient.get_auth_token(cmd, resource_group_name, name)
-        token = token_response["properties"]["token"]
-        logstream_endpoint = token_response["properties"]["logStreamEndpoint"]
-        proxy_api_url = logstream_endpoint[:logstream_endpoint.index("/subscriptions/")].replace("https://", "")
+        base_url = self._logstream_endpoint
+        proxy_api_url = base_url[:base_url.index("/subscriptions/")].replace("https://", "")
+        token = self._token
 
         return (f"wss://{proxy_api_url}/subscriptions/{sub}/resourceGroups/{resource_group_name}/containerApps/{name}"
                 f"/revisions/{revision}/replicas/{replica}/containers/{container}/exec/{startup_command}?token={token}")

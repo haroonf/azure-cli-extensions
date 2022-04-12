@@ -1962,7 +1962,10 @@ def get_replica(cmd, resource_group_name, name, replica, revision=None):
 
 
 # TODO token will be read from header at some point -- a PR has apparently been opened for this
-def containerapp_ssh(cmd, resource_group_name, name, container=None, revision=None, replica=None, startup_command=None):
+def containerapp_ssh(cmd, resource_group_name, name, container=None, revision=None, replica=None, startup_command="sh"):
+    if isinstance(startup_command, list):
+        startup_command = startup_command[0]  # CLI seems a little buggy when calling a param "--command"
+
     conn = WebSocketConnection(cmd=cmd, resource_group_name=resource_group_name, name=name, revision=revision,
                                replica=replica, container=container, startup_command=startup_command)
 
@@ -2003,7 +2006,8 @@ def stream_containerapp_logs(cmd, resource_group_name, name, container=None, rev
 
     logger.warning("connecting to : %s", remove_token(url))
     request_params = {"follow": str(follow).lower(), "output": output_format, "tailLines": tail}
-    resp = requests.get(url, timeout=None, stream=True, params=request_params)
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(url, timeout=None, stream=True, params=request_params, headers=headers)
 
     if not resp.ok:
         ValidationError(f"Got bad status from the logstream API: {resp.status_code}")
@@ -2013,4 +2017,4 @@ def stream_containerapp_logs(cmd, resource_group_name, name, container=None, rev
             logger.info("received raw log line: %s", line)
             # these .replaces are needed to display color/quotations properly
             # for some reason the API returns garbled unicode special characters (may need to add more in the future)
-            print(line.decode("utf-8").replace("\\u0022", "\u0022").replace("\\u001B", "\u001B"))
+            print(line.decode("utf-8").replace("\\u0022", "\u0022").replace("\\u001B", "\u001B").replace("\\u002B", "\u002B").replace("\\u0027", "\u0027"))

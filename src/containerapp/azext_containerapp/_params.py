@@ -34,7 +34,7 @@ def load_arguments(self, _):
         c.argument('container', help="The name of the container to ssh into")
         c.argument('replica', help="The name of the replica (pod) to ssh into. List replicas with 'az containerapp replica list'. A replica may not exist if there is not traffic to your app.")
         c.argument('revision', help="The name of the container app revision to ssh into. Defaults to the latest revision.")
-        c.argument('startup_command', options_list=["--command"], default="sh", help="The startup command (bash, zsh, sh, etc.).")
+        c.argument('startup_command', options_list=["--command"], help="The startup command (bash, zsh, sh, etc.).")
         c.argument('name', name_type, id_part=None, help="The name of the Containerapp.")
         c.argument('resource_group_name', arg_type=resource_group_name_type, id_part=None)
 
