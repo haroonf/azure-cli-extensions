@@ -49,6 +49,7 @@ def load_command_table(self, _):
         g.custom_command('create', 'create_containerapp', supports_no_wait=True, exception_handler=ex_handler_factory(), table_transformer=transform_containerapp_output)
         g.custom_command('update', 'update_containerapp', supports_no_wait=True, exception_handler=ex_handler_factory(), table_transformer=transform_containerapp_output)
         g.custom_command('delete', 'delete_containerapp', supports_no_wait=True, confirmation=True, exception_handler=ex_handler_factory())
+        g.custom_command('browse', 'browse_containerapp')
 
     with self.command_group('containerapp env') as g:
         g.custom_show_command('show', 'show_managed_environment')
@@ -80,6 +81,7 @@ def load_command_table(self, _):
         g.custom_show_command('show', 'show_revision', table_transformer=transform_revision_output, exception_handler=ex_handler_factory())
         g.custom_command('copy', 'copy_revision', exception_handler=ex_handler_factory())
         g.custom_command('set-mode', 'set_revision_mode', exception_handler=ex_handler_factory())
+        g.custom_command('browse', 'browse_revision')
 
     with self.command_group('containerapp ingress') as g:
         g.custom_command('enable', 'enable_ingress', exception_handler=ex_handler_factory())

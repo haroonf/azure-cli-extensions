@@ -14,6 +14,7 @@ from azure.cli.core.azclierror import (
     CLIInternalError,
     InvalidArgumentValueError)
 from azure.cli.core.commands.client_factory import get_subscription_id
+from azure.cli.core.util import open_page_in_browser
 from knack.log import get_logger
 
 from msrestazure.tools import parse_resource_id, is_valid_resource_id
@@ -294,6 +295,7 @@ def create_containerapp(cmd,
                         tags=None,
                         no_wait=False,
                         system_assigned=False,
+                        browse=False,
                         user_assigned=None):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -451,7 +453,14 @@ def create_containerapp(cmd,
             logger.warning("\nContainer app created. Access your app at https://{}/\n".format(r["properties"]["configuration"]["ingress"]["fqdn"]))
         else:
             logger.warning("\nContainer app created. To access it over HTTPS, enable ingress: az containerapp ingress enable --help\n")
-
+        if browse:
+            fqdn = None
+            if "configuration" in r["properties"] and "ingress" in r["properties"]["configuration"] and "fqdn" in r["properties"]["configuration"]["ingress"]:
+                fqdn = r["properties"]["configuration"]["ingress"]["fqdn"]
+            if fqdn:
+                open_page_in_browser(fqdn)            
+            else:
+                logger.warning("Cannot open containerapp in browser. Ingress is not enabled for this app.")
         return r
     except Exception as e:
         handle_raw_exception(e)
@@ -1331,6 +1340,29 @@ def set_revision_mode(cmd, resource_group_name, name, mode, no_wait=False):
         handle_raw_exception(e)
 
 
+def browse_revision(cmd, resource_group_name, revision_name, name=None):
+    if not name:
+        name = _get_app_from_revision(revision_name)
+    revision_def = None
+    try:
+        revision_def = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=revision_name)
+    except CLIError as e:
+        handle_raw_exception(e)
+
+    fqdn = None
+    if not revision_def:
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
+    else:
+        r = revision_def
+        if "fqdn" in r["properties"]:
+            fqdn = r["properties"]["fqdn"]
+    if fqdn:
+        open_page_in_browser(fqdn)
+        return revision_def["properties"]
+    else:
+        raise ValidationError("Containerapp does not have ingress enabled. Try `az containerapp ingress enable`.")
+
+
 def show_ingress(cmd, name, resource_group_name):
     _validate_subscription_registered(cmd, "Microsoft.App")
 
@@ -1878,3 +1910,28 @@ def remove_dapr_component(cmd, resource_group_name, dapr_component_name, environ
         return r
     except Exception as e:
         handle_raw_exception(e)
+
+
+def browse_containerapp(cmd, name, resource_group_name):
+    _validate_subscription_registered(cmd, "Microsoft.App")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    fqdn = None
+    if not containerapp_def:
+        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
+    else:
+        r = containerapp_def
+        if "configuration" in r["properties"] and "ingress" in r["properties"]["configuration"] and "fqdn" in r["properties"]["configuration"]["ingress"]:
+            fqdn = r["properties"]["configuration"]["ingress"]["fqdn"]
+    if fqdn:
+        open_page_in_browser(fqdn)
+        return containerapp_def["properties"]["configuration"]["ingress"]
+    
+    else:
+        raise ValidationError("Containerapp does not have ingress enabled. Try `az containerapp ingress enable`.")
+
