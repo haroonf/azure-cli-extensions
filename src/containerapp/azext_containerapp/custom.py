@@ -2001,6 +2001,7 @@ def stream_containerapp_logs(cmd, resource_group_name, name, container=None, rev
     logstream_endpoint = token_response["properties"]["logStreamEndpoint"]
     base_url = logstream_endpoint[:logstream_endpoint.index("/subscriptions/")]
 
+    # TODO remove token from URL once token is read from header
     url = (f"{base_url}/subscriptions/{sub}/resourceGroups/{resource_group_name}/containerApps/{name}"
            f"/revisions/{revision}/replicas/{replica}/containers/{container}/logstream?token={token}")
 
