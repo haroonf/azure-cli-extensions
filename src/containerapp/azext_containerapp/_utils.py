@@ -2,12 +2,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
-# pylint: disable=line-too-long, consider-using-f-string, no-else-return, duplicate-string-formatting-argument
+# pylint: disable=line-too-long, consider-using-f-string, no-else-return, duplicate-string-formatting-argument, expression-not-assigned, too-many-locals
 
 import platform
 from urllib.parse import urlparse
-from azure.cli.command_modules.appservice.custom import (_get_acr_cred)
-from azure.cli.core.azclierror import (ValidationError, RequiredArgumentMissingError)
+from azure.cli.core.azclierror import (ValidationError, RequiredArgumentMissingError, CLIInternalError, ResourceNotFoundError)
 from azure.cli.core.commands.client_factory import get_subscription_id
 from knack.log import get_logger
 from msrestazure.tools import parse_resource_id
@@ -133,7 +132,7 @@ def _update_revision_env_secretrefs(containers, name):
                     var["secretRef"] = var["secretRef"].replace("{}-".format(name), "")
 
 
-def store_as_secret_and_return_secret_ref(secrets_list, registry_user, registry_server, registry_pass, update_existing_secret=False):
+def store_as_secret_and_return_secret_ref(secrets_list, registry_user, registry_server, registry_pass, update_existing_secret=False, disable_warnings=False):
     if registry_pass.startswith("secretref:"):
         # If user passed in registry password using a secret
 
@@ -163,7 +162,8 @@ def store_as_secret_and_return_secret_ref(secrets_list, registry_user, registry_
                         raise ValidationError('Found secret with name \"{}\" but value does not equal the supplied registry password.'.format(registry_secret_name))
                 return registry_secret_name
 
-        logger.warning('Adding registry password as a secret with name \"{}\"'.format(registry_secret_name))  # pylint: disable=logging-format-interpolation
+        if not disable_warnings:
+            logger.warning('Adding registry password as a secret with name \"{}\"'.format(registry_secret_name))  # pylint: disable=logging-format-interpolation
         secrets_list.append({
             "name": registry_secret_name,
             "value": registry_pass
@@ -206,6 +206,27 @@ def _get_default_log_analytics_location(cmd):
     return default_location
 
 
+def _get_default_containerapps_location(cmd):
+    default_location = "eastus"
+    providers_client = None
+    try:
+        providers_client = providers_client_factory(cmd.cli_ctx, get_subscription_id(cmd.cli_ctx))
+        resource_types = getattr(providers_client.get("Microsoft.App"), 'resource_types', [])
+        res_locations = []
+        for res in resource_types:
+            if res and getattr(res, 'resource_type', "") == "workspaces":
+                res_locations = getattr(res, 'locations', [])
+
+        if len(res_locations) > 0:
+            location = res_locations[0].lower().replace(" ", "").replace("(", "").replace(")", "")
+            if location:
+                return location
+
+    except Exception:  # pylint: disable=broad-except
+        return default_location
+    return default_location
+
+
 # Generate random 4 character string
 def _new_tiny_guid():
     import random
@@ -231,6 +252,15 @@ def _generate_log_analytics_workspace_name(resource_group_name):
     if len(name) > maxLength:
         name = name[:maxLength]
     return name
+
+
+def _get_log_analytics_workspace_name(cmd, logs_customer_id, resource_group_name):
+    log_analytics_client = log_analytics_client_factory(cmd.cli_ctx)
+    logs_list = log_analytics_client.list_by_resource_group(resource_group_name)
+    for log in logs_list:
+        if log.customer_id.lower() == logs_customer_id.lower():
+            return log.name
+    return ResourceNotFoundError("Cannot find Log Analytics workspace with customer ID {}".format(logs_customer_id))
 
 
 def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, location, resource_group_name):
@@ -563,16 +593,16 @@ def _get_app_from_revision(revision):
     return revision
 
 
-def _infer_acr_credentials(cmd, registry_server):
+def _infer_acr_credentials(cmd, registry_server, disable_warnings=False):
     # If registry is Azure Container Registry, we can try inferring credentials
     if '.azurecr.io' not in registry_server:
         raise RequiredArgumentMissingError('Registry username and password are required if not using Azure Container Registry.')
-    logger.warning('No credential was provided to access Azure Container Registry. Trying to look up credentials...')
+    not disable_warnings and logger.warning('No credential was provided to access Azure Container Registry. Trying to look up credentials...')
     parsed = urlparse(registry_server)
     registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
 
     try:
-        registry_user, registry_pass = _get_acr_cred(cmd.cli_ctx, registry_name)
+        registry_user, registry_pass, registry_rg = _get_acr_cred(cmd.cli_ctx, registry_name)  # pylint: disable=unused-variable
         return (registry_user, registry_pass)
     except Exception as ex:
         raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry {}. Please provide the registry username and password'.format(registry_name)) from ex
@@ -598,3 +628,178 @@ def safe_get(model, *keys):
 
 def is_platform_windows():
     return platform.system() == "Windows"
+
+
+def get_randomized_name(prefix, name=None, initial="rg"):
+    from random import randint
+    default = "{}_{}_{:04}".format(prefix, initial, randint(0, 9999))
+    if name is not None:
+        return name
+    return default
+
+
+def _set_webapp_up_default_args(cmd, resource_group_name, location, name, registry_server):
+    from azure.cli.core.util import ConfiguredDefaultSetter
+    with ConfiguredDefaultSetter(cmd.cli_ctx.config, True):
+        logger.warning("Setting 'az containerapp up' default arguments for current directory. "
+                       "Manage defaults with 'az configure --scope local'")
+
+        cmd.cli_ctx.config.set_value('defaults', 'resource_group_name', resource_group_name)
+        logger.warning("--resource-group/-g default: %s", resource_group_name)
+
+        cmd.cli_ctx.config.set_value('defaults', 'location', location)
+        logger.warning("--location/-l default: %s", location)
+
+        cmd.cli_ctx.config.set_value('defaults', 'name', name)
+        logger.warning("--name/-n default: %s", name)
+
+        # cmd.cli_ctx.config.set_value('defaults', 'managed_env', managed_env)
+        # logger.warning("--environment default: %s", managed_env)
+
+        cmd.cli_ctx.config.set_value('defaults', 'registry_server', registry_server)
+        logger.warning("--registry-server default: %s", registry_server)
+
+
+def get_profile_username():
+    from azure.cli.core._profile import Profile
+    user = Profile().get_current_account_user()
+    user = user.split('@', 1)[0]
+    if len(user.split('#', 1)) > 1:  # on cloudShell user is in format live.com#user@domain.com
+        user = user.split('#', 1)[1]
+    return user
+
+
+def create_resource_group(cmd, rg_name, location):
+    from azure.cli.core.profiles import ResourceType, get_sdk
+    rcf = _resource_client_factory(cmd.cli_ctx)
+    resource_group = get_sdk(cmd.cli_ctx, ResourceType.MGMT_RESOURCE_RESOURCES, 'ResourceGroup', mod='models')
+    rg_params = resource_group(location=location)
+    return rcf.resource_groups.create_or_update(rg_name, rg_params)
+
+
+def get_resource_group(cmd, rg_name):
+    rcf = _resource_client_factory(cmd.cli_ctx)
+    return rcf.resource_groups.get(rg_name)
+
+
+def _resource_client_factory(cli_ctx, **_):
+    from azure.cli.core.commands.client_factory import get_mgmt_service_client
+    from azure.cli.core.profiles import ResourceType
+    return get_mgmt_service_client(cli_ctx, ResourceType.MGMT_RESOURCE_RESOURCES)
+
+
+def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfile="Dockerfile", quiet=False):
+    import os
+    import uuid
+    import tempfile
+    from azure.cli.command_modules.acr._archive_utils import upload_source_code
+    from azure.cli.command_modules.acr._stream_utils import stream_logs
+    from azure.cli.command_modules.acr._client_factory import cf_acr_registries_tasks
+    from azure.cli.core.commands import LongRunningOperation
+
+    # client_registries = get_acr_service_client(cmd.cli_ctx).registries
+    client_registries = cf_acr_registries_tasks(cmd.cli_ctx)
+
+    if not os.path.isdir(src_dir):
+        raise ValidationError("Source directory should be a local directory path.")
+
+    docker_file_path = os.path.join(src_dir, dockerfile)
+    if not os.path.isfile(docker_file_path):
+        raise ValidationError("Unable to find '{}'.".format(docker_file_path))
+
+    # NOTE: os.path.basename is unable to parse "\" in the file path
+    original_docker_file_name = os.path.basename(docker_file_path.replace("\\", "/"))
+    docker_file_in_tar = '{}_{}'.format(uuid.uuid4().hex, original_docker_file_name)
+    tar_file_path = os.path.join(tempfile.gettempdir(), 'build_archive_{}.tar.gz'.format(uuid.uuid4().hex))
+
+    source_location = upload_source_code(cmd, client_registries, registry_name, registry_rg, src_dir, tar_file_path, docker_file_path, docker_file_in_tar)
+
+    # For local source, the docker file is added separately into tar as the new file name (docker_file_in_tar)
+    # So we need to update the docker_file_path
+    docker_file_path = docker_file_in_tar
+
+    from azure.cli.core.profiles import ResourceType
+    OS, Architecture = cmd.get_models('OS', 'Architecture', resource_type=ResourceType.MGMT_CONTAINERREGISTRY, operation_group='runs')
+    # Default platform values
+    platform_os = OS.linux.value
+    platform_arch = Architecture.amd64.value
+    platform_variant = None
+
+    DockerBuildRequest, PlatformProperties = cmd.get_models('DockerBuildRequest', 'PlatformProperties',
+                                                            resource_type=ResourceType.MGMT_CONTAINERREGISTRY, operation_group='runs')
+    docker_build_request = DockerBuildRequest(
+        image_names=[img_name],
+        is_push_enabled=True,
+        source_location=source_location,
+        platform=PlatformProperties(
+            os=platform_os,
+            architecture=platform_arch,
+            variant=platform_variant
+        ),
+        docker_file_path=docker_file_path,
+        timeout=None,
+        arguments=[])
+
+    queued_build = LongRunningOperation(cmd.cli_ctx)(client_registries.begin_schedule_run(
+        resource_group_name=registry_rg,
+        registry_name=registry_name,
+        run_request=docker_build_request))
+
+    run_id = queued_build.run_id
+    logger.warning("Queued a build with ID: %s", run_id)
+    not quiet and logger.warning("Waiting for agent...")
+
+    from azure.cli.command_modules.acr._client_factory import (cf_acr_runs)
+    from ._acr_run_polling import get_run_with_polling
+    client_runs = cf_acr_runs(cmd.cli_ctx)
+
+    if quiet:
+        lro_poller = get_run_with_polling(cmd, client_runs, run_id, registry_name, registry_rg)
+        acr = LongRunningOperation(cmd.cli_ctx)(lro_poller)
+        logger.warning("Build {}.".format(acr.status.lower()))  # pylint: disable=logging-format-interpolation
+        if acr.status.lower() != "succeeded":
+            raise CLIInternalError("ACR build {}.".format(acr.status.lower()))
+        return acr
+
+    return stream_logs(cmd, client_runs, run_id, registry_name, registry_rg, None, False, True)
+
+
+def _get_acr_cred(cli_ctx, registry_name):
+    from azure.mgmt.containerregistry import ContainerRegistryManagementClient
+    from azure.cli.core.commands.parameters import get_resources_in_subscription
+    from azure.cli.core.commands.client_factory import get_mgmt_service_client
+
+    client = get_mgmt_service_client(cli_ctx, ContainerRegistryManagementClient).registries
+
+    result = get_resources_in_subscription(cli_ctx, 'Microsoft.ContainerRegistry/registries')
+    result = [item for item in result if item.name.lower() == registry_name]
+    if not result or len(result) > 1:
+        raise ResourceNotFoundError("No resource or more than one were found with name '{}'.".format(registry_name))
+    resource_group_name = parse_resource_id(result[0].id)['resource_group']
+
+    registry = client.get(resource_group_name, registry_name)
+
+    if registry.admin_user_enabled:  # pylint: disable=no-member
+        cred = client.list_credentials(resource_group_name, registry_name)
+        return cred.username, cred.passwords[0].value, resource_group_name
+    raise ResourceNotFoundError("Failed to retrieve container registry credentials. Please either provide the "
+                                "credentials or run 'az acr update -n {} --admin-enabled true' to enable "
+                                "admin first.".format(registry_name))
+
+
+def create_new_acr(cmd, registry_name, resource_group_name, location=None, sku="Basic"):
+    # from azure.cli.command_modules.acr.custom import acr_create
+    from azure.cli.command_modules.acr._client_factory import cf_acr_registries
+    from azure.cli.core.profiles import ResourceType
+    from azure.cli.core.commands import LongRunningOperation
+
+    client = cf_acr_registries(cmd.cli_ctx)
+    # return acr_create(cmd, client, registry_name, resource_group_name, sku, location)
+
+    Registry, Sku = cmd.get_models('Registry', 'Sku', resource_type=ResourceType.MGMT_CONTAINERREGISTRY, operation_group="registries")
+    registry = Registry(location=location, sku=Sku(name=sku), admin_user_enabled=True,
+                        zone_redundancy=None, tags=None)
+
+    lro_poller = client.begin_create(resource_group_name, registry_name, registry)
+    acr = LongRunningOperation(cmd.cli_ctx)(lro_poller)
+    return acr

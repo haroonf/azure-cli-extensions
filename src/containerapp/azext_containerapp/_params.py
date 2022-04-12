@@ -24,6 +24,7 @@ def load_arguments(self, _):
         c.argument('name', name_type, metavar='NAME', id_part='name', help="The name of the Containerapp.")
         c.argument('resource_group_name', arg_type=resource_group_name_type)
         c.argument('location', arg_type=get_location_type(self.cli_ctx))
+        c.ignore('disable_warnings')
 
     with self.argument_context('containerapp') as c:
         c.argument('tags', arg_type=tags_type)
@@ -209,3 +210,21 @@ def load_arguments(self, _):
 
     with self.argument_context('containerapp revision list') as c:
         c.argument('name', id_part=None)
+
+    with self.argument_context('containerapp up') as c:
+        c.argument('resource_group_name', configured_default='resource_group_name')
+        c.argument('location', configured_default='location')
+        c.argument('name', configured_default='name', id_part=None)
+        c.argument('managed_env', configured_default='managed_env')
+        c.argument('registry_server', configured_default='registry_server')
+        c.argument('quiet', help="Disable logs output from ACR build when using --source.")
+        c.argument('dockerfile', help="Name of the dockerfile.")
+        c.argument('dryrun', help="Show summary of the operation instead of executing it.")
+
+    with self.argument_context('containerapp up', arg_group='Log Analytics (Environment)') as c:
+        c.argument('logs_customer_id', type=str, options_list=['--logs-workspace-id'], help='Name or resource ID of the Log Analytics workspace to send diagnostics logs to. You can use \"az monitor log-analytics workspace create\" to create one. Extra billing may apply.')
+        c.argument('logs_key', type=str, options_list=['--logs-workspace-key'], help='Log Analytics workspace key to configure your Log Analytics workspace. You can use \"az monitor log-analytics workspace get-shared-keys\" to retrieve the key.')
+        c.ignore('no_wait')
+
+    with self.argument_context('containerapp', arg_group='Container') as c:
+        c.argument('source', type=str, help='Local directory path to upload to Azure container registry.')
