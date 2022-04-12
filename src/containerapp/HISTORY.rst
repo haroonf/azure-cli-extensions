@@ -3,11 +3,15 @@
 Release History
 ===============
 
-0.2.0
+0.4.0
 ++++++
 * Open an ssh-like shell in a Container App with 'az containerapp exec'
 * Support for log streaming with 'az containerapp log tail'
 * Replica show and list commands
+
+0.3.0
+++++++
+* Subgroup commands for managed identities: az containerapp identity
 
 0.1.0
 ++++++
