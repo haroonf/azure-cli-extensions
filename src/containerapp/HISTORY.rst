@@ -3,13 +3,10 @@
 Release History
 ===============
 
-<<<<<<< HEAD
-=======
 0.3.0
 ++++++
 * Subgroup commands for managed identities: az containerapp identity
 
->>>>>>> main
 0.1.0
 ++++++
 * Initial release for Container App support with Microsoft.App RP.
