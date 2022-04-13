@@ -1946,8 +1946,9 @@ def containerapp_up(cmd,
                             logger.warning("Adding external ingress port {} based on dockerfile expose.".format(target_port))
         except:
             raise InvalidArgumentValueError("Cannot find specified Dockerfile. Check dockerfile name and/or path.")
+
     custom_rg_name = None
-    # user passes bad resource group name, we create it for them
+    # user passes non-existing rg, we create it for them
     if resource_group_name:
         try:
             get_resource_group(cmd, resource_group_name)
@@ -1956,29 +1957,69 @@ def containerapp_up(cmd,
             resource_group_name = None
 
     custom_env_name = None
+    # user passes environment, check if it exists or not
     if managed_env and not custom_rg_name:
         try:
-            env_def = show_managed_environment(cmd=cmd, name=env_name, resource_group_name=resource_group_name)
+            env_list = list_managed_environments(cmd=cmd, resource_group_name=resource_group_name)
         except:
+            env_list = []  # Server error, not sure what to do here
+        env_found = False
+        for env in env_list:
+            if env["name"].lower() == managed_env.split('/')[-1].lower():
+                if(env_found):
+                    raise ValidationError("Multiple environments found on subscription with name {}. Specify resource id of environment.".format(managed_env.split('/')[-1]))
+                env_found = True
+                managed_env = env["id"]
+        if not env_found:
             custom_env_name = managed_env.split('/')[-1]
             managed_env = None
 
-    # if custom_rg_name, that means rg doesn't exist no need to look for CA
+    # look for existing containerapp with same name
     if not resource_group_name and not custom_rg_name:
+        rg_found = False
         try:
-            rg_found = False
             containerapps = list_containerapp(cmd)
-            for containerapp in containerapps:
-                if containerapp["name"].lower() == name.lower():
-                    if rg_found:
-                        raise ValidationError("There are multiple containerapps with name {} on the subscription. Please specify which resource group your Containerapp is in.".format(name))
-                        # could also just do resource_group_name = None here and create a new one, ask Anthony
-                        # break
-                    if containerapp["id"][0] != '/':
-                        containerapp["id"] = '/' + containerapp["id"]
-                    rg_found = True
-                    resource_group_name = containerapp["id"].split('/')[4]
         except:
+            containerapps = []  # Server error, not sure what to do here
+        for containerapp in containerapps:
+            if containerapp["name"].lower() == name.lower():
+                if rg_found:
+                    raise ValidationError("There are multiple containerapps with name {} on the subscription. Please specify which resource group your Containerapp is in.".format(name))
+                    # could also just do resource_group_name = None here and create a new one, ask Anthony
+                    # break
+                if containerapp["id"][0] != '/':
+                    containerapp["id"] = '/' + containerapp["id"]
+                rg_found = True
+                resource_group_name = containerapp["id"].split('/')[4]
+                managed_env = containerapp["properties"]["managedEnvironmentId"]
+                if custom_env_name:
+                    # raise ValidationError("You cannot update the environment of an existing containerapp. Try re-running the command without --environment.")
+                    logger.warning("User passed custom environment name for an existing containerapp. Using existing environment.")
+
+    # User doesn't pass environment, do they have an env on subscription?
+    if not managed_env and not custom_rg_name and not custom_env_name:
+        try:
+            env_list = list_managed_environments(cmd=cmd, resource_group_name=resource_group_name)
+            if env_list is None or len(env_list) == 0:
+                managed_env = None  # we need to create one for them
+                resource_group_name = managed_env.split('/')[4]
+            elif len(env_list) == 1:
+                managed_env = env_list[0]["id"]
+                resource_group_name = managed_env.split('/')[4]
+            else:
+                if logs_customer_id and logs_key:
+                    managed_env = next(x for x in env_list if 'logAnalyticsConfiguration' in x['properties']['appLogsConfiguration'] and x['properties']['appLogsConfiguration']['logAnalyticsConfiguration']['customerId'] == logs_customer_id)["id"]
+                    resource_group_name = managed_env.split('/')[4]
+                elif location:
+                    # need to convert location here to lowercase conformity probably, not sure how atm
+                    managed_env = next(x for x in env_list if x['location'] == location)["id"]
+                    resource_group_name = managed_env.split('/')[4]
+                else:
+                    # there are multiple envs, none of them match anything
+                    managed_env = env_list[0]["id"]
+                    resource_group_name = managed_env.split('/')[4]
+        except:
+            # They don't have any or server error
             pass
 
     containerapp_def = None
@@ -2053,7 +2094,7 @@ def containerapp_up(cmd,
             new_cr = "New"
             registry_rg = resource_group_name
             user = get_profile_username()
-            registry_name = "{}acr".format(name)
+            registry_name = "{}acr".format(name).replace('-','')
             registry_name = registry_name + str(hash((registry_rg, user, name))).replace("-", "")
             if not dryrun:
                 logger.warning("Creating new acr {}".format(registry_name))
@@ -2069,7 +2110,7 @@ def containerapp_up(cmd,
         image = registry_server + '/' + image_name
         if not dryrun:
             queue_acr_build(cmd, registry_rg, registry_name, image_name, source, dockerfile, quiet)
-        _set_webapp_up_default_args(cmd, resource_group_name, location, name, registry_server)
+        # _set_webapp_up_default_args(cmd, resource_group_name, location, name, registry_server)
 
     containerapp_def = None
 
