@@ -1913,6 +1913,7 @@ def containerapp_up(cmd,
     new_managed_env = "Existing"
     new_ca = "New"
     new_cr = "Existing"
+    new_law = "New"
 
     if source is None and image is None:
         raise RequiredArgumentMissingError("You must specify either --source or --image.")
@@ -1935,14 +1936,16 @@ def containerapp_up(cmd,
     # Open dockerfile and check for EXPOSE
     if source:
         dockerfile_location = source + '/' + dockerfile
-        with open(dockerfile_location, 'r') as fh:
-            for line in fh:
-                if "EXPOSE" in line:
-                    if not target_port and not ingress:
-                        target_port = line.replace('\n', '').split(" ")[1]
-                        ingress = "external"
-                        logger.warning("Adding external ingress port {} based on dockerfile expose.".format(target_port))
-
+        try: 
+            with open(dockerfile_location, 'r') as fh:
+                for line in fh:
+                    if "EXPOSE" in line:
+                        if not target_port and not ingress:
+                            target_port = line.replace('\n', '').split(" ")[1]
+                            ingress = "external"
+                            logger.warning("Adding external ingress port {} based on dockerfile expose.".format(target_port))
+        except:
+            raise InvalidArgumentValueError("Cannot find specified Dockerfile. Check dockerfile name and/or path.")
     custom_rg_name = None
     # user passes bad resource group name, we create it for them
     if resource_group_name:
@@ -1951,6 +1954,14 @@ def containerapp_up(cmd,
         except:
             custom_rg_name = resource_group_name
             resource_group_name = None
+
+    custom_env_name = None
+    if managed_env and not custom_rg_name:
+        try:
+            env_def = show_managed_environment(cmd=cmd, name=env_name, resource_group_name=resource_group_name)
+        except:
+            custom_env_name = managed_env.split('/')[-1]
+            managed_env = None
 
     # if custom_rg_name, that means rg doesn't exist no need to look for CA
     if not resource_group_name and not custom_rg_name:
@@ -1976,7 +1987,7 @@ def containerapp_up(cmd,
     except:
         pass
 
-    env_name = "" if not managed_env else managed_env.split('/')[6]
+    env_name = "" if not managed_env else managed_env.split('/')[-1]
     if not containerapp_def:
         if not resource_group_name:
             new_rg = "New"
@@ -1988,18 +1999,23 @@ def containerapp_up(cmd,
             resource_group_name = rg_name
         if not managed_env:
             new_managed_env = "New"
-            env_name = "{}-env".format(name).replace("_", "-")
+            env_name = custom_env_name if custom_env_name else "{}-env".format(name).replace("_", "-")
             if not dryrun:
-                logger.warning("Creating new managed environment {}".format(env_name))
-                managed_env = create_managed_environment(cmd, env_name, location=location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True)["id"]
+                try:
+                    managed_env = show_managed_environment(cmd=cmd, name=env_name, resource_group_name=resource_group_name)["id"]
+                    logger.warning("Using existing managed environment {}".format(env_name))
+                except:  
+                    logger.warning("Creating new managed environment {}".format(env_name))
+                    managed_env = create_managed_environment(cmd, env_name, location=location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True)["id"]
             else:
                 managed_env = env_name
     else:
         new_ca = "Existing"
         location = containerapp_def["location"]
-        managed_env = containerapp_def["properties"]["managedEnvironmentId"]
-        env_name = containerapp_def["properties"]["managedEnvironmentId"].split('/')[8]
+        managed_env = containerapp_def["properties"]["managedEnvironmentId"] if not managed_env else managed_env
+        env_name = managed_env.split('/')[-1]
         if logs_customer_id and logs_key:
+            new_law = "Existing"
             if not dryrun:
                 managed_env = create_managed_environment(cmd, env_name, location=location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True)["id"]
 
@@ -2055,16 +2071,6 @@ def containerapp_up(cmd,
             queue_acr_build(cmd, registry_rg, registry_name, image_name, source, dockerfile, quiet)
         _set_webapp_up_default_args(cmd, resource_group_name, location, name, registry_server)
 
-    log_analytics_workspace_name = ""
-    env_def = None
-    try:
-        env_def = show_managed_environment(cmd=cmd, name=env_name, resource_group_name=resource_group_name)
-    except: 
-        pass
-    if env_def and env_def["properties"]["appLogsConfiguration"]["destination"].lower() == "log-analytics":
-        env_customer_id = env_def["properties"]["appLogsConfiguration"]["logAnalyticsConfiguration"]["customerId"]
-        log_analytics_workspace_name = _get_log_analytics_workspace_name(cmd, env_customer_id, resource_group_name)
-
     containerapp_def = None
 
     if dryrun:
@@ -2075,12 +2081,16 @@ def containerapp_up(cmd,
 
     fqdn = ""
 
+    if new_managed_env == "Existing":
+        new_law = "Existing"
+
     dry_run = {
         "location" : location,
         "registry": registry_server,
         "image": image,
-        "src_path": _src_path_escaped
+        "src_path": src_dir
     }
+
     dry_run["name"] = "{} ({})".format(name, new_ca)
     dry_run["resourcegroup"] = "{} ({})".format(resource_group_name, new_rg)
     dry_run["environment"] = "{} ({})".format(env_name, new_managed_env)
@@ -2092,8 +2102,19 @@ def containerapp_up(cmd,
         if "configuration" in r["properties"] and "ingress" in r["properties"]["configuration"] and "fqdn" in r["properties"]["configuration"]["ingress"]:
             fqdn = r["properties"]["configuration"]["ingress"]["fqdn"]
 
+    log_analytics_workspace_name = ""
+    env_def = None
+    try:
+        env_def = show_managed_environment(cmd=cmd, name=env_name, resource_group_name=resource_group_name)
+    except:
+        pass
+    if env_def and env_def["properties"]["appLogsConfiguration"]["destination"].lower() == "log-analytics":
+        env_customer_id = env_def["properties"]["appLogsConfiguration"]["logAnalyticsConfiguration"]["customerId"]
+        log_analytics_workspace_name = _get_log_analytics_workspace_name(cmd, env_customer_id, resource_group_name)
+
     if len(fqdn) > 0:
         dry_run["fqdn"] = fqdn
     if len(log_analytics_workspace_name) > 0:
-        dry_run["log_analytics_workspace_name"] = log_analytics_workspace_name
+        dry_run["log_analytics_workspace_name"] = "{} ({})".format(log_analytics_workspace_name, new_law)
+
     return dry_run
