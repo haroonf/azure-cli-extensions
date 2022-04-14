@@ -1886,7 +1886,7 @@ def remove_dapr_component(cmd, resource_group_name, dapr_component_name, environ
 
 
 def containerapp_up(cmd,
-                    name=None,
+                    name,
                     resource_group_name=None,
                     managed_env=None,
                     location=None,
@@ -1909,6 +1909,7 @@ def containerapp_up(cmd,
     src_dir = os.getcwd()
     _src_path_escaped = "{}".format(src_dir.replace(os.sep, os.sep + os.sep))
 
+    # Variables for output json
     new_rg = "Existing"
     new_managed_env = "Existing"
     new_ca = "New"
@@ -1918,20 +1919,8 @@ def containerapp_up(cmd,
     if source is None and image is None:
         raise RequiredArgumentMissingError("You must specify either --source or --image.")
 
-    if not name:
-        if image:
-            name = image.split('/')[-1].split(':')[0].lower()
-        if source:
-            temp = source[1:] if source[0] == '.' else source  # replace first . if it exists
-            name = temp.split('/')[-1].lower()  # isolate folder name
-            if len(name) == 0:
-                name = _src_path_escaped.rsplit('\\', maxsplit=1)[-1]
-
     if source and image:
         image = image.replace(':', '')
-
-    if not location:
-        location = _get_default_containerapps_location(cmd)
 
     # Open dockerfile and check for EXPOSE
     if source:
@@ -1940,15 +1929,17 @@ def containerapp_up(cmd,
             with open(dockerfile_location, 'r') as fh:
                 for line in fh:
                     if "EXPOSE" in line:
-                        if not target_port and not ingress:
+                        if not target_port:
                             target_port = line.replace('\n', '').split(" ")[1]
-                            ingress = "external"
                             logger.warning("Adding external ingress port {} based on dockerfile expose.".format(target_port))
+                        break
         except:
             raise InvalidArgumentValueError("Cannot find specified Dockerfile. Check dockerfile name and/or path.")
 
+    ingress = "external" if target_port and not ingress else ingress
+
     custom_rg_name = None
-    # user passes non-existing rg, we create it for them
+    # User passes non-existing rg, we create it for them
     if resource_group_name:
         try:
             get_resource_group(cmd, resource_group_name)
@@ -1957,70 +1948,60 @@ def containerapp_up(cmd,
             resource_group_name = None
 
     custom_env_name = None
-    # user passes environment, check if it exists or not
+    # User passes environment, check if it exists or not
     if managed_env and not custom_rg_name:
         try:
             env_list = list_managed_environments(cmd=cmd, resource_group_name=resource_group_name)
         except:
             env_list = []  # Server error, not sure what to do here
-        env_found = False
-        for env in env_list:
-            if env["name"].lower() == managed_env.split('/')[-1].lower():
-                if(env_found):
-                    raise ValidationError("Multiple environments found on subscription with name {}. Specify resource id of environment.".format(managed_env.split('/')[-1]))
-                env_found = True
-                managed_env = env["id"]
-        if not env_found:
+
+        env_list = [x for x in env_list if x['name'].lower() == managed_env.split('/')[-1].lower()]
+        if len(env_list) == 1:
+            managed_env = env_list[0]["id"]
+            resource_group_name = managed_env.split('/')[4]
+        if len(env_list) > 1:
+            raise ValidationError("Multiple environments found on subscription with name {}. Specify resource id of the environment.".format(managed_env.split('/')[-1]))
+        if len(env_list) == 0:
             custom_env_name = managed_env.split('/')[-1]
             managed_env = None
 
-    # look for existing containerapp with same name
+    # Look for existing containerapp with same name
     if not resource_group_name and not custom_rg_name:
-        rg_found = False
         try:
             containerapps = list_containerapp(cmd)
         except:
             containerapps = []  # Server error, not sure what to do here
-        for containerapp in containerapps:
-            if containerapp["name"].lower() == name.lower():
-                if rg_found:
-                    raise ValidationError("There are multiple containerapps with name {} on the subscription. Please specify which resource group your Containerapp is in.".format(name))
-                    # could also just do resource_group_name = None here and create a new one, ask Anthony
-                    # break
-                if containerapp["id"][0] != '/':
-                    containerapp["id"] = '/' + containerapp["id"]
-                rg_found = True
-                resource_group_name = containerapp["id"].split('/')[4]
-                managed_env = containerapp["properties"]["managedEnvironmentId"]
+
+        containerapps = [x for x in containerapps if x['name'].lower() == name.lower()]
+        if len(containerapps) == 1:
+            if containerapps[0]["properties"]["managedEnvironmentId"] == managed_env:
+                resource_group_name = containerapps[0]["id"].split('/')[4]
+                managed_env = containerapps[0]["properties"]["managedEnvironmentId"]
                 if custom_env_name:
                     # raise ValidationError("You cannot update the environment of an existing containerapp. Try re-running the command without --environment.")
                     logger.warning("User passed custom environment name for an existing containerapp. Using existing environment.")
+        if len(containerapps) > 1:
+            raise ValidationError("There are multiple containerapps with name {} on the subscription. Please specify which resource group your Containerapp is in.".format(name))
 
-    # User doesn't pass environment, do they have an env on subscription?
     if not managed_env and not custom_rg_name and not custom_env_name:
         try:
             env_list = list_managed_environments(cmd=cmd, resource_group_name=resource_group_name)
-            if env_list is None or len(env_list) == 0:
-                managed_env = None  # we need to create one for them
-                resource_group_name = managed_env.split('/')[4]
-            elif len(env_list) == 1:
-                managed_env = env_list[0]["id"]
-                resource_group_name = managed_env.split('/')[4]
-            else:
-                if logs_customer_id and logs_key:
-                    managed_env = next(x for x in env_list if 'logAnalyticsConfiguration' in x['properties']['appLogsConfiguration'] and x['properties']['appLogsConfiguration']['logAnalyticsConfiguration']['customerId'] == logs_customer_id)["id"]
-                    resource_group_name = managed_env.split('/')[4]
-                elif location:
-                    # need to convert location here to lowercase conformity probably, not sure how atm
-                    managed_env = next(x for x in env_list if x['location'] == location)["id"]
-                    resource_group_name = managed_env.split('/')[4]
-                else:
-                    # there are multiple envs, none of them match anything
-                    managed_env = env_list[0]["id"]
-                    resource_group_name = managed_env.split('/')[4]
         except:
-            # They don't have any or server error
-            pass
+            env_list = []  # server error
+
+        if logs_customer_id:
+            env_list = [x for x in env_list if 'logAnalyticsConfiguration' in x['properties']['appLogsConfiguration'] and x['properties']['appLogsConfiguration']['logAnalyticsConfiguration']['customerId'] == logs_customer_id]
+        if location:
+            env_list = [x for x in env_list if x['location'] == location]
+        if len(env_list) == 0:
+            managed_env = None
+        else:
+            # check how many CA in env
+            managed_env = env_list[0]["id"]
+            resource_group_name = managed_env.split('/')[4]
+
+    if not location:
+        location = _get_default_containerapps_location(cmd)
 
     containerapp_def = None
     try:
@@ -2052,8 +2033,9 @@ def containerapp_up(cmd,
                 managed_env = env_name
     else:
         new_ca = "Existing"
-        location = containerapp_def["location"]
-        managed_env = containerapp_def["properties"]["managedEnvironmentId"] if not managed_env else managed_env
+        # location = containerapp_def["location"]
+        # This should be be defined no matter what
+        # managed_env = containerapp_def["properties"]["managedEnvironmentId"] if not managed_env else managed_env
         env_name = managed_env.split('/')[-1]
         if logs_customer_id and logs_key:
             new_law = "Existing"
@@ -2106,7 +2088,9 @@ def containerapp_up(cmd,
         image_name = image if image is not None else name
         from datetime import datetime
         now = datetime.now()
+        # Add version tag for acr image
         image_name += ":{}".format(str(now).replace(' ', '').replace('-', '').replace('.', '').replace(':', ''))
+
         image = registry_server + '/' + image_name
         if not dryrun:
             queue_acr_build(cmd, registry_rg, registry_name, image_name, source, dockerfile, quiet)
@@ -2126,7 +2110,7 @@ def containerapp_up(cmd,
         new_law = "Existing"
 
     dry_run = {
-        "location" : location,
+        "location" : containerapp_def["location"],
         "registry": registry_server,
         "image": image,
         "src_path": src_dir
@@ -2155,6 +2139,7 @@ def containerapp_up(cmd,
 
     if len(fqdn) > 0:
         dry_run["fqdn"] = fqdn
+
     if len(log_analytics_workspace_name) > 0:
         dry_run["log_analytics_workspace_name"] = "{} ({})".format(log_analytics_workspace_name, new_law)
 

@@ -259,7 +259,7 @@ def _get_log_analytics_workspace_name(cmd, logs_customer_id, resource_group_name
     for log in logs_list:
         if log.customer_id.lower() == logs_customer_id.lower():
             return log.name
-    return ResourceNotFoundError("Cannot find Log Analytics workspace with customer ID {}".format(logs_customer_id))
+    raise ResourceNotFoundError("Cannot find Log Analytics workspace with customer ID {}".format(logs_customer_id))
 
 
 def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, location, resource_group_name):
