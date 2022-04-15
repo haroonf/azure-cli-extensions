@@ -33,7 +33,7 @@ def load_arguments(self, _):
 
     # Container
     with self.argument_context('containerapp', arg_group='Container') as c:
-        c.argument('image', type=str, options_list=['--image', '-i'], help="Container image, e.g. publisher/image-name:tag.")
+        # c.argument('image', type=str, options_list=['--image', '-i'], help="Container image, e.g. publisher/image-name:tag.")
         c.argument('container_name', type=str, help="Name of the container.")
         c.argument('cpu', type=float, validator=validate_cpu, help="Required CPU in cores from 0.25 - 2.0, e.g. 0.5")
         c.argument('memory', type=str, validator=validate_memory, help="Required memory from 0.5 - 4.0 ending with \"Gi\", e.g. 1.0Gi")
@@ -81,6 +81,12 @@ def load_arguments(self, _):
     with self.argument_context('containerapp create', arg_group='Identity') as c:
         c.argument('user_assigned', nargs='+', help="Space-separated user identities to be assigned.")
         c.argument('system_assigned', help="Boolean indicating whether to assign system-assigned identity.")
+
+    with self.argument_context('containerapp create', arg_group='Container') as c:
+        c.argument('image', type=str, options_list=['--image', '-i'], help="Container image, e.g. publisher/image-name:tag.")
+
+    with self.argument_context('containerapp update', arg_group='Container') as c:
+        c.argument('image', type=str, options_list=['--image', '-i'], help="Container image, e.g. publisher/image-name:tag.")
 
     with self.argument_context('containerapp scale') as c:
         c.argument('min_replicas', type=int, help="The minimum number of replicas.")
@@ -192,14 +198,14 @@ def load_arguments(self, _):
         c.argument('name', configured_default='name', id_part=None)
         c.argument('managed_env', configured_default='managed_env')
         c.argument('registry_server', configured_default='registry_server')
-        c.argument('quiet', help="Disable logs output from ACR build when using --source.")
-        c.argument('dockerfile', help="Name of the dockerfile.")
         c.argument('dryrun', help="Show summary of the operation instead of executing it.")
+        c.argument('source', type=str, help='Local directory path to upload to Azure container registry.')
+        c.argument('image', type=str, options_list=['--image', '-i'], help="Container image, e.g. publisher/image-name:tag.")
+
+    with self.argument_context('containerapp up', arg_group='Source') as c:
+        c.argument('dockerfile', help="Name of the dockerfile.")
 
     with self.argument_context('containerapp up', arg_group='Log Analytics (Environment)') as c:
         c.argument('logs_customer_id', type=str, options_list=['--logs-workspace-id'], help='Name or resource ID of the Log Analytics workspace to send diagnostics logs to. You can use \"az monitor log-analytics workspace create\" to create one. Extra billing may apply.')
         c.argument('logs_key', type=str, options_list=['--logs-workspace-key'], help='Log Analytics workspace key to configure your Log Analytics workspace. You can use \"az monitor log-analytics workspace get-shared-keys\" to retrieve the key.')
         c.ignore('no_wait')
-
-    with self.argument_context('containerapp', arg_group='Container') as c:
-        c.argument('source', type=str, help='Local directory path to upload to Azure container registry.')

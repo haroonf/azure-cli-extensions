@@ -679,7 +679,7 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfi
     import os
     import uuid
     import tempfile
-    from azure.cli.command_modules.acr._archive_utils import upload_source_code
+    from ._archive_utils import upload_source_code
     from azure.cli.command_modules.acr._stream_utils import stream_logs
     from azure.cli.command_modules.acr._client_factory import cf_acr_registries_tasks
     from azure.cli.core.commands import LongRunningOperation
@@ -733,8 +733,8 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfi
         run_request=docker_build_request))
 
     run_id = queued_build.run_id
-    logger.warning("Queued a build with ID: %s", run_id)
-    not quiet and logger.warning("Waiting for agent...")
+    logger.info("Queued a build with ID: %s", run_id)
+    not quiet and logger.info("Waiting for agent...")
 
     from azure.cli.command_modules.acr._client_factory import (cf_acr_runs)
     from ._acr_run_polling import get_run_with_polling
@@ -743,7 +743,7 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfi
     if quiet:
         lro_poller = get_run_with_polling(cmd, client_runs, run_id, registry_name, registry_rg)
         acr = LongRunningOperation(cmd.cli_ctx)(lro_poller)
-        logger.warning("Build {}.".format(acr.status.lower()))  # pylint: disable=logging-format-interpolation
+        logger.info("Build {}.".format(acr.status.lower()))  # pylint: disable=logging-format-interpolation
         if acr.status.lower() != "succeeded":
             raise CLIInternalError("ACR build {}.".format(acr.status.lower()))
         return acr
