@@ -9,6 +9,10 @@ Release History
 * Support for log streaming with 'az containerapp log tail'
 * Replica show and list commands
 
+0.3.1
+++++++
+* Update "az containerapp github-action add" parameters
+
 0.3.0
 ++++++
 * Subgroup commands for managed identities: az containerapp identity

@@ -1126,7 +1126,8 @@ def create_or_update_github_action(cmd,
                                    branch=None,
                                    token=None,
                                    login_with_github=False,
-                                   docker_file_path=None,
+                                   image=None,
+                                   context_path=None,
                                    service_principal_client_id=None,
                                    service_principal_client_secret=None,
                                    service_principal_tenant_id=None):
@@ -1190,7 +1191,8 @@ def create_or_update_github_action(cmd,
     github_action_configuration = GitHubActionConfiguration
     github_action_configuration["registryInfo"] = registry_info
     github_action_configuration["azureCredentials"] = azure_credentials
-    github_action_configuration["dockerfilePath"] = docker_file_path
+    github_action_configuration["contextPath"] = context_path
+    github_action_configuration["image"] = image
 
     source_control_info["properties"]["githubActionConfiguration"] = github_action_configuration
 
