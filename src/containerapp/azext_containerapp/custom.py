@@ -18,6 +18,9 @@ from azure.cli.core.azclierror import (
     CLIInternalError,
     InvalidArgumentValueError)
 from azure.cli.core.commands.client_factory import get_subscription_id
+from azure.cli.core.util import open_page_in_browser, get_file_json
+from azure.cli.command_modules.appservice._create_util import check_resource_group_exists
+from azure.cli.command_modules.appservice._constants import GENERATE_RANDOM_APP_NAMES
 from knack.log import get_logger
 
 from msrestazure.tools import parse_resource_id, is_valid_resource_id
@@ -54,7 +57,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars,
                      _update_revision_env_secretrefs, get_randomized_name, _set_webapp_up_default_args, get_profile_username, create_resource_group,
                      get_resource_group, queue_acr_build, _get_acr_cred, create_new_acr, _get_log_analytics_workspace_name,
-                     _get_default_containerapps_location)
+                     _get_default_containerapps_location, safe_get)
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
                          SSH_BACKUP_ENCODING, remove_token)
 
@@ -1033,6 +1036,86 @@ def show_managed_identity(cmd, name, resource_group_name):
         return r["identity"]
 
 
+def _validate_github(repo, branch, token):
+    from github import Github, GithubException
+    from github.GithubException import BadCredentialsException
+
+    if repo:
+        g = Github(token)
+        github_repo = None
+        try:
+            github_repo = g.get_repo(repo)
+            if not github_repo.permissions.push or not github_repo.permissions.maintain:
+                raise ValidationError("The token does not have appropriate access rights to repository {}.".format(repo))
+            try:
+                github_repo.get_branch(branch=branch)
+            except GithubException as e:
+                error_msg = "Encountered GitHub error when accessing {} branch in {} repo.".format(branch, repo)
+                if e.data and e.data['message']:
+                    error_msg += " Error: {}".format(e.data['message'])
+                raise CLIInternalError(error_msg) from e
+            logger.warning('Verified GitHub repo and branch')
+        except BadCredentialsException as e:
+            raise ValidationError("Could not authenticate to the repository. Please create a Personal Access Token and use "
+                                    "the --token argument. Run 'az webapp deployment github-actions add --help' "
+                                    "for more information.") from e
+        except GithubException as e:
+            error_msg = "Encountered GitHub error when accessing {} repo".format(repo)
+            if e.data and e.data['message']:
+                error_msg += " Error: {}".format(e.data['message'])
+            raise CLIInternalError(error_msg) from e
+
+
+def _trigger_github_action(token, repo, branch, name):
+    from github import Github
+    from time import sleep
+    from ._clients import PollingAnimation
+
+    logger.warning("Triggering Github action...")
+    animation = PollingAnimation()
+    animation.tick()
+    g = Github(token)
+
+    github_repo = g.get_repo(repo)
+
+
+    workflow = None
+    while workflow is None:  # TODO timeout?
+        workflows = github_repo.get_workflows()
+        animation.flush()
+        for wf in workflows:
+            if wf.path.startswith(f".github/workflows/{name}") and wf.name == "Trigger auto deployment for containerapps":
+                workflow = wf
+                break
+            else:
+                sleep(1)
+                animation.tick()
+    print(workflow)
+    workflow.create_dispatch(ref=github_repo.get_branch(branch))
+    animation.flush()
+    logger.warning("Waiting for deployment to complete...")
+    animation.tick(); animation.flush()
+    run = workflow.get_runs()[0]
+    run_id = run.id
+    status = run.status
+    while status == "queued" or status == "in_progress":  # TODO timeout?
+        sleep(1)
+        # animation.tick()
+        status = [wf.status for wf in workflow.get_runs() if wf.id == run_id][0]
+        print(status)
+        # animation.flush()
+    if status != "completed":
+        raise ValidationError(f"Github action deployment ended with status: {status}")
+
+
+def _repo_url_to_name(repo_url):
+    repo = None
+    repo = repo_url.split('/')
+    if len(repo) >= 2:
+        repo = '/'.join(repo[-2:])
+    return repo
+
+
 def create_or_update_github_action(cmd,
                                    name,
                                    resource_group_name,
@@ -1055,45 +1138,9 @@ def create_or_update_github_action(cmd,
     elif token and login_with_github:
         logger.warning("Both token and --login-with-github flag are provided. Will use provided token")
 
-    try:
-        # Verify github repo
-        from github import Github, GithubException
-        from github.GithubException import BadCredentialsException
+    repo = _repo_url_to_name(repo_url)
 
-        repo = None
-        repo = repo_url.split('/')
-        if len(repo) >= 2:
-            repo = '/'.join(repo[-2:])
-
-        if repo:
-            g = Github(token)
-            github_repo = None
-            try:
-                github_repo = g.get_repo(repo)
-                if not github_repo.permissions.push or not github_repo.permissions.maintain:
-                    raise ValidationError("The token does not have appropriate access rights to repository {}.".format(repo))
-                try:
-                    github_repo.get_branch(branch=branch)
-                except GithubException as e:
-                    error_msg = "Encountered GitHub error when accessing {} branch in {} repo.".format(branch, repo)
-                    if e.data and e.data['message']:
-                        error_msg += " Error: {}".format(e.data['message'])
-                    raise CLIInternalError(error_msg) from e
-                logger.warning('Verified GitHub repo and branch')
-            except BadCredentialsException as e:
-                raise ValidationError("Could not authenticate to the repository. Please create a Personal Access Token and use "
-                                      "the --token argument. Run 'az webapp deployment github-actions add --help' "
-                                      "for more information.") from e
-            except GithubException as e:
-                error_msg = "Encountered GitHub error when accessing {} repo".format(repo)
-                if e.data and e.data['message']:
-                    error_msg += " Error: {}".format(e.data['message'])
-                raise CLIInternalError(error_msg) from e
-    except CLIError as clierror:
-        raise clierror
-    except Exception:
-        # If exception due to github package missing, etc just continue without validating the repo and rely on api validation
-        pass
+    _validate_github(repo, branch, token)
 
     source_control_info = None
 
@@ -1150,7 +1197,11 @@ def create_or_update_github_action(cmd,
     headers = ["x-ms-github-auxiliary={}".format(token)]
 
     try:
+        logger.warning("Creating Github action...")
         r = GitHubActionClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, github_action_envelope=source_control_info, headers=headers)
+        # _trigger_github_action(token, repo, branch, name)
+        # from ._ssh_utils import ping_container_app
+        # ping_container_app(ContainerAppClient.show(cmd, resource_group_name, name))
         return r
     except Exception as e:
         handle_raw_exception(e)
@@ -1548,7 +1599,7 @@ def set_registry(cmd, name, resource_group_name, server, username=None, password
         registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
 
         try:
-            username, password = _get_acr_cred(cmd.cli_ctx, registry_name)
+            username, password = _get_acr_cred(cmd.cli_ctx, registry_name)  # TODO this will always fail with "too many values to unpack"
         except Exception as ex:
             raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
 
@@ -1973,6 +2024,193 @@ def stream_containerapp_logs(cmd, resource_group_name, name, container=None, rev
             print(line.decode("utf-8").replace("\\u0022", "\u0022").replace("\\u001B", "\u001B").replace("\\u002B", "\u002B").replace("\\u0027", "\u0027"))
 
 
+# TODO remove bc of rune's
+def open_containerapp_in_browser(cmd, name, resource_group_name):
+    app = ContainerAppClient.show(cmd, resource_group_name, name)
+    url = safe_get(app, "properties", "configuration", "ingress", "fqdn")
+    if not url:
+        raise ValidationError("Could not find an external URL for this app")
+    if not url.startswith("http"):
+        url = f"http://{url}"
+    open_page_in_browser(url)
+
+# TODO move all these helper methods to their own file
+
+def _get_or_create_resource_group(cmd, resource_group_name):
+    location = "eastus"  # TODO revisit this choice
+    if resource_group_name:
+        if check_resource_group_exists(cmd, resource_group_name):
+            return resource_group_name
+    else:
+        from random import randint
+        resource_group_name = "container_app_group_{:04}".format(randint(0, 9999))
+    logger.warning(f"Creating resource group: {resource_group_name}")
+    create_resource_group(cmd, resource_group_name, location)
+    return resource_group_name
+
+
+def _get_or_create_name(cmd, resource_group_name, name):
+    if name:
+        return name
+
+    from random import choice
+    noun = choice(get_file_json(GENERATE_RANDOM_APP_NAMES)['APP_NAME_NOUNS'])
+    adjective = choice(get_file_json(GENERATE_RANDOM_APP_NAMES)['APP_NAME_ADJECTIVES'])
+    return f"{adjective}-{noun}"
+
+
+def _get_or_create_managed_env(cmd, resource_group_name, managed_env, app_name):
+    if managed_env:
+        return managed_env  # TODO test for existance
+    envs = ManagedEnvironmentClient.list_by_subscription(cmd)
+    if len(envs) == 0:
+        managed_env = managed_env or f"{app_name}-env"  # TODO better name?
+        logger.warning(f"Creating Container App Environment {envs[0]['name']}")
+        return create_managed_environment(cmd, managed_env, resource_group_name)["name"]
+    logger.warning(f"Using Container App Environment: {envs[0]['name']}")
+    return envs[0]["id"]  # TODO better selection logic (<5 apps in the selected sub)
+
+
+def _get_or_create_registry(cmd, name, resource_group_name, registry_url, registry_password, registry_username):
+    from azure.cli.command_modules.acr.custom import acr_list
+    from azure.mgmt.containerregistry import ContainerRegistryManagementClient
+    from azure.cli.core.commands.client_factory import get_mgmt_service_client
+
+    client = get_mgmt_service_client(cmd.cli_ctx, ContainerRegistryManagementClient).registries
+
+    if not registry_url:
+        acrs = list(acr_list(client))
+        assert len(acrs) != 0  # TODO create an ACR if registry not provided or found
+        registry_url = acrs[0].login_server
+        registry_username, registry_password, _ = _get_acr_cred(cmd.cli_ctx, acrs[0].name)
+        logger.warning(f"Using Azure Container Registry: {acrs[0].name}")
+
+    # TODO fetch ACR creds if needed
+
+    return registry_url, registry_password, registry_username
+
+
+def _create_service_principal(cmd, resource_group_name):
+    from azure.cli.command_modules.role.custom import create_service_principal_for_rbac
+
+    logger.warning("No valid service principal provided. Creating a new service principal...")
+    scopes = [f"/subscriptions/{get_subscription_id(cmd.cli_ctx)}/resourceGroups/{resource_group_name}"]
+    sp = create_service_principal_for_rbac(cmd, scopes=scopes, role="contributor")
+
+    logger.info(f"Created service principal: {sp['displayName']}")
+
+    return sp["appId"], sp["password"], sp["tenant"]
+
+
+def _get_or_create_sp(cmd, resource_group_name, name, service_principal_client_id, service_principal_client_secret, service_principal_tenant_id):
+    try:
+        GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        return service_principal_client_id, service_principal_client_secret, service_principal_tenant_id
+    except:
+        return _create_service_principal(cmd, resource_group_name)
+
+
+def is_int(s):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        pass
+    return False
+
+
+# currently assumes docker_file_name is in the root
+# should allow docker_file_name to be a full path
+def _get_dockerfile_content(repo_url, branch, docker_file_name, token):
+    from github import Github
+    g = Github(token)
+    repo = _repo_url_to_name(repo_url)
+    r = g.get_repo(repo)
+    # TODO support repos with dockerfile outside the root
+    files = r.get_contents(".", ref=branch)
+    for f in files:
+        if f.path == docker_file_name:
+            resp = requests.get(f.download_url)
+            if resp.ok and resp.content:
+                return resp.content.decode("utf-8").split("\n")
+
+
+def _get_ingress_and_target_port(ingress, target_port, dockerfile_content):
+    if not target_port and not ingress and dockerfile_content is not None:
+        for line in dockerfile_content:
+            if line:
+                line = line.upper().strip().replace("/TCP", "").replace("/UDP", "").replace("\n","")
+                if line and line[0] != "#":
+                    if "EXPOSE" in line:
+                            parts = line.split(" ")
+                            for i, p in enumerate(parts[:-1]):
+                                if "EXPOSE" in p and is_int(parts[i+1]):
+                                    target_port = parts[i+1]
+                                    ingress = "external"
+                                    logger.warning("Adding external ingress port {} based on dockerfile expose.".format(target_port))
+    return ingress, target_port
+
+
+# create an app from GH repo
+def github_up(cmd,
+              repo_url,
+              name=None,
+              resource_group_name=None,
+              managed_env=None,
+              registry_url=None,
+              registry_username=None,
+              registry_password=None,
+              branch="main",
+              token=None,
+              docker_file="Dockerfile", # TODO shouldn't this really be a path??
+              service_principal_client_id=None,
+              service_principal_client_secret=None,
+              service_principal_tenant_id=None,
+              ingress=None,
+              target_port=None):
+
+    # TODO will use up's behavior getting defaults/creating resources
+    resource_group_name = _get_or_create_resource_group(cmd, resource_group_name)
+    name = _get_or_create_name(cmd, resource_group_name, name)
+    managed_env = _get_or_create_managed_env(cmd, resource_group_name, managed_env, name)
+    registry_url, registry_password, registry_username = _get_or_create_registry(cmd, name, resource_group_name, registry_url, registry_password, registry_username)
+    service_principal_client_id, service_principal_client_secret, service_principal_tenant_id = _get_or_create_sp(cmd, resource_group_name, name, service_principal_client_id, service_principal_client_secret, service_principal_tenant_id)
+    dockerfile_content = _get_dockerfile_content(repo_url, branch, docker_file, token)
+    ingress, target_port = _get_ingress_and_target_port(ingress, target_port, dockerfile_content)
+
+
+    # TODO need to figure out which of these the GH action can set and which it can't
+    logger.warning(f"Creating Container App {name} in resource group {resource_group_name}")
+    create_containerapp(cmd=cmd,
+                        name=name,
+                        resource_group_name=resource_group_name,
+                        image=None,# image,
+                        managed_env=managed_env,
+                        target_port=target_port,#target_port,
+                        registry_server=None,#registry_server,
+                        registry_pass=None,#registry_pass,
+                        registry_user=None,#registry_user,
+                        env_vars=None,#env_vars,
+                        ingress=ingress,#ingress,
+                        disable_warnings=True)
+
+    create_or_update_github_action(cmd=cmd,
+                                   name=name,
+                                   resource_group_name=resource_group_name,
+                                   repo_url=repo_url,
+                                   registry_url=registry_url,
+                                   registry_username=registry_username,
+                                   registry_password=registry_password,
+                                   branch=branch,
+                                   token=token,
+                                   login_with_github=not token,
+                                   docker_file_path=".",  # TODO support different dockerfile locations
+                                   service_principal_client_id=service_principal_client_id,
+                                   service_principal_client_secret=service_principal_client_secret,
+                                   service_principal_tenant_id=service_principal_tenant_id)
+    # TODO need to trigger the github action
+
+
 def containerapp_up(cmd,
                     name=None,
                     resource_group_name=None,
@@ -2025,7 +2263,7 @@ def containerapp_up(cmd,
         dockerfile_location = source + '/' + dockerfile
         with open(dockerfile_location, 'r') as fh:
             for line in fh:
-                if "EXPOSE" in line:
+                if "EXPOSE" in line:  # TODO this will fail on some dockerfile formats
                     if not target_port and not ingress:
                         target_port = line.replace('\n', '').split(" ")[1]
                         ingress = "external"
@@ -2099,7 +2337,7 @@ def containerapp_up(cmd,
             parsed = urlparse(image)
             registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
         try:
-            registry_user, registry_pass = _get_acr_cred(cmd.cli_ctx, registry_name)
+            registry_user, registry_pass = _get_acr_cred(cmd.cli_ctx, registry_name)  # TODO this will always fail with "too many values to unpack"
         except Exception as ex:
             raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
 
