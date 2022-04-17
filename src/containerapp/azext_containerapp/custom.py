@@ -1066,12 +1066,12 @@ def _validate_github(repo, branch, token):
             raise CLIInternalError(error_msg) from e
 
 
-def _trigger_github_action(token, repo, branch, name):
+def _await_github_action(token, repo, branch, name):
     from github import Github
     from time import sleep
     from ._clients import PollingAnimation
 
-    logger.warning("Triggering Github action...")
+
     animation = PollingAnimation()
     animation.tick()
     g = Github(token)
@@ -1087,22 +1087,23 @@ def _trigger_github_action(token, repo, branch, name):
             if wf.path.startswith(f".github/workflows/{name}") and wf.name == "Trigger auto deployment for containerapps":
                 workflow = wf
                 break
-            else:
-                sleep(1)
-                animation.tick()
-    print(workflow)
-    workflow.create_dispatch(ref=github_repo.get_branch(branch))
+        sleep(1)
+        animation.tick()
+
+    # print(workflow)
+    # workflow.create_dispatch(ref=github_repo.get_branch(branch))
     animation.flush()
-    logger.warning("Waiting for deployment to complete...")
     animation.tick(); animation.flush()
     run = workflow.get_runs()[0]
+    logger.warning(f"Github action run: https://github.com/{repo}/actions/runs/{run.id}")
+    logger.warning("Waiting for deployment to complete...")
     run_id = run.id
     status = run.status
     while status == "queued" or status == "in_progress":  # TODO timeout?
-        sleep(1)
+        sleep(3)
         # animation.tick()
         status = [wf.status for wf in workflow.get_runs() if wf.id == run_id][0]
-        print(status)
+        # print(status)
         # animation.flush()
     if status != "completed":
         raise ValidationError(f"Github action deployment ended with status: {status}")
@@ -1140,6 +1141,7 @@ def create_or_update_github_action(cmd,
         logger.warning("Both token and --login-with-github flag are provided. Will use provided token")
 
     repo = _repo_url_to_name(repo_url)
+    repo_url = f"https://github.com/{repo}"  # allow specifying repo as <user>/<repo> without the full github url
 
     _validate_github(repo, branch, token)
 
@@ -1201,7 +1203,7 @@ def create_or_update_github_action(cmd,
     try:
         logger.warning("Creating Github action...")
         r = GitHubActionClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, github_action_envelope=source_control_info, headers=headers)
-        # _trigger_github_action(token, repo, branch, name)
+        _await_github_action(token, repo, branch, name)
         # from ._ssh_utils import ping_container_app
         # ping_container_app(ContainerAppClient.show(cmd, resource_group_name, name))
         return r
@@ -2058,19 +2060,22 @@ def _get_or_create_name(cmd, resource_group_name, name):
     from random import choice
     noun = choice(get_file_json(GENERATE_RANDOM_APP_NAMES)['APP_NAME_NOUNS'])
     adjective = choice(get_file_json(GENERATE_RANDOM_APP_NAMES)['APP_NAME_ADJECTIVES'])
-    return f"{adjective}-{noun}"
+    return f"{adjective}{noun}"
 
 
 def _get_or_create_managed_env(cmd, resource_group_name, managed_env, app_name):
     if managed_env:
-        return managed_env  # TODO test for existance
-    envs = ManagedEnvironmentClient.list_by_subscription(cmd)
+        if is_valid_resource_id(managed_env):
+            parsed = parse_resource_id(managed_env)
+            return parsed["name"], parsed["resource_group"]
+        return managed_env, resource_group_name # TODO test for existance
+    envs = [e for e in ManagedEnvironmentClient.list_by_subscription(cmd) if e["location"] != "northcentralusstage"]  # TODO remove
     if len(envs) == 0:
         managed_env = managed_env or f"{app_name}-env"  # TODO better name?
         logger.warning(f"Creating Container App Environment {envs[0]['name']}")
-        return create_managed_environment(cmd, managed_env, resource_group_name)["name"]
+        return create_managed_environment(cmd, managed_env, resource_group_name)["name"], resource_group_name
     logger.warning(f"Using Container App Environment: {envs[0]['name']}")
-    return envs[0]["id"]  # TODO better selection logic (<5 apps in the selected sub)
+    return envs[0]["id"], parse_resource_id(envs[0]["id"])["resource_group"]  # TODO better selection logic (<5 apps in the selected sub)
 
 
 def _get_or_create_registry(cmd, name, resource_group_name, registry_url, registry_password, registry_username):
@@ -2092,11 +2097,13 @@ def _get_or_create_registry(cmd, name, resource_group_name, registry_url, regist
     return registry_url, registry_password, registry_username
 
 
-def _create_service_principal(cmd, resource_group_name):
+def _create_service_principal(cmd, resource_group_name, env_resource_group_name):
     from azure.cli.command_modules.role.custom import create_service_principal_for_rbac
 
     logger.warning("No valid service principal provided. Creating a new service principal...")
     scopes = [f"/subscriptions/{get_subscription_id(cmd.cli_ctx)}/resourceGroups/{resource_group_name}"]
+    if env_resource_group_name is not None and env_resource_group_name != resource_group_name:
+        scopes.append(f"/subscriptions/{get_subscription_id(cmd.cli_ctx)}/resourceGroups/{env_resource_group_name}")
     sp = create_service_principal_for_rbac(cmd, scopes=scopes, role="contributor")
 
     logger.info(f"Created service principal: {sp['displayName']}")
@@ -2104,12 +2111,27 @@ def _create_service_principal(cmd, resource_group_name):
     return sp["appId"], sp["password"], sp["tenant"]
 
 
-def _get_or_create_sp(cmd, resource_group_name, name, service_principal_client_id, service_principal_client_secret, service_principal_tenant_id):
+def _get_or_create_sp(cmd, resource_group_name, env_resource_group_name, name, service_principal_client_id, service_principal_client_secret, service_principal_tenant_id):
     try:
         GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
         return service_principal_client_id, service_principal_client_secret, service_principal_tenant_id
     except:
-        return _create_service_principal(cmd, resource_group_name)
+        # from azure.cli.command_modules.role.custom import list_sps
+
+        # service_principals = list_sps(cmd, show_mine=True)
+        service_principal = None
+        # for sp in service_principals:
+        #     if sp.oauth2_permissions:
+        #         for p in sp.oauth2_permissions:
+        #             if p.admin_consent_display_name and p.admin_consent_display_name == f"Access {resource_group_name}":
+        #                 service_principal = sp
+        #                 break
+        #     if service_principal:
+        #         break
+
+        if not service_principal:
+            return _create_service_principal(cmd, resource_group_name, env_resource_group_name)
+        # return sp.app_id,
 
 
 def is_int(s):
@@ -2121,9 +2143,8 @@ def is_int(s):
     return False
 
 
-# currently assumes docker_file_name is in the root
-# should allow docker_file_name to be a full path
-def _get_dockerfile_content(repo_url, branch, docker_file_name, token):
+# currently assumes docker_file_name is in the root and named "Dockerfile"
+def _get_dockerfile_content(repo_url, branch, token):
     from github import Github
     g = Github(token)
     repo = _repo_url_to_name(repo_url)
@@ -2131,7 +2152,7 @@ def _get_dockerfile_content(repo_url, branch, docker_file_name, token):
     # TODO support repos with dockerfile outside the root
     files = r.get_contents(".", ref=branch)
     for f in files:
-        if f.path == docker_file_name:
+        if f.path == "Dockerfile":
             resp = requests.get(f.download_url)
             if resp.ok and resp.content:
                 return resp.content.decode("utf-8").split("\n")
@@ -2155,7 +2176,7 @@ def _get_ingress_and_target_port(ingress, target_port, dockerfile_content):
 
 # create an app from GH repo
 def github_up(cmd,
-              repo_url,
+              repo,
               name=None,
               resource_group_name=None,
               managed_env=None,
@@ -2164,26 +2185,31 @@ def github_up(cmd,
               registry_password=None,
               branch="main",
               token=None,
-              docker_file="Dockerfile", # TODO shouldn't this really be a path??
+              context_path=None, # TODO shouldn't this really be a path??
+              image=None,
               service_principal_client_id=None,
               service_principal_client_secret=None,
               service_principal_tenant_id=None,
               ingress=None,
               target_port=None):
 
+    if not token:
+        scopes = ["admin:repo_hook", "repo", "workflow"]
+        token = get_github_access_token(cmd, scopes)
+
     # TODO will use up's behavior getting defaults/creating resources
     resource_group_name = _get_or_create_resource_group(cmd, resource_group_name)
     name = _get_or_create_name(cmd, resource_group_name, name)
-    managed_env = _get_or_create_managed_env(cmd, resource_group_name, managed_env, name)
+    managed_env, env_resource_group_name = _get_or_create_managed_env(cmd, resource_group_name, managed_env, name)
     registry_url, registry_password, registry_username = _get_or_create_registry(cmd, name, resource_group_name, registry_url, registry_password, registry_username)
-    service_principal_client_id, service_principal_client_secret, service_principal_tenant_id = _get_or_create_sp(cmd, resource_group_name, name, service_principal_client_id, service_principal_client_secret, service_principal_tenant_id)
-    dockerfile_content = _get_dockerfile_content(repo_url, branch, docker_file, token)
+    service_principal_client_id, service_principal_client_secret, service_principal_tenant_id = _get_or_create_sp(cmd, resource_group_name, env_resource_group_name, name, service_principal_client_id, service_principal_client_secret, service_principal_tenant_id)
+    dockerfile_content = _get_dockerfile_content(repo, branch, token)
     ingress, target_port = _get_ingress_and_target_port(ingress, target_port, dockerfile_content)
 
 
     # TODO need to figure out which of these the GH action can set and which it can't
     logger.warning(f"Creating Container App {name} in resource group {resource_group_name}")
-    create_containerapp(cmd=cmd,
+    app = create_containerapp(cmd=cmd,
                         name=name,
                         resource_group_name=resource_group_name,
                         image=None,# image,
@@ -2194,23 +2220,37 @@ def github_up(cmd,
                         registry_user=None,#registry_user,
                         env_vars=None,#env_vars,
                         ingress=ingress,#ingress,
-                        disable_warnings=True)
+                        disable_warnings=True,
+                        min_replicas=1) # TODO remove
 
-    create_or_update_github_action(cmd=cmd,
+    gh_action = create_or_update_github_action(cmd=cmd,
                                    name=name,
                                    resource_group_name=resource_group_name,
-                                   repo_url=repo_url,
+                                   repo_url=repo,
                                    registry_url=registry_url,
                                    registry_username=registry_username,
                                    registry_password=registry_password,
                                    branch=branch,
                                    token=token,
-                                   login_with_github=not token,
-                                   docker_file_path=".",  # TODO support different dockerfile locations
+                                   login_with_github=False,
                                    service_principal_client_id=service_principal_client_id,
                                    service_principal_client_secret=service_principal_client_secret,
-                                   service_principal_tenant_id=service_principal_tenant_id)
-    # TODO need to trigger the github action
+                                   service_principal_tenant_id=service_principal_tenant_id,
+                                   image=image,
+                                   context_path=context_path)
+
+    dry_run = {
+        "name": name,
+        "resourceGroup": resource_group_name,
+        "environment": managed_env,
+        "fqdn": f'https://{safe_get(app, "properties", "configuration", "ingress", "fqdn")}',
+        "location" : app["location"],
+        "registry": registry_url,
+        "image": gh_action["properties"]["githubActionConfiguration"]["image"],
+        "githubAction": gh_action
+    }
+
+    return dry_run
 
 
 def containerapp_up(cmd,

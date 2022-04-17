@@ -31,6 +31,19 @@ def load_arguments(self, _):
         c.argument('managed_env', validator=validate_managed_env_name_or_id, options_list=['--environment'], help="Name or resource ID of the container app's environment.")
         c.argument('yaml', type=file_type, help='Path to a .yaml file with the configuration of a container app. All other parameters will be ignored. For an example, see  https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples')
 
+    with self.argument_context('containerapp github up') as c:
+        c.argument('repo', help='The GitHub repository to which the workflow file will be added. In the format: https://github.com/<owner>/<repository-name> or <owner>/<repository-name>')
+        c.argument('token', help='A Personal Access Token with write access to the specified repository. For more information: https://help.github.com/en/github/authenticating-to-github/creating-a-personal-access-token-for-the-command-line')
+        c.argument('branch', options_list=['--branch', '-b'], help='The branch of the GitHub repo.')
+        c.argument('registry_url', help='The container registry server, e.g. myregistry.azurecr.io')
+        c.argument('registry_username', help='The username of the registry. If using Azure Container Registry, we will try to infer the credentials if not supplied')
+        c.argument('registry_password', help='The password of the registry. If using Azure Container Registry, we will try to infer the credentials if not supplied')
+        c.argument('context_path', help='Path in the repo from which to run the docker build. Defaults to "./"')
+        c.argument('service_principal_client_id', help='The service principal client ID. ')
+        c.argument('service_principal_client_secret', help='The service principal client secret.')
+        c.argument('service_principal_tenant_id', help='The service principal tenant ID.')
+        c.argument('image', type=str, options_list=['--image', '-i'], help="Container image name that the Github Action should use. Defaults to the Container App name.")
+
     with self.argument_context('containerapp exec') as c:
         c.argument('container', help="The name of the container to ssh into")
         c.argument('replica', help="The name of the replica (pod) to ssh into. List replicas with 'az containerapp replica list'. A replica may not exist if there is not traffic to your app.")
