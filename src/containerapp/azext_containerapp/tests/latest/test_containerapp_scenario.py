@@ -21,7 +21,7 @@ TEST_DIR = os.path.abspath(os.path.join(os.path.abspath(__file__), '..'))
 @live_only()
 class ContainerappScenarioTest(ScenarioTest):
     @AllowLargeResponse(8192)
-    @ResourceGroupPreparer(location="centraluseuap")
+    @ResourceGroupPreparer(location="eastus2")
     def test_containerapp_e2e(self, resource_group):
         env_name = self.create_random_name(prefix='containerapp-e2e-env', length=24)
 
