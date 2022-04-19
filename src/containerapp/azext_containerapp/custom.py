@@ -59,9 +59,9 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      get_resource_group, queue_acr_build, _get_acr_cred, create_new_acr, _get_log_analytics_workspace_name,
                      _get_default_containerapps_location, safe_get, is_int, create_service_principal_for_rbac,
                      _get_default_containerapps_location)
+
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
                          SSH_BACKUP_ENCODING, remove_token)
-
 
 logger = get_logger(__name__)
 
