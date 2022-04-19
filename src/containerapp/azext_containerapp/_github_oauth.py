@@ -6,6 +6,7 @@
 
 from azure.cli.core.azclierror import (ValidationError, CLIInternalError, UnclassifiedUserFault)
 from knack.log import get_logger
+from azure.cli.core.util import open_page_in_browser
 
 logger = get_logger(__name__)
 
@@ -52,6 +53,7 @@ def get_github_access_token(cmd, scope_list=None):  # pylint: disable=unused-arg
         expires_in_seconds = int(parsed_response['expires_in'][0])
         logger.warning('Please navigate to %s and enter the user code %s to activate and '
                        'retrieve your github personal access token', verification_uri, user_code)
+        open_page_in_browser("https://github.com/login/device")
 
         timeout = time.time() + expires_in_seconds
         logger.warning("Waiting up to '%s' minutes for activation", str(expires_in_seconds // 60))

@@ -57,7 +57,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars,
                      _update_revision_env_secretrefs, get_randomized_name, _set_webapp_up_default_args, get_profile_username, create_resource_group,
                      get_resource_group, queue_acr_build, _get_acr_cred, create_new_acr, _get_log_analytics_workspace_name,
-                     _get_default_containerapps_location, safe_get)
+                     _get_default_containerapps_location, safe_get, is_int, create_service_principal_for_rbac)
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
                          SSH_BACKUP_ENCODING, remove_token)
 
@@ -1084,7 +1084,7 @@ def _await_github_action(token, repo, branch, name):
         workflows = github_repo.get_workflows()
         animation.flush()
         for wf in workflows:
-            if wf.path.startswith(f".github/workflows/{name}") and wf.name == "Trigger auto deployment for containerapps":
+            if wf.path.startswith(f".github/workflows/{name}") and "Trigger auto deployment for containerapp" in wf.name:
                 workflow = wf
                 break
         sleep(1)
@@ -2085,7 +2085,7 @@ def _get_or_create_registry(cmd, name, resource_group_name, registry_url, regist
 
     client = get_mgmt_service_client(cmd.cli_ctx, ContainerRegistryManagementClient).registries
 
-    if not registry_url:
+    if not registry_url and not registry_password and not registry_username:
         acrs = list(acr_list(client))
         assert len(acrs) != 0  # TODO create an ACR if registry not provided or found
         registry_url = acrs[0].login_server
@@ -2098,8 +2098,6 @@ def _get_or_create_registry(cmd, name, resource_group_name, registry_url, regist
 
 
 def _create_service_principal(cmd, resource_group_name, env_resource_group_name):
-    from azure.cli.command_modules.role.custom import create_service_principal_for_rbac
-
     logger.warning("No valid service principal provided. Creating a new service principal...")
     scopes = [f"/subscriptions/{get_subscription_id(cmd.cli_ctx)}/resourceGroups/{resource_group_name}"]
     if env_resource_group_name is not None and env_resource_group_name != resource_group_name:
@@ -2111,36 +2109,20 @@ def _create_service_principal(cmd, resource_group_name, env_resource_group_name)
     return sp["appId"], sp["password"], sp["tenant"]
 
 
-def _get_or_create_sp(cmd, resource_group_name, env_resource_group_name, name, service_principal_client_id, service_principal_client_secret, service_principal_tenant_id):
+def _get_or_create_sp(cmd, resource_group_name, env_resource_group_name, name, service_principal_client_id,
+                      service_principal_client_secret, service_principal_tenant_id):
     try:
         GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
         return service_principal_client_id, service_principal_client_secret, service_principal_tenant_id
     except:
-        # from azure.cli.command_modules.role.custom import list_sps
-
-        # service_principals = list_sps(cmd, show_mine=True)
         service_principal = None
-        # for sp in service_principals:
-        #     if sp.oauth2_permissions:
-        #         for p in sp.oauth2_permissions:
-        #             if p.admin_consent_display_name and p.admin_consent_display_name == f"Access {resource_group_name}":
-        #                 service_principal = sp
-        #                 break
-        #     if service_principal:
-        #         break
+
+        # TODO if possible, search for SPs with the right credentials
+        # I haven't found a way to get SP creds + secrets yet from the API
 
         if not service_principal:
             return _create_service_principal(cmd, resource_group_name, env_resource_group_name)
-        # return sp.app_id,
-
-
-def is_int(s):
-    try:
-        int(s)
-        return True
-    except ValueError:
-        pass
-    return False
+        # return client_id, secret, tenant_id
 
 
 # currently assumes docker_file_name is in the root and named "Dockerfile"
@@ -2158,7 +2140,7 @@ def _get_dockerfile_content(repo_url, branch, token):
                 return resp.content.decode("utf-8").split("\n")
 
 
-def _get_ingress_and_target_port(ingress, target_port, dockerfile_content):
+def _get_ingress_and_target_port(ingress, target_port, dockerfile_content: 'list[str]'):
     if not target_port and not ingress and dockerfile_content is not None:
         for line in dockerfile_content:
             if line:
@@ -2206,22 +2188,20 @@ def github_up(cmd,
     dockerfile_content = _get_dockerfile_content(repo, branch, token)
     ingress, target_port = _get_ingress_and_target_port(ingress, target_port, dockerfile_content)
 
-
-    # TODO need to figure out which of these the GH action can set and which it can't
     logger.warning(f"Creating Container App {name} in resource group {resource_group_name}")
     app = create_containerapp(cmd=cmd,
                         name=name,
                         resource_group_name=resource_group_name,
-                        image=None,# image,
+                        image=None,  # GH action handles setting this property
                         managed_env=managed_env,
-                        target_port=target_port,#target_port,
-                        registry_server=None,#registry_server,
-                        registry_pass=None,#registry_pass,
-                        registry_user=None,#registry_user,
-                        env_vars=None,#env_vars,
-                        ingress=ingress,#ingress,
+                        target_port=target_port,
+                        registry_server=None,  # GH action handles setting this property
+                        registry_pass=None,  # GH action handles setting this property
+                        registry_user=None,  # GH action handles setting this property
+                        env_vars=None,  # TODO
+                        ingress=ingress,
                         disable_warnings=True,
-                        min_replicas=1) # TODO remove
+                        min_replicas=1) # TODO
 
     gh_action = create_or_update_github_action(cmd=cmd,
                                    name=name,
