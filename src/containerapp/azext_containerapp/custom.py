@@ -1068,11 +1068,13 @@ def _validate_github(repo, branch, token):
             raise CLIInternalError(error_msg) from e
 
 
-def _await_github_action(token, repo, branch, name):
+def _await_github_action(cmd, token, repo, branch, name, resource_group_name, timeout=300):
     from github import Github
     from time import sleep
     from ._clients import PollingAnimation
+    from datetime import datetime
 
+    start = datetime.utcnow()
 
     animation = PollingAnimation()
     animation.tick()
@@ -1082,18 +1084,23 @@ def _await_github_action(token, repo, branch, name):
 
 
     workflow = None
-    while workflow is None:  # TODO timeout?
+    while workflow is None:
         workflows = github_repo.get_workflows()
         animation.flush()
         for wf in workflows:
             if wf.path.startswith(f".github/workflows/{name}") and "Trigger auto deployment for containerapp" in wf.name:
                 workflow = wf
                 break
+
+        gh_action_status = safe_get(show_github_action(cmd, name, resource_group_name), "properties", "operationState")
+        if gh_action_status == "Failed":
+            raise CLIInternalError("The Github Action creation failed.")
         sleep(1)
         animation.tick()
 
-    # print(workflow)
-    # workflow.create_dispatch(ref=github_repo.get_branch(branch))
+        if (datetime.utcnow() - start).seconds >= timeout:
+            raise CLIInternalError("Timed out while waiting for the Github action to start.")
+
     animation.flush()
     animation.tick(); animation.flush()
     run = workflow.get_runs()[0]
@@ -1101,12 +1108,14 @@ def _await_github_action(token, repo, branch, name):
     logger.warning("Waiting for deployment to complete...")
     run_id = run.id
     status = run.status
-    while status == "queued" or status == "in_progress":  # TODO timeout?
+    while status == "queued" or status == "in_progress":
         sleep(3)
-        # animation.tick()
+        animation.tick()
         status = [wf.status for wf in workflow.get_runs() if wf.id == run_id][0]
-        # print(status)
-        # animation.flush()
+        animation.flush()
+        if (datetime.utcnow() - start).seconds >= timeout:
+            raise CLIInternalError("Timed out while waiting for the Github action to start.")
+
     if status != "completed":
         raise ValidationError(f"Github action deployment ended with status: {status}")
 
@@ -1133,7 +1142,8 @@ def create_or_update_github_action(cmd,
                                    context_path=None,
                                    service_principal_client_id=None,
                                    service_principal_client_secret=None,
-                                   service_principal_tenant_id=None):
+                                   service_principal_tenant_id=None,
+                                   no_wait=False):
     if not token and not login_with_github:
         raise_missing_token_suggestion()
     elif not token:
@@ -1204,10 +1214,9 @@ def create_or_update_github_action(cmd,
 
     try:
         logger.warning("Creating Github action...")
-        r = GitHubActionClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, github_action_envelope=source_control_info, headers=headers)
-        _await_github_action(token, repo, branch, name)
-        # from ._ssh_utils import ping_container_app
-        # ping_container_app(ContainerAppClient.show(cmd, resource_group_name, name))
+        r = GitHubActionClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, github_action_envelope=source_control_info, headers=headers, no_wait=no_wait)
+        if not no_wait:
+            _await_github_action(cmd, token, repo, branch, name, resource_group_name)
         return r
     except Exception as e:
         handle_raw_exception(e)
@@ -1605,7 +1614,7 @@ def set_registry(cmd, name, resource_group_name, server, username=None, password
         registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
 
         try:
-            username, password = _get_acr_cred(cmd.cli_ctx, registry_name)  # TODO this will always fail with "too many values to unpack"
+            username, password, _ = _get_acr_cred(cmd.cli_ctx, registry_name)
         except Exception as ex:
             raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
 
@@ -2030,74 +2039,17 @@ def stream_containerapp_logs(cmd, resource_group_name, name, container=None, rev
             print(line.decode("utf-8").replace("\\u0022", "\u0022").replace("\\u001B", "\u001B").replace("\\u002B", "\u002B").replace("\\u0027", "\u0027"))
 
 
-# TODO remove bc of rune's
 def open_containerapp_in_browser(cmd, name, resource_group_name):
     app = ContainerAppClient.show(cmd, resource_group_name, name)
     url = safe_get(app, "properties", "configuration", "ingress", "fqdn")
     if not url:
-        raise ValidationError("Could not find an external URL for this app")
+        raise ValidationError("Could not open in browser: no public URL for this app")
     if not url.startswith("http"):
         url = f"http://{url}"
     open_page_in_browser(url)
 
-# TODO move all these helper methods to their own file
 
-def _get_or_create_resource_group(cmd, resource_group_name):
-    location = "eastus"  # TODO revisit this choice
-    if resource_group_name:
-        if check_resource_group_exists(cmd, resource_group_name):
-            return resource_group_name
-    else:
-        from random import randint
-        resource_group_name = "container_app_group_{:04}".format(randint(0, 9999))
-    logger.warning(f"Creating resource group: {resource_group_name}")
-    create_resource_group(cmd, resource_group_name, location)
-    return resource_group_name
-
-
-def _get_or_create_name(cmd, resource_group_name, name):
-    if name:
-        return name
-
-    from random import choice
-    noun = choice(get_file_json(GENERATE_RANDOM_APP_NAMES)['APP_NAME_NOUNS'])
-    adjective = choice(get_file_json(GENERATE_RANDOM_APP_NAMES)['APP_NAME_ADJECTIVES'])
-    return f"{adjective}{noun}"
-
-
-def _get_or_create_managed_env(cmd, resource_group_name, managed_env, app_name):
-    if managed_env:
-        if is_valid_resource_id(managed_env):
-            parsed = parse_resource_id(managed_env)
-            return parsed["name"], parsed["resource_group"]
-        return managed_env, resource_group_name # TODO test for existance
-    envs = [e for e in ManagedEnvironmentClient.list_by_subscription(cmd) if e["location"] != "northcentralusstage"]  # TODO remove
-    if len(envs) == 0:
-        managed_env = managed_env or f"{app_name}-env"  # TODO better name?
-        logger.warning(f"Creating Container App Environment {envs[0]['name']}")
-        return create_managed_environment(cmd, managed_env, resource_group_name)["name"], resource_group_name
-    logger.warning(f"Using Container App Environment: {envs[0]['name']}")
-    return envs[0]["id"], parse_resource_id(envs[0]["id"])["resource_group"]  # TODO better selection logic (<5 apps in the selected sub)
-
-
-def _get_or_create_registry(cmd, name, resource_group_name, registry_url, registry_password, registry_username):
-    from azure.cli.command_modules.acr.custom import acr_list
-    from azure.mgmt.containerregistry import ContainerRegistryManagementClient
-    from azure.cli.core.commands.client_factory import get_mgmt_service_client
-
-    client = get_mgmt_service_client(cmd.cli_ctx, ContainerRegistryManagementClient).registries
-
-    if not registry_url and not registry_password and not registry_username:
-        acrs = list(acr_list(client))
-        assert len(acrs) != 0  # TODO create an ACR if registry not provided or found
-        registry_url = acrs[0].login_server
-        registry_username, registry_password, _ = _get_acr_cred(cmd.cli_ctx, acrs[0].name)
-        logger.warning(f"Using Azure Container Registry: {acrs[0].name}")
-
-    # TODO fetch ACR creds if needed
-
-    return registry_url, registry_password, registry_username
-
+# up utils -- TODO move to their own file
 
 def _create_service_principal(cmd, resource_group_name, env_resource_group_name):
     logger.warning("No valid service principal provided. Creating a new service principal...")
@@ -2127,16 +2079,14 @@ def _get_or_create_sp(cmd, resource_group_name, env_resource_group_name, name, s
         # return client_id, secret, tenant_id
 
 
-# currently assumes docker_file_name is in the root and named "Dockerfile"
-def _get_dockerfile_content_from_repo(repo_url, branch, token):
+def _get_dockerfile_content_from_repo(repo_url, branch, token, context_path, dockerfile):
     from github import Github
     g = Github(token)
     repo = _repo_url_to_name(repo_url)
     r = g.get_repo(repo)
-    # TODO support repos with dockerfile outside the root
-    files = r.get_contents(".", ref=branch)
+    files = r.get_contents(context_path, ref=branch)
     for f in files:
-        if f.path == "Dockerfile":
+        if f.path == dockerfile or f.path.endswith(f"/{dockerfile}"):
             resp = requests.get(f.download_url)
             if resp.ok and resp.content:
                 return resp.content.decode("utf-8").split("\n")
@@ -2159,84 +2109,6 @@ def _get_ingress_and_target_port(ingress, target_port, dockerfile_content: 'list
     return ingress, target_port
 
 
-# create an app from GH repo
-def github_up(cmd,
-              repo,
-              name=None,
-              resource_group_name=None,
-              managed_env=None,
-              registry_url=None,
-              registry_username=None,
-              registry_password=None,
-              branch="main",
-              token=None,
-              context_path=None,
-              image=None,
-              service_principal_client_id=None,
-              service_principal_client_secret=None,
-              service_principal_tenant_id=None,
-              ingress=None,
-              target_port=None):
-
-    if not token:
-        scopes = ["admin:repo_hook", "repo", "workflow"]
-        token = get_github_access_token(cmd, scopes)
-
-    # TODO will use up's behavior getting defaults/creating resources
-    resource_group_name = _get_or_create_resource_group(cmd, resource_group_name)
-    name = _get_or_create_name(cmd, resource_group_name, name)
-    managed_env, env_resource_group_name = _get_or_create_managed_env(cmd, resource_group_name, managed_env, name)
-    registry_url, registry_password, registry_username = _get_or_create_registry(cmd, name, resource_group_name, registry_url, registry_password, registry_username)
-    service_principal_client_id, service_principal_client_secret, service_principal_tenant_id = _get_or_create_sp(cmd, resource_group_name, env_resource_group_name, name, service_principal_client_id, service_principal_client_secret, service_principal_tenant_id)
-    dockerfile_content = _get_dockerfile_content_from_repo(repo, branch, token)
-    ingress, target_port = _get_ingress_and_target_port(ingress, target_port, dockerfile_content)
-
-    logger.warning(f"Creating Container App {name} in resource group {resource_group_name}")
-    app = create_containerapp(cmd=cmd,
-                        name=name,
-                        resource_group_name=resource_group_name,
-                        image=None,  # GH action handles setting this property
-                        managed_env=managed_env,
-                        target_port=target_port,
-                        registry_server=None,  # GH action handles setting this property
-                        registry_pass=None,  # GH action handles setting this property
-                        registry_user=None,  # GH action handles setting this property
-                        env_vars=None,  # TODO
-                        ingress=ingress,
-                        disable_warnings=True,
-                        min_replicas=1) # TODO
-
-    gh_action = create_or_update_github_action(cmd=cmd,
-                                   name=name,
-                                   resource_group_name=resource_group_name,
-                                   repo_url=repo,
-                                   registry_url=registry_url,
-                                   registry_username=registry_username,
-                                   registry_password=registry_password,
-                                   branch=branch,
-                                   token=token,
-                                   login_with_github=False,
-                                   service_principal_client_id=service_principal_client_id,
-                                   service_principal_client_secret=service_principal_client_secret,
-                                   service_principal_tenant_id=service_principal_tenant_id,
-                                   image=image,
-                                   context_path=context_path)
-
-    dry_run = {
-        "name": name,
-        "resourceGroup": resource_group_name,
-        "environment": managed_env,
-        "fqdn": f'https://{safe_get(app, "properties", "configuration", "ingress", "fqdn")}',
-        "location" : app["location"],
-        "registry": registry_url,
-        "image": gh_action["properties"]["githubActionConfiguration"]["image"],
-        "githubAction": gh_action
-    }
-
-    return dry_run
-
-# up utils -- TODO move to their own file
-
 def _validate_up_args(source, image, repo):
     if not source and not image and not repo:
         raise RequiredArgumentMissingError("You must specify either --source, --repo, or --image")
@@ -2244,8 +2116,8 @@ def _validate_up_args(source, image, repo):
         raise MutuallyExclusiveArgumentError("Cannot use --source and --repo togther. "
                                              "Can either deploy from a local directory or a Github repo")
 
-def _reformat_image(source, image):
-    if source and image:
+def _reformat_image(source, repo, image):
+    if source and (image or repo):
         image = image.split('/')[-1]  # if link is given
         image = image.replace(':', '')
     return image
@@ -2268,226 +2140,248 @@ def _get_dockerfile_content(repo, branch, token, source, dockerfile):
     return _get_dockerfile_content_from_repo(repo, branch, token)
 
 
-# User passes RG, check if it exists or not
-def _get_resource_group(cmd, resource_group_name, custom_rg_name=None):
-    # User passes non-existing rg, we create it for them
-    if resource_group_name:
-        try:
-            get_resource_group(cmd, resource_group_name)
-        except:
-            custom_rg_name = resource_group_name
-            resource_group_name = None
-    return resource_group_name, custom_rg_name
-
-
-# User passes environment, check if it exists or not
-def _get_managed_env(cmd, resource_group_name, custom_rg_name, managed_env, custom_env_name=None):
-    if managed_env and not custom_rg_name:
-        try:
-            env_list = list_managed_environments(cmd=cmd, resource_group_name=resource_group_name)
-        except:
-            env_list = []  # Server error, not sure what to do here
-
-        managed_env_name = managed_env
-        if is_valid_resource_id(managed_env):
-            managed_env_name = parse_resource_id(managed_env)["name"].lower()
-        env_list = [x for x in env_list if x['name'].lower() == managed_env_name]
-        if len(env_list) == 1:
-            managed_env = env_list[0]["id"]
-        elif len(env_list) > 1:
-            raise ValidationError(f"Multiple environments found on subscription with name {managed_env_name}. "
-                                  "Specify resource id of the environment.")
-        else:
-            custom_env_name = managed_env_name
-            managed_env = None
-    return managed_env, custom_env_name
-
-
-def _get_app_env_and_group(cmd, resource_group_name, custom_rg_name, custom_env_name, name):
-    # Look for existing containerapp with same name
-    if not resource_group_name and not custom_rg_name:
-        try:
-            containerapps = list_containerapp(cmd)
-        except:
-            containerapps = []  # Server error, not sure what to do here
-
-        containerapps = [x for x in containerapps if x['name'].lower() == name.lower()]
-        if len(containerapps) == 1:
-            # if containerapps[0]["properties"]["managedEnvironmentId"] == managed_env:
-            resource_group_name = containerapps[0]["resourceGroup"]
-            managed_env = containerapps[0]["properties"]["managedEnvironmentId"]
-            if custom_env_name:
-                # raise ValidationError("You cannot update the environment of an existing containerapp. Try re-running the command without --environment.")
-                logger.warning("User passed custom environment name for an existing containerapp. Using existing environment.")
-        if len(containerapps) > 1:
+def _get_app_env_and_group(cmd, name, resource_group: 'ResourceGroup', env: 'ContainerAppEnvironment'):
+    if not resource_group.name and not resource_group.exists:
+        matched_apps = [c for c in list_containerapp(cmd) if c['name'].lower() == name.lower()]
+        if len(matched_apps) == 1:
+                if env.name:
+                    logger.warning("User passed custom environment name for an existing containerapp. Using existing environment.")
+                resource_group.name = matched_apps[0]["resourceGroup"]
+                env.name = matched_apps[0]["properties"]["managedEnvironmentId"]
+        elif len(matched_apps) > 1:
             raise ValidationError(f"There are multiple containerapps with name {name} on the subscription. "
-                                   "Please specify which resource group your Containerapp is in.")
-    return managed_env, resource_group_name
+                                    "Please specify which resource group your Containerapp is in.")
 
 
-def _get_env_and_group_from_log_analytics(cmd, managed_env, custom_rg_name, custom_env_name, resource_group_name, logs_customer_id, location):
-    if not managed_env and not custom_rg_name and not custom_env_name:
-        try:
+def _get_env_and_group_from_log_analytics(cmd, resource_group_name, env:'ContainerAppEnvironment', resource_group:'ResourceGroup', logs_customer_id, location):
+    # resource_group_name is the value the user passed in (if present)
+    if not env.name:
+        if (resource_group_name == resource_group.name and resource_group.exists) or (not resource_group_name):
             env_list = list_managed_environments(cmd=cmd, resource_group_name=resource_group_name)
-        except:
-            env_list = []  # server error
-
-        if logs_customer_id:
-            # TODO use safe_get here
-            env_list = [x for x in env_list if 'logAnalyticsConfiguration' in x['properties']['appLogsConfiguration'] and x['properties']['appLogsConfiguration']['logAnalyticsConfiguration']['customerId'] == logs_customer_id]
-        if location:
-            env_list = [x for x in env_list if x['location'] == location]
-        if env_list:
-            # TODO check how many CA in env
-            managed_env = env_list[0]["id"]
-            resource_group_name = parse_resource_id(managed_env)["resource_group"]
-    return managed_env, resource_group_name
+            if logs_customer_id:
+                env_list = [e for e in env_list if safe_get(e, "properties", "appLogsConfiguration", "logAnalyticsConfiguration", "customerId") == logs_customer_id]
+            if location:
+                env_list = [e for e in env_list if e['location'] == location]
+            if env_list:
+                # TODO check how many CA in env
+                env_details = parse_resource_id(env_list[0]["id"])
+                env.name = env_details["name"]
+                resource_group.name = env_details["resource_group"]
 
 
-def _create_group_and_env(cmd, containerapp_def, resource_group_name, custom_rg_name, dryrun, location, logs_key, logs_customer_id, managed_env, custom_env_name, name):
-    if not containerapp_def:
-        if not resource_group_name:
-            user = get_profile_username()
-            rg_name = get_randomized_name(user, resource_group_name) if custom_rg_name is None else custom_rg_name
-            if not dryrun:
-                logger.warning("Creating new resource group {}".format(rg_name))
-                create_resource_group(cmd, rg_name, location)
-            resource_group_name = rg_name
-        if not managed_env:
-            env_name = custom_env_name if custom_env_name else "{}-env".format(name).replace("_", "-")
-            if not dryrun:
-                try:
-                    managed_env = show_managed_environment(cmd=cmd, name=env_name, resource_group_name=resource_group_name)["id"]
-                    logger.info("Using existing managed environment {}".format(env_name))
-                except:
-                    logger.warning("Creating new managed environment {}".format(env_name))
-                    managed_env = create_managed_environment(cmd, env_name, location=location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True)["id"]
-            else:
-                managed_env = env_name
-    else:
-        location = containerapp_def["location"]
-        # This should be be defined no matter what
-        if custom_env_name:
-            logger.warning("User passed custom environment name for an existing containerapp. Using existing environment.")
-        managed_env = containerapp_def["properties"]["managedEnvironmentId"]
-        env_name = managed_env.split('/')[-1]
-        if logs_customer_id and logs_key:
-            if not dryrun:
-                managed_env = create_managed_environment(cmd, env_name, location=location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True)["id"]
-
-    return managed_env, env_name
-
-
-def _get_acr_from_image(cmd, image, dryrun, registry_user, registry_pass):
-    if image is not None and "azurecr.io" in image and not dryrun:
-        if registry_user is None or registry_pass is None:
-            # If registry is Azure Container Registry, we can try inferring credentials
+def _get_acr_from_image(cmd, app):
+    if app.image is not None and "azurecr.io" in app.image:
+        if app.registry_user is None or app.registry_pass is None:
             logger.info('No credential was provided to access Azure Container Registry. Trying to look up...')
-            registry_server = image.split('/')[0]  # TODO should validate this is the same as the registry_server param?
-            parsed = urlparse(image)
+            app.registry_server = app.image.split('/')[0]  # TODO what if this conflicts with registry_server param?
+            parsed = urlparse(app.image)
             registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
         try:
-            registry_user, registry_pass = _get_acr_cred(cmd.cli_ctx, registry_name)
+            app.registry_user, app.registry_pass, registry_rg = _get_acr_cred(cmd.cli_ctx, registry_name)
+            app.acr = AzureContainerRegistry(registry_name, ResourceGroup(cmd, registry_rg, None, None))
         except Exception as ex:
             raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
-    return registry_server, registry_user, registry_pass
 
 
-def _get_registry_from_app(containerapp_def, registry_server):
+def _get_registry_from_app(app):
+    containerapp_def = app.get()
     if containerapp_def:
-            if "registries" in containerapp_def["properties"]["configuration"] and len(containerapp_def["properties"]["configuration"]["registries"]) == 1:  # TODO replace with safe_get
-                registry_server = containerapp_def["properties"]["configuration"]["registries"][0]["server"]
-    return registry_server
+            if len(safe_get(containerapp_def, "properties", "configuration", "registries")) == 1:
+                app.registry_server = containerapp_def["properties"]["configuration"]["registries"][0]["server"]
 
 
-def _get_registry_details(cmd, registry_server, dryrun, registry_user, registry_pass, resource_group_name, location, name):
-    registry_name = ""
-    registry_rg = ""
-    if registry_server:
-        if "azurecr.io" not in registry_server:
+def _get_registry_details(cmd, app: 'ContainerApp'):
+    registry_rg = None
+    registry_name = None
+    if app.registry_server:
+        if "azurecr.io" not in app.registry_server:
             raise ValidationError("Cannot supply non-Azure registry when using --source.")
-        if not dryrun and (registry_user is None or registry_pass is None):
-            # If registry is Azure Container Registry, we can try inferring credentials
+        if app.registry_user is None or app.registry_pass is None:
             logger.info('No credential was provided to access Azure Container Registry. Trying to look up...')
-            parsed = urlparse(registry_server)
+            parsed = urlparse(app.registry_server)
             registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
             try:
-                registry_user, registry_pass, registry_rg = _get_acr_cred(cmd.cli_ctx, registry_name)
+                app.registry_user, app.registry_pass, registry_rg = _get_acr_cred(cmd.cli_ctx, registry_name)
             except Exception as ex:
                 raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
     else:
-        registry_rg = resource_group_name
+        registry_rg = app.resource_group.name
         user = get_profile_username()
-        registry_name = "{}acr".format(name).replace('-','')
-        registry_name = registry_name + str(hash((registry_rg, user, name))).replace("-", "")
-        if not dryrun:
-            logger.warning("Creating new acr {}".format(registry_name))
-            registry_def = create_new_acr(cmd, registry_name, registry_rg, location)
-            registry_server = registry_def.login_server
-        else:
-            registry_server = registry_name + ".azurecr.io"
-    return registry_user, registry_pass, registry_rg, registry_name
+        registry_name = "{}acr".format(app.name).replace('-','')
+        registry_name = registry_name + str(hash((registry_rg, user, app.name))).replace("-", "")
+        app.registry_server = registry_name + ".azurecr.io"
+        app.should_create_acr = True
+    app.acr = AzureContainerRegistry(registry_name, ResourceGroup(cmd, registry_rg, None, None))
 
 
-def _run_acr_build(cmd, image, name, registry_server, dryrun, registry_rg, registry_name, source, dockerfile, quiet):
-    image_name = image if image is not None else name
-    from datetime import datetime
-    now = datetime.now()
-    # Add version tag for acr image
-    image_name += ":{}".format(str(now).replace(' ', '').replace('-', '').replace('.', '').replace(':', ''))
+class ResourceGroup:
+    def __init__(self, cmd, name: str, location: str, exists: bool):
+        self.cmd = cmd
+        self.name = name
+        self.location = _get_default_containerapps_location(cmd, location)
+        self.exists = exists
 
-    image = registry_server + '/' + image_name
-    if not dryrun:
-        queue_acr_build(cmd, registry_rg, registry_name, image_name, source, dockerfile, quiet)
+        self.check_exists()
 
-    return image
+    def create(self, cmd):
+        if not self.name:
+            self.name = get_randomized_name(get_profile_username())
+        g = create_resource_group(cmd, self.name, self.location)
+        self.exists = True
+        return g
+
+    def _get(self):
+        return get_resource_group(self.cmd, self.name)
+
+    def get(self):
+        r = None
+        try:
+            r = self._get(self.cmd)
+        except:
+            pass
+        return r
+
+    def check_exists(self) -> bool:
+        self.exists = check_resource_group_exists(self.cmd, self.name)
+        return self.exists
 
 
-def _create_and_format_output(cmd, dryrun, name, resource_group_name, image, managed_env, target_port, ingress, registry_server, registry_pass, registry_user, env_vars, env_name, src_dir):
-    containerapp_def = None
+class Resource:
+    def __init__(self, cmd, name: str, resource_group: 'ResourceGroup', exists: bool=None):
+        self.cmd = cmd
+        self.name = name
+        self.resource_group = resource_group
+        self.exists = exists
 
-    if dryrun:
-        logger.warning("Containerapp will be created with the below configuration, re-run command "
-                       "without the --dryrun flag to create & deploy a new containerapp.")
-    else:
-        containerapp_def = create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, managed_env=managed_env, target_port=target_port, registry_server=registry_server, registry_pass=registry_pass, registry_user=registry_user, env_vars=env_vars, ingress=ingress, disable_warnings=True)
-        location = containerapp_def["location"]
+        self.check_exists(cmd)
 
-    fqdn = ""
 
-    dry_run = {
-        "name" : name,
-        "resourcegroup" : resource_group_name,
-        "environment" : env_name,
-        "location" : location,
-        "registry": registry_server,
-        "image": image,
-        "src_path": src_dir,
-        "registry": registry_server
-    }
+    def create(self, *args, **kwargs):
+        raise NotImplementedError()
 
-    if containerapp_def:
-        r = containerapp_def
-        if "configuration" in r["properties"] and "ingress" in r["properties"]["configuration"] and "fqdn" in r["properties"]["configuration"]["ingress"]:
-            fqdn = "https://" + r["properties"]["configuration"]["ingress"]["fqdn"]
+    def _get(self):
+        raise NotImplementedError()
 
-    log_analytics_workspace_name = ""
-    env_def = None
-    try:
-        env_def = show_managed_environment(cmd=cmd, name=env_name, resource_group_name=resource_group_name)
-    except:
-        pass
-    if env_def and env_def["properties"]["appLogsConfiguration"]["destination"].lower() == "log-analytics":
-        env_customer_id = env_def["properties"]["appLogsConfiguration"]["logAnalyticsConfiguration"]["customerId"]
-        log_analytics_workspace_name = _get_log_analytics_workspace_name(cmd, env_customer_id, resource_group_name)
+    def get(self):
+        r = None
+        try:
+            r = self._get(self.cmd)
+        except:
+            pass
+        return r
 
-    if len(fqdn) > 0:
-        dry_run["fqdn"] = fqdn
+    def check_exists(self):
+        self.exists = self.get() is None
+        return self.exists
 
-    if len(log_analytics_workspace_name) > 0:
-        dry_run["log_analytics_workspace_name"] = log_analytics_workspace_name
 
-    return dry_run
+class ContainerAppEnvironment(Resource):
+    def __init__(self,
+                 cmd,
+                 name: str,
+                 resource_group: 'ResourceGroup',
+                 exists: bool=None,
+                 location=None,
+                 logs_key=None,
+                 logs_customer_id=None):
+
+        super().__init__(cmd, name, resource_group, exists)
+        if is_valid_resource_id(name):
+            self.name = parse_resource_id(name)["name"]
+            rg = parse_resource_id(name)["resource_group"]
+            if resource_group.name != rg:
+                self.resource_group = ResourceGroup(cmd, rg, location)
+        self.location=_get_default_containerapps_location(cmd, location)
+        self.logs_key=logs_key
+        self.logs_customer_id=logs_customer_id
+
+    def _get(self, cmd):
+        return ManagedEnvironmentClient.show(cmd, self.resource_group.name, self.name)
+
+    def create(self, cmd, app_name):
+        if self.name is None:
+            self.name = "{}-env".format(app_name).replace("_", "-")
+        env = create_managed_environment(cmd,
+                                         self.name,
+                                         location=self.location,
+                                         resource_group_name=self.resource_group.name,
+                                         logs_key=self.logs_key,
+                                         logs_customer_id=self.logs_customer_id, disable_warnings=True)
+        self.exists = True
+        return env
+
+
+class AzureContainerRegistry(Resource):
+    def __init__(self,
+                 name: str,
+                 resource_group: 'ResourceGroup'):
+
+        self.name = name
+        self.resource_group = resource_group
+
+
+class ContainerApp(Resource):
+    def __init__(self,
+                 cmd,
+                 name: str,
+                 resource_group: 'ResourceGroup',
+                 exists: bool=None,
+                 image=None,
+                 env: 'ContainerAppEnvironment'=None,
+                 target_port=None,
+                 registry_server=None,
+                 registry_user=None,
+                 registry_pass=None,
+                 env_vars=None,
+                 ingress=None):
+
+        super().__init__(cmd, name, resource_group, exists)
+        self.image=image
+        self.env=env
+        self.target_port=target_port
+        self.registry_server=registry_server
+        self.registry_user=registry_user
+        self.registry_pass = registry_pass
+        self.env_vars=env_vars
+        self.ingress=ingress
+
+        self.should_create_acr = False
+        self.acr: 'AzureContainerRegistry' = None
+
+    def _get(self, cmd):
+        return ContainerAppClient.show(cmd, self.resource_group, self.name)
+
+    def create(self, cmd):
+        return create_containerapp(cmd=cmd,
+                                   name=self.name,
+                                   resource_group_name=self.resource_group.name,
+                                   image=self.image,
+                                   managed_env=self.env.name,
+                                   target_port=self.target_port,
+                                   registry_server=self.registry_server,
+                                   registry_pass=self.registry_pass,
+                                   registry_user=self.registry_user,
+                                   env_vars=self.env_vars,
+                                   ingress=self.ingress,
+                                   disable_warnings=True)
+    def create_acr(self):
+        registry_rg = self.resource_group.name
+        url = self.registry_server
+        registry_name = url[:url.rindex(".azurecr.io")]
+        registry_def = create_new_acr(self.cmd, registry_name, registry_rg, self.location)
+        self.registry_server = registry_def.login_server
+
+    def run_acr_build(self, dockerfile):
+        image_name = self.image if self.image is not None else self.name
+        from datetime import datetime
+        now = datetime.now()
+        # Add version tag for acr image
+        image_name += ":{}".format(str(now).replace(' ', '').replace('-', '').replace('.', '').replace(':', ''))
+
+        self.registry_rg
+
+        self.image = self.registry_server + '/' + image_name
+        queue_acr_build(self.cmd, self.registry_rg, self.registry_name, image_name, self.source, dockerfile, quiet=True)
 
 
 def containerapp_up(cmd,
@@ -2498,55 +2392,90 @@ def containerapp_up(cmd,
                     registry_server=None,
                     image=None,
                     source=None,
-                    dockerfile="Dockerfile",
-                    # compose=None,
                     ingress=None,
                     target_port=None,
                     registry_user=None,
                     registry_pass=None,
                     env_vars=None,
-                    dryrun=False,
                     logs_customer_id=None,
                     logs_key=None,
                     repo=None,
-                    branch=None):
-    import os
-    import json
-    src_dir = os.getcwd()
-    _src_path_escaped = "{}".format(src_dir.replace(os.sep, os.sep + os.sep))
-    quiet = False
+                    branch=None,
+                    browse=False,
+                    context_path=None,
+                    service_principal_client_id=None,
+                    service_principal_client_secret=None,
+                    service_principal_tenant_id=None):
+    dockerfile="Dockerfile",  # for now the dockerfile name must be "Dockerfile" (until GH actions API is updated)
 
     _validate_up_args(source, image, repo)
 
-    image = _reformat_image(source, image) # TODO revisit for repo
+    image = _reformat_image(source, repo, image)
     token = None if not repo else get_github_access_token(cmd, ["admin:repo_hook", "repo", "workflow"])
 
     dockerfile_content = _get_dockerfile_content(repo, branch, token, source, dockerfile)
     ingress, target_port = _get_ingress_and_target_port(ingress, target_port, dockerfile_content)
 
-    # determine if the RG passed in exists or we need to make a new one
-    resource_group_name, custom_rg_name = _get_resource_group(cmd, resource_group_name)
-    # determine if the env passed in exists or we need to make a new one
-    managed_env, custom_env_name  = _get_managed_env(cmd, resource_group_name, custom_rg_name, managed_env)
+    resource_group = ResourceGroup(name=resource_group_name, location=location)
+    env = ContainerAppEnvironment(cmd, managed_env, resource_group, location=location, logs_key=logs_key, logs_customer_id=logs_customer_id)
+    app = ContainerApp(cmd, name, resource_group, None, image, env, target_port, registry_server, registry_user, registry_pass, env_vars, ingress)
 
-    # if a singular app exists with the same name, get its env and rg
-    managed_env, resource_group_name = _get_app_env_and_group(cmd, resource_group_name, custom_rg_name, custom_env_name, name)
-    managed_env, resource_group_name = _get_env_and_group_from_log_analytics(cmd, managed_env, custom_rg_name, custom_env_name, resource_group_name, logs_customer_id, location)
+    # If no RG passed in and a singular app exists with the same name, get its env and rg
+    _get_app_env_and_group(cmd, name, resource_group, env)
 
-    location = _get_default_containerapps_location(cmd, location)
+    # If no env passed in (and not creating a new RG), then try getting an env by location / log analytics ID
+    _get_env_and_group_from_log_analytics(cmd, resource_group_name, env, resource_group, logs_customer_id, location)
 
-    containerapp_def = get_container_app_if_exists(cmd, resource_group_name, name)
+    # get ACR details from --image, if possible
+    _get_acr_from_image(cmd, app)
 
-    env_name = _get_name(managed_env)
+    if source:
+        registry_server = _get_registry_from_app(app)  # if the app exists, get the registry
+        _get_registry_details(cmd, app)  # fetch ACR creds from arguments registry arguments
 
-    # if not dry run, create the RG (if needed) and managed env (if needed)
-    managed_env, env_name = _create_group_and_env(cmd, containerapp_def, resource_group_name, custom_rg_name, dryrun, location, logs_key, logs_customer_id, managed_env, custom_env_name, name)
+    if not resource_group.check_exists():
+        logger.warning(f"Creating resource group {resource_group.name}")
+        resource_group.create()
+    if not env.check_exists():
+        logger.warning(f"Creating Containerapp environment {env.name} in resource group {env.resource_group.name}")
+        env.create(name)
+    if app._should_create_acr():
+        logger.warning(f"Creating Azure Container Registry {app.acr.name} in resource group {app.acr.resource_group.name}")
+        app.create_acr()
 
-    registry_server, registry_user, registry_pass = _get_acr_from_image(cmd, image, dryrun, registry_user, registry_pass)
+    if source:
+        app.run_acr_build(dockerfile)
+        # return image
 
-    if source is not None:
-        registry_server = _get_registry_from_app(containerapp_def)
-        registry_user, registry_pass, registry_rg, registry_name = _get_registry_details(cmd, registry_server, dryrun, registry_user, registry_pass, resource_group_name, location, name)
-        image =  _run_acr_build(cmd, image, name, registry_server, dryrun, registry_rg, registry_name, source, dockerfile, quiet)
+    logger.warning(f"Creating Containerapp {app.name} in resource group {app.resource_group.name}")
+    app.create()
 
-    return _create_and_format_output(cmd, dryrun, name, resource_group_name, image, managed_env, target_port, ingress, registry_server, registry_pass, registry_user, env_vars, env_name, src_dir)
+    if repo:
+        sp = _get_or_create_sp(cmd,
+                               app.resource_group.name,
+                               env.resource_group.name,
+                               name,
+                               service_principal_client_id,
+                               service_principal_client_secret,
+                               service_principal_tenant_id)
+        service_principal_client_id, service_principal_client_secret, service_principal_tenant_id = sp
+        gh_action = create_or_update_github_action(cmd=cmd,
+                                                   name=name,
+                                                   resource_group_name=resource_group_name,
+                                                   repo_url=repo,
+                                                   registry_url=registry_server,
+                                                   registry_username=registry_user,
+                                                   registry_password=registry_pass,
+                                                   branch=branch,
+                                                   token=token,
+                                                   login_with_github=False,
+                                                   service_principal_client_id=service_principal_client_id,
+                                                   service_principal_client_secret=service_principal_client_secret,
+                                                   service_principal_tenant_id=service_principal_tenant_id,
+                                                   image=image,
+                                                   context_path=context_path)
+
+    if browse:
+        open_containerapp_in_browser(cmd, name, resource_group)
+
+    # TODO output
