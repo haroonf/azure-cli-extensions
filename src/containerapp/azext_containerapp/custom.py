@@ -16,7 +16,8 @@ from azure.cli.core.azclierror import (
     ResourceNotFoundError,
     CLIError,
     CLIInternalError,
-    InvalidArgumentValueError)
+    InvalidArgumentValueError,
+    MutuallyExclusiveArgumentError)
 from azure.cli.core.commands.client_factory import get_subscription_id
 from azure.cli.core.util import open_page_in_browser, get_file_json
 from azure.cli.command_modules.appservice._create_util import check_resource_group_exists
@@ -58,7 +59,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      _update_revision_env_secretrefs, get_randomized_name, _set_webapp_up_default_args, get_profile_username, create_resource_group,
                      get_resource_group, queue_acr_build, _get_acr_cred, create_new_acr, _get_log_analytics_workspace_name,
                      _get_default_containerapps_location, safe_get, is_int, create_service_principal_for_rbac,
-                     _get_default_containerapps_location)
+                     get_container_app_if_exists, _get_name)
 
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
                          SSH_BACKUP_ENCODING, remove_token)
@@ -2127,7 +2128,7 @@ def _get_or_create_sp(cmd, resource_group_name, env_resource_group_name, name, s
 
 
 # currently assumes docker_file_name is in the root and named "Dockerfile"
-def _get_dockerfile_content(repo_url, branch, token):
+def _get_dockerfile_content_from_repo(repo_url, branch, token):
     from github import Github
     g = Github(token)
     repo = _repo_url_to_name(repo_url)
@@ -2154,6 +2155,7 @@ def _get_ingress_and_target_port(ingress, target_port, dockerfile_content: 'list
                                     target_port = parts[i+1]
                                     ingress = "external"
                                     logger.warning("Adding external ingress port {} based on dockerfile expose.".format(target_port))
+    ingress = "external" if target_port and not ingress else ingress
     return ingress, target_port
 
 
@@ -2168,7 +2170,7 @@ def github_up(cmd,
               registry_password=None,
               branch="main",
               token=None,
-              context_path=None, # TODO shouldn't this really be a path??
+              context_path=None,
               image=None,
               service_principal_client_id=None,
               service_principal_client_secret=None,
@@ -2186,7 +2188,7 @@ def github_up(cmd,
     managed_env, env_resource_group_name = _get_or_create_managed_env(cmd, resource_group_name, managed_env, name)
     registry_url, registry_password, registry_username = _get_or_create_registry(cmd, name, resource_group_name, registry_url, registry_password, registry_username)
     service_principal_client_id, service_principal_client_secret, service_principal_tenant_id = _get_or_create_sp(cmd, resource_group_name, env_resource_group_name, name, service_principal_client_id, service_principal_client_secret, service_principal_tenant_id)
-    dockerfile_content = _get_dockerfile_content(repo, branch, token)
+    dockerfile_content = _get_dockerfile_content_from_repo(repo, branch, token)
     ingress, target_port = _get_ingress_and_target_port(ingress, target_port, dockerfile_content)
 
     logger.warning(f"Creating Container App {name} in resource group {resource_group_name}")
@@ -2233,58 +2235,41 @@ def github_up(cmd,
 
     return dry_run
 
+# up utils -- TODO move to their own file
 
-def containerapp_up(cmd,
-                    name,
-                    resource_group_name=None,
-                    managed_env=None,
-                    location=None,
-                    registry_server=None,
-                    image=None,
-                    source=None,
-                    dockerfile="Dockerfile",
-                    # compose=None,
-                    ingress=None,
-                    target_port=None,
-                    registry_user=None,
-                    registry_pass=None,
-                    env_vars=None,
-                    dryrun=False,
-                    logs_customer_id=None,
-                    logs_key=None):
-    import os
-    import json
-    src_dir = os.getcwd()
-    _src_path_escaped = "{}".format(src_dir.replace(os.sep, os.sep + os.sep))
-    quiet = False
+def _validate_up_args(source, image, repo):
+    if not source and not image and not repo:
+        raise RequiredArgumentMissingError("You must specify either --source, --repo, or --image")
+    if source and repo:
+        raise MutuallyExclusiveArgumentError("Cannot use --source and --repo togther. "
+                                             "Can either deploy from a local directory or a Github repo")
 
-    if source is None and image is None:
-        raise RequiredArgumentMissingError("You must specify either --source or --image.")
-
-    # if source and image:
-    #     raise ValidationError("You cannot specify both --source and --image.")
-
+def _reformat_image(source, image):
     if source and image:
         image = image.split('/')[-1]  # if link is given
         image = image.replace(':', '')
+    return image
 
-    # Open dockerfile and check for EXPOSE
+def _get_dockerfile_content_local(source, dockerfile):
+    lines = []
     if source:
-        dockerfile_location = source + '/' + dockerfile
+        dockerfile_location = f"{source}/{dockerfile}"
         try:
             with open(dockerfile_location, 'r') as fh:
-                for line in fh:
-                    if "EXPOSE" in line:
-                        if not target_port:
-                            target_port = line.replace('\n', '').split(" ")[1]
-                            logger.info("Adding external ingress port {} based on dockerfile expose.".format(target_port))
-                        break
+                lines = [line for line in fh]
         except:
-            raise InvalidArgumentValueError("Cannot find specified Dockerfile. Check dockerfile name and/or path.")
+            raise InvalidArgumentValueError("Cannot open specified Dockerfile. Check dockerfile name, path, and permissions.")
+    return lines
 
-    ingress = "external" if target_port and not ingress else ingress
 
-    custom_rg_name = None
+def _get_dockerfile_content(repo, branch, token, source, dockerfile):
+    if source:
+        return _get_dockerfile_content_local(source, dockerfile)
+    return _get_dockerfile_content_from_repo(repo, branch, token)
+
+
+# User passes RG, check if it exists or not
+def _get_resource_group(cmd, resource_group_name, custom_rg_name=None):
     # User passes non-existing rg, we create it for them
     if resource_group_name:
         try:
@@ -2292,25 +2277,33 @@ def containerapp_up(cmd,
         except:
             custom_rg_name = resource_group_name
             resource_group_name = None
+    return resource_group_name, custom_rg_name
 
-    custom_env_name = None
-    # User passes environment, check if it exists or not
+
+# User passes environment, check if it exists or not
+def _get_managed_env(cmd, resource_group_name, custom_rg_name, managed_env, custom_env_name=None):
     if managed_env and not custom_rg_name:
         try:
             env_list = list_managed_environments(cmd=cmd, resource_group_name=resource_group_name)
         except:
             env_list = []  # Server error, not sure what to do here
 
-        env_list = [x for x in env_list if x['name'].lower() == managed_env.split('/')[-1].lower()]
+        managed_env_name = managed_env
+        if is_valid_resource_id(managed_env):
+            managed_env_name = parse_resource_id(managed_env)["name"].lower()
+        env_list = [x for x in env_list if x['name'].lower() == managed_env_name]
         if len(env_list) == 1:
             managed_env = env_list[0]["id"]
-            resource_group_name = managed_env.split('/')[4]
-        if len(env_list) > 1:
-            raise ValidationError("Multiple environments found on subscription with name {}. Specify resource id of the environment.".format(managed_env.split('/')[-1]))
-        if len(env_list) == 0:
-            custom_env_name = managed_env.split('/')[-1]
+        elif len(env_list) > 1:
+            raise ValidationError(f"Multiple environments found on subscription with name {managed_env_name}. "
+                                  "Specify resource id of the environment.")
+        else:
+            custom_env_name = managed_env_name
             managed_env = None
+    return managed_env, custom_env_name
 
+
+def _get_app_env_and_group(cmd, resource_group_name, custom_rg_name, custom_env_name, name):
     # Look for existing containerapp with same name
     if not resource_group_name and not custom_rg_name:
         try:
@@ -2321,14 +2314,18 @@ def containerapp_up(cmd,
         containerapps = [x for x in containerapps if x['name'].lower() == name.lower()]
         if len(containerapps) == 1:
             # if containerapps[0]["properties"]["managedEnvironmentId"] == managed_env:
-            resource_group_name = containerapps[0]["id"].split('/')[4]
+            resource_group_name = containerapps[0]["resourceGroup"]
             managed_env = containerapps[0]["properties"]["managedEnvironmentId"]
             if custom_env_name:
                 # raise ValidationError("You cannot update the environment of an existing containerapp. Try re-running the command without --environment.")
                 logger.warning("User passed custom environment name for an existing containerapp. Using existing environment.")
         if len(containerapps) > 1:
-            raise ValidationError("There are multiple containerapps with name {} on the subscription. Please specify which resource group your Containerapp is in.".format(name))
+            raise ValidationError(f"There are multiple containerapps with name {name} on the subscription. "
+                                   "Please specify which resource group your Containerapp is in.")
+    return managed_env, resource_group_name
 
+
+def _get_env_and_group_from_log_analytics(cmd, managed_env, custom_rg_name, custom_env_name, resource_group_name, logs_customer_id, location):
     if not managed_env and not custom_rg_name and not custom_env_name:
         try:
             env_list = list_managed_environments(cmd=cmd, resource_group_name=resource_group_name)
@@ -2336,26 +2333,18 @@ def containerapp_up(cmd,
             env_list = []  # server error
 
         if logs_customer_id:
+            # TODO use safe_get here
             env_list = [x for x in env_list if 'logAnalyticsConfiguration' in x['properties']['appLogsConfiguration'] and x['properties']['appLogsConfiguration']['logAnalyticsConfiguration']['customerId'] == logs_customer_id]
         if location:
             env_list = [x for x in env_list if x['location'] == location]
-        if len(env_list) == 0:
-            managed_env = None
-        else:
-            # check how many CA in env
+        if env_list:
+            # TODO check how many CA in env
             managed_env = env_list[0]["id"]
-            resource_group_name = managed_env.split('/')[4]
+            resource_group_name = parse_resource_id(managed_env)["resource_group"]
+    return managed_env, resource_group_name
 
-    if not location:
-        location = _get_default_containerapps_location(cmd)
 
-    containerapp_def = None
-    try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
-    except:
-        pass
-
-    env_name = "" if not managed_env else managed_env.split('/')[-1]
+def _create_group_and_env(cmd, containerapp_def, resource_group_name, custom_rg_name, dryrun, location, logs_key, logs_customer_id, managed_env, custom_env_name, name):
     if not containerapp_def:
         if not resource_group_name:
             user = get_profile_username()
@@ -2386,59 +2375,75 @@ def containerapp_up(cmd,
             if not dryrun:
                 managed_env = create_managed_environment(cmd, env_name, location=location, resource_group_name=resource_group_name, logs_key=logs_key, logs_customer_id=logs_customer_id, disable_warnings=True)["id"]
 
+    return managed_env, env_name
+
+
+def _get_acr_from_image(cmd, image, dryrun, registry_user, registry_pass):
     if image is not None and "azurecr.io" in image and not dryrun:
         if registry_user is None or registry_pass is None:
             # If registry is Azure Container Registry, we can try inferring credentials
             logger.info('No credential was provided to access Azure Container Registry. Trying to look up...')
-            registry_server = image.split('/')[0]
+            registry_server = image.split('/')[0]  # TODO should validate this is the same as the registry_server param?
             parsed = urlparse(image)
             registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
         try:
             registry_user, registry_pass = _get_acr_cred(cmd.cli_ctx, registry_name)
         except Exception as ex:
             raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
+    return registry_server, registry_user, registry_pass
 
-    if source is not None:
-        if containerapp_def:
-            if "registries" in containerapp_def["properties"]["configuration"] and len(containerapp_def["properties"]["configuration"]["registries"]) == 1:
+
+def _get_registry_from_app(containerapp_def, registry_server):
+    if containerapp_def:
+            if "registries" in containerapp_def["properties"]["configuration"] and len(containerapp_def["properties"]["configuration"]["registries"]) == 1:  # TODO replace with safe_get
                 registry_server = containerapp_def["properties"]["configuration"]["registries"][0]["server"]
-        registry_name = ""
-        registry_rg = ""
-        if registry_server:
-            if "azurecr.io" not in registry_server:
-                raise ValidationError("Cannot supply non-Azure registry when using --source.")
-            if not dryrun and (registry_user is None or registry_pass is None):
-                # If registry is Azure Container Registry, we can try inferring credentials
-                logger.info('No credential was provided to access Azure Container Registry. Trying to look up...')
-                parsed = urlparse(registry_server)
-                registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
-                try:
-                    registry_user, registry_pass, registry_rg = _get_acr_cred(cmd.cli_ctx, registry_name)
-                except Exception as ex:
-                    raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
-        else:
-            registry_rg = resource_group_name
-            user = get_profile_username()
-            registry_name = "{}acr".format(name).replace('-','')
-            registry_name = registry_name + str(hash((registry_rg, user, name))).replace("-", "")
-            if not dryrun:
-                logger.warning("Creating new acr {}".format(registry_name))
-                registry_def = create_new_acr(cmd, registry_name, registry_rg, location)
-                registry_server = registry_def.login_server
-            else:
-                registry_server = registry_name + ".azurecr.io"
+    return registry_server
 
-        image_name = image if image is not None else name
-        from datetime import datetime
-        now = datetime.now()
-        # Add version tag for acr image
-        image_name += ":{}".format(str(now).replace(' ', '').replace('-', '').replace('.', '').replace(':', ''))
 
-        image = registry_server + '/' + image_name
+def _get_registry_details(cmd, registry_server, dryrun, registry_user, registry_pass, resource_group_name, location, name):
+    registry_name = ""
+    registry_rg = ""
+    if registry_server:
+        if "azurecr.io" not in registry_server:
+            raise ValidationError("Cannot supply non-Azure registry when using --source.")
+        if not dryrun and (registry_user is None or registry_pass is None):
+            # If registry is Azure Container Registry, we can try inferring credentials
+            logger.info('No credential was provided to access Azure Container Registry. Trying to look up...')
+            parsed = urlparse(registry_server)
+            registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
+            try:
+                registry_user, registry_pass, registry_rg = _get_acr_cred(cmd.cli_ctx, registry_name)
+            except Exception as ex:
+                raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
+    else:
+        registry_rg = resource_group_name
+        user = get_profile_username()
+        registry_name = "{}acr".format(name).replace('-','')
+        registry_name = registry_name + str(hash((registry_rg, user, name))).replace("-", "")
         if not dryrun:
-            queue_acr_build(cmd, registry_rg, registry_name, image_name, source, dockerfile, quiet)
-        # _set_webapp_up_default_args(cmd, resource_group_name, location, name, registry_server)
+            logger.warning("Creating new acr {}".format(registry_name))
+            registry_def = create_new_acr(cmd, registry_name, registry_rg, location)
+            registry_server = registry_def.login_server
+        else:
+            registry_server = registry_name + ".azurecr.io"
+    return registry_user, registry_pass, registry_rg, registry_name
 
+
+def _run_acr_build(cmd, image, name, registry_server, dryrun, registry_rg, registry_name, source, dockerfile, quiet):
+    image_name = image if image is not None else name
+    from datetime import datetime
+    now = datetime.now()
+    # Add version tag for acr image
+    image_name += ":{}".format(str(now).replace(' ', '').replace('-', '').replace('.', '').replace(':', ''))
+
+    image = registry_server + '/' + image_name
+    if not dryrun:
+        queue_acr_build(cmd, registry_rg, registry_name, image_name, source, dockerfile, quiet)
+
+    return image
+
+
+def _create_and_format_output(cmd, dryrun, name, resource_group_name, image, managed_env, target_port, ingress, registry_server, registry_pass, registry_user, env_vars, env_name, src_dir):
     containerapp_def = None
 
     if dryrun:
@@ -2483,3 +2488,65 @@ def containerapp_up(cmd,
         dry_run["log_analytics_workspace_name"] = log_analytics_workspace_name
 
     return dry_run
+
+
+def containerapp_up(cmd,
+                    name,
+                    resource_group_name=None,
+                    managed_env=None,
+                    location=None,
+                    registry_server=None,
+                    image=None,
+                    source=None,
+                    dockerfile="Dockerfile",
+                    # compose=None,
+                    ingress=None,
+                    target_port=None,
+                    registry_user=None,
+                    registry_pass=None,
+                    env_vars=None,
+                    dryrun=False,
+                    logs_customer_id=None,
+                    logs_key=None,
+                    repo=None,
+                    branch=None):
+    import os
+    import json
+    src_dir = os.getcwd()
+    _src_path_escaped = "{}".format(src_dir.replace(os.sep, os.sep + os.sep))
+    quiet = False
+
+    _validate_up_args(source, image, repo)
+
+    image = _reformat_image(source, image) # TODO revisit for repo
+    token = None if not repo else get_github_access_token(cmd, ["admin:repo_hook", "repo", "workflow"])
+
+    dockerfile_content = _get_dockerfile_content(repo, branch, token, source, dockerfile)
+    ingress, target_port = _get_ingress_and_target_port(ingress, target_port, dockerfile_content)
+
+    # determine if the RG passed in exists or we need to make a new one
+    resource_group_name, custom_rg_name = _get_resource_group(cmd, resource_group_name)
+    # determine if the env passed in exists or we need to make a new one
+    managed_env, custom_env_name  = _get_managed_env(cmd, resource_group_name, custom_rg_name, managed_env)
+
+    # if a singular app exists with the same name, get its env and rg
+    managed_env, resource_group_name = _get_app_env_and_group(cmd, resource_group_name, custom_rg_name, custom_env_name, name)
+    managed_env, resource_group_name = _get_env_and_group_from_log_analytics(cmd, managed_env, custom_rg_name, custom_env_name, resource_group_name, logs_customer_id, location)
+
+    location = _get_default_containerapps_location(cmd, location)
+
+    containerapp_def = get_container_app_if_exists(cmd, resource_group_name, name)
+
+    env_name = _get_name(managed_env)
+
+    # if not dry run, create the RG (if needed) and managed env (if needed)
+    managed_env, env_name = _create_group_and_env(cmd, containerapp_def, resource_group_name, custom_rg_name, dryrun, location, logs_key, logs_customer_id, managed_env, custom_env_name, name)
+
+    registry_server, registry_user, registry_pass = _get_acr_from_image(cmd, image, dryrun, registry_user, registry_pass)
+
+    if source is not None:
+        registry_server = _get_registry_from_app(containerapp_def)
+        registry_user, registry_pass, registry_rg, registry_name = _get_registry_details(cmd, registry_server, dryrun, registry_user, registry_pass, resource_group_name, location, name)
+        image =  _run_acr_build(cmd, image, name, registry_server, dryrun, registry_rg, registry_name, source, dockerfile, quiet)
+
+    return _create_and_format_output(cmd, dryrun, name, resource_group_name, image, managed_env, target_port, ingress, registry_server, registry_pass, registry_user, env_vars, env_name, src_dir)

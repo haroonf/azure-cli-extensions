@@ -14,7 +14,7 @@ from azure.cli.core.azclierror import (ValidationError, RequiredArgumentMissingE
                                        ResourceNotFoundError, ArgumentUsageError)
 from azure.cli.core.commands.client_factory import get_subscription_id
 from knack.log import get_logger
-from msrestazure.tools import parse_resource_id
+from msrestazure.tools import parse_resource_id, is_valid_resource_id
 
 from ._clients import ContainerAppClient
 from ._client_factory import handle_raw_exception, providers_client_factory, cf_resource_groups, log_analytics_client_factory, log_analytics_shared_key_client_factory
@@ -345,7 +345,24 @@ def _get_default_log_analytics_location(cmd):
     return default_location
 
 
-def _get_default_containerapps_location(cmd):
+def get_container_app_if_exists(cmd, resource_group_name, name):
+    app = None
+    try:
+        app = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+    return app
+
+
+def _get_name(name_or_rid):
+    if is_valid_resource_id(name_or_rid):
+        return parse_resource_id(name_or_rid)["name"]
+    return name_or_rid
+
+
+def _get_default_containerapps_location(cmd, location=None):
+    if location:
+        return location
     default_location = "eastus"
     providers_client = None
     try:
