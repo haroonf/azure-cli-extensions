@@ -2017,6 +2017,10 @@ def containerapp_up(cmd,
     image = _reformat_image(source, repo, image)
     token = None if not repo else get_github_access_token(cmd, ["admin:repo_hook", "repo", "workflow"], token)
 
+    if image and "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" in image.lower():
+        ingress = "external" if not ingress else ingress
+        target_port = 80 if not target_port else target_port
+
     dockerfile_content = _get_dockerfile_content(repo, branch, token, source, context_path, dockerfile)
     ingress, target_port = _get_ingress_and_target_port(ingress, target_port, dockerfile_content)
 
@@ -2025,6 +2029,10 @@ def containerapp_up(cmd,
     app = ContainerApp(cmd, name, resource_group, None, image, env, target_port, registry_server, registry_user, registry_pass, env_vars, ingress)
 
     _set_up_defaults(cmd, name, resource_group_name, logs_customer_id, location, resource_group, env, app)
+
+    if app.check_exists():
+        if app.get()["properties"]["provisioningState"] == "InProgress":
+            raise ValidationError("Containerapp has an existing provisioning in progress. Please wait until provisioning has completed and rerun the command.")
 
     if source or repo:
         registry_server = _get_registry_from_app(app)  # if the app exists, get the registry
@@ -2035,7 +2043,7 @@ def containerapp_up(cmd,
     app.create_acr_if_needed()
 
     if source:
-        app.run_acr_build(dockerfile, source)
+        app.run_acr_build(dockerfile, source, False)
 
     app.create(no_registry=bool(repo))
     if repo:
@@ -2045,7 +2053,7 @@ def containerapp_up(cmd,
     if browse:
         open_containerapp_in_browser(cmd, app.name, app.resource_group.name)
 
-    print(up_output(app))
+    up_output(app)
 
 
 def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, env_vars, ingress, target_port, registry_server, registry_user, registry_pass):
@@ -2169,6 +2177,6 @@ def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, en
             registries_def.append(registry)
 
     if ca_exists:
-        return ContainerAppClient.patch_update(cmd, resource_group_name, name, containerapp_def)
+        return ContainerAppClient.update(cmd, resource_group_name, name, containerapp_def)
     else:
         return ContainerAppClient.create_or_update(cmd, resource_group_name, name, containerapp_def)
