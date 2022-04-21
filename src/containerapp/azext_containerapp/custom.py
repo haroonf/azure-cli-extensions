@@ -59,7 +59,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      _get_name, await_github_action, repo_url_to_name)
 
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
-                         SSH_BACKUP_ENCODING, remove_token)
+                         SSH_BACKUP_ENCODING)
 
 logger = get_logger(__name__)
 
@@ -1916,7 +1916,6 @@ def get_replica(cmd, resource_group_name, name, replica, revision=None):
                                           replica_name=replica)
 
 
-# TODO token will be read from header at some point -- a PR has apparently been opened for this
 def containerapp_ssh(cmd, resource_group_name, name, container=None, revision=None, replica=None, startup_command="sh"):
     if isinstance(startup_command, list):
         startup_command = startup_command[0]  # CLI seems a little buggy when calling a param "--command"
@@ -1943,7 +1942,6 @@ def containerapp_ssh(cmd, resource_group_name, name, container=None, revision=No
                 conn.send(SSH_CTRL_C_MSG)
 
 
-# TODO token will be in header soon (same as SSH)
 def stream_containerapp_logs(cmd, resource_group_name, name, container=None, revision=None, replica=None, follow=False,
                              tail=None, output_format=None):
     if tail:
@@ -1956,11 +1954,10 @@ def stream_containerapp_logs(cmd, resource_group_name, name, container=None, rev
     logstream_endpoint = token_response["properties"]["logStreamEndpoint"]
     base_url = logstream_endpoint[:logstream_endpoint.index("/subscriptions/")]
 
-    # TODO remove token from URL once token is read from header
     url = (f"{base_url}/subscriptions/{sub}/resourceGroups/{resource_group_name}/containerApps/{name}"
-           f"/revisions/{revision}/replicas/{replica}/containers/{container}/logstream?token={token}")
+           f"/revisions/{revision}/replicas/{replica}/containers/{container}/logstream")
 
-    logger.warning("connecting to : %s", remove_token(url))
+    logger.warning("connecting to : %s", url)
     request_params = {"follow": str(follow).lower(), "output": output_format, "tailLines": tail}
     headers = {"Authorization": f"Bearer {token}"}
     resp = requests.get(url, timeout=None, stream=True, params=request_params, headers=headers)

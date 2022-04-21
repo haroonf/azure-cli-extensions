@@ -58,17 +58,8 @@ class WebSocketConnection:
         self._url = self._get_url(cmd=cmd, resource_group_name=resource_group_name, name=name, revision=revision,
                                   replica=replica, container=container, startup_command=startup_command)
         self._socket = websocket.WebSocket(enable_multithread=True)
-        logger.warning("Attempting to connect to %s", remove_token(self._url))
-
-        # TODO may be worth including some retry policy here
-        try:
-            self._socket.connect(self._url, header=[f"Authorization: Bearer {self._token}"])
-        except WebSocketBadStatusException:
-            logger.info("Caught WebSocketBadStatusException")
-            url = self._get_url_no_command(cmd=cmd, resource_group_name=resource_group_name, name=name, revision=revision,
-                                           replica=replica, container=container, startup_command=startup_command)
-            logger.warning("Attempting to connect to %s", remove_token(url))
-            self._socket.connect(url, header=[f"Authorization: Bearer {self._token}"])
+        logger.warning("Attempting to connect to %s", self._url)
+        self._socket.connect(self._url, header=[f"Authorization: Bearer {self._token}"])
 
         self.is_connected = True
         self._windows_conout_mode = None
@@ -77,30 +68,15 @@ class WebSocketConnection:
             self._windows_conout_mode = _get_conout_mode()
             self._windows_conin_mode = _get_conin_mode()
 
-    # TODO remove once encorporated into _get_url
-    def _get_url_no_command(self, cmd, resource_group_name, name, revision, replica, container, startup_command):
-        sub = get_subscription_id(cmd.cli_ctx)
-        base_url = self._logstream_endpoint
-        proxy_api_url = base_url[:base_url.index("/subscriptions/")].replace("https://", "")
-        token = self._token
-        encoded_cmd = urllib.parse.quote_plus(startup_command)
-
-        return (f"wss://{proxy_api_url}/subscriptions/{sub}/resourceGroups/{resource_group_name}/containerApps/{name}"
-                f"/revisions/{revision}/replicas/{replica}/containers/{container}/exec"
-                f"?token={token}&command={encoded_cmd}")
-
     def _get_url(self, cmd, resource_group_name, name, revision, replica, container, startup_command):
         sub = get_subscription_id(cmd.cli_ctx)
         base_url = self._logstream_endpoint
         proxy_api_url = base_url[:base_url.index("/subscriptions/")].replace("https://", "")
-        token = self._token
         encoded_cmd = urllib.parse.quote_plus(startup_command)
 
-        # TODO remove token from URL once token is read from header
-        # TODO remove startup command from path
         return (f"wss://{proxy_api_url}/subscriptions/{sub}/resourceGroups/{resource_group_name}/containerApps/{name}"
-                f"/revisions/{revision}/replicas/{replica}/containers/{container}/exec/{startup_command}"
-                f"?token={token}&command={encoded_cmd}")
+                f"/revisions/{revision}/replicas/{replica}/containers/{container}/exec"
+                f"?command={encoded_cmd}")
 
     def disconnect(self):
         logger.warning("Disconnecting...")
@@ -115,12 +91,6 @@ class WebSocketConnection:
 
     def recv(self, *args, **kwargs):
         return self._socket.recv(*args, **kwargs)
-
-
-def remove_token(url):
-    if "?token=" in url:
-        return url[:url.index("?token=")]
-    return url
 
 
 def _decode_and_output_to_terminal(connection: WebSocketConnection, response, encodings):

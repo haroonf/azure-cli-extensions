@@ -58,8 +58,8 @@ def load_command_table(self, _):
         g.custom_show_command('show', 'get_replica')  # TODO implement the table transformer
         g.custom_command('list', 'list_replicas')
 
-    with self.command_group('containerapp log', is_preview=True) as g:
-        g.custom_command('tail', 'stream_containerapp_logs', validator=validate_ssh)
+    with self.command_group('containerapp logs', is_preview=True) as g:
+        g.custom_command('show', 'stream_containerapp_logs', validator=validate_ssh)
 
     with self.command_group('containerapp env') as g:
         g.custom_show_command('show', 'show_managed_environment')

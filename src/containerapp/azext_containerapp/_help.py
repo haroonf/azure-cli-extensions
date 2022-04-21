@@ -101,24 +101,48 @@ helps['containerapp exec'] = """
           az containerapp exec -n MyContainerapp -g MyResourceGroup --command bash
 """
 
-helps['containerapp log'] = """
+helps['containerapp browse'] = """
+    type: command
+    short-summary: Open a containerapp in the browser, if possible
+    examples:
+    - name: open a containerapp in the browser
+      text: |
+          az containerapp browse -n MyContainerapp -g MyResourceGroup
+"""
+
+helps['containerapp up'] = """
+    type: command
+    short-summary: Create or update a container app as well as any associated resources (ACR, resource group, container apps environment, Github Actions, etc.)
+    examples:
+    - name: Create a container app from a Github repo (setting up github actions)
+      text: |
+          az containerapp up -n MyContainerapp --repo https://github.com/myAccount/myRepo
+    - name: Create a container app from content in a local directory
+      text: |
+          az containerapp up -n MyContainerapp --source .
+    - name: Create a container app from a container in a registry
+      text: |
+          az containerapp up -n MyContainerapp --image myregistry.azurecr.io/myImage:myTag
+"""
+
+helps['containerapp logs'] = """
     type: group
     short-summary: Show container app logs
 """
 
-helps['containerapp log tail'] = """
+helps['containerapp logs show'] = """
     type: command
     short-summary: Show past logs and/or print logs in real time (with the --follow parameter). Note that the logs are only taken from one revision, replica (pod), and container.
     examples:
-    - name: Fetch the past 10 lines of logs from an app and return
+    - name: Fetch the past 20 lines of logs from an app and return
       text: |
-          az containerapp log tail -n MyContainerapp -g MyResourceGroup
-    - name: Fetch 20 lines of past logs logs from an app and print logs as they come in
+          az containerapp logs show -n MyContainerapp -g MyResourceGroup
+    - name: Fetch 30 lines of past logs logs from an app and print logs as they come in
       text: |
-          az containerapp log tail -n MyContainerapp -g MyResourceGroup --follow
+          az containerapp logs show -n MyContainerapp -g MyResourceGroup --follow --tail 30
     - name: Fetch logs for a particular revision, replica, and container
       text: |
-          az containerapp log tail -n MyContainerapp -g MyResourceGroup --replica MyReplica --revision MyRevision --container MyContainer
+          az containerapp logs show -n MyContainerapp -g MyResourceGroup --replica MyReplica --revision MyRevision --container MyContainer
 """
 
 # Replica Commands
