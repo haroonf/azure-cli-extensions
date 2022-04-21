@@ -156,6 +156,67 @@ def is_int(s):
     return False
 
 
+def await_github_action(cmd, token, repo, branch, name, resource_group_name, timeout=300):
+    from .custom import show_github_action
+    from github import Github
+    from time import sleep
+    from ._clients import PollingAnimation
+    from datetime import datetime
+
+    start = datetime.utcnow()
+
+    animation = PollingAnimation()
+    animation.tick()
+    g = Github(token)
+
+    github_repo = g.get_repo(repo)
+
+
+    workflow = None
+    while workflow is None:
+        workflows = github_repo.get_workflows()
+        animation.flush()
+        for wf in workflows:
+            if wf.path.startswith(f".github/workflows/{name}") and "Trigger auto deployment for containerapp" in wf.name:
+                workflow = wf
+                break
+
+        gh_action_status = safe_get(show_github_action(cmd, name, resource_group_name), "properties", "operationState")
+        if gh_action_status == "Failed":
+            raise CLIInternalError("The Github Action creation failed.")
+        sleep(1)
+        animation.tick()
+
+        if (datetime.utcnow() - start).seconds >= timeout:
+            raise CLIInternalError("Timed out while waiting for the Github action to start.")
+
+    animation.flush()
+    animation.tick(); animation.flush()
+    run = workflow.get_runs()[0]
+    logger.warning(f"Github action run: https://github.com/{repo}/actions/runs/{run.id}")
+    logger.warning("Waiting for deployment to complete...")
+    run_id = run.id
+    status = run.status
+    while status == "queued" or status == "in_progress":
+        sleep(3)
+        animation.tick()
+        status = [wf.status for wf in workflow.get_runs() if wf.id == run_id][0]
+        animation.flush()
+        if (datetime.utcnow() - start).seconds >= timeout:
+            raise CLIInternalError("Timed out while waiting for the Github action to start.")
+
+    if status != "completed":
+        raise ValidationError(f"Github action deployment ended with status: {status}")
+
+
+def repo_url_to_name(repo_url):
+    repo = None
+    repo = repo_url.split('/')
+    if len(repo) >= 2:
+        repo = '/'.join(repo[-2:])
+    return repo
+
+
 def _get_location_from_resource_group(cli_ctx, resource_group_name):
     client = cf_resource_groups(cli_ctx)
     group = client.get(resource_group_name)

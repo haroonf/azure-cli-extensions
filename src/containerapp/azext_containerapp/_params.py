@@ -232,7 +232,7 @@ def load_arguments(self, _):
         c.argument('name', id_part=None)
 
     with self.argument_context('containerapp up') as c:
-        c.argument('resource_group_name', configured_default='resource_group_name')
+        c.argument('resource_group_name', configured_default='resource_group_name', id_part=None)
         c.argument('location', configured_default='location')
         c.argument('name', configured_default='name', id_part=None)
         c.argument('managed_env', configured_default='managed_env')

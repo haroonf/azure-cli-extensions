@@ -25,7 +25,9 @@ GITHUB_OAUTH_SCOPES = [
 ]
 
 
-def get_github_access_token(cmd, scope_list=None):  # pylint: disable=unused-argument
+def get_github_access_token(cmd, scope_list=None, token=None):  # pylint: disable=unused-argument
+    if token:
+        return token
     if scope_list:
         for scope in scope_list:
             if scope not in GITHUB_OAUTH_SCOPES:
