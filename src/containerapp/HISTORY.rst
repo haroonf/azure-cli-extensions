@@ -5,8 +5,9 @@ Release History
 
 0.4.0
 ++++++
+* Create or update a container app and all associated resources (container app environment, ACR, Github Actions, resource group, etc.) with 'az containerapp up'
 * Open an ssh-like shell in a Container App with 'az containerapp exec'
-* Support for log streaming with 'az containerapp log tail'
+* Support for log streaming with 'az containerapp logs show'
 * Replica show and list commands
 
 0.3.1
