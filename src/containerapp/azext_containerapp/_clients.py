@@ -129,6 +129,35 @@ class ContainerAppClient():
         return r.json()
 
     @classmethod
+    def patch_update(cls, cmd, resource_group_name, name, container_app_envelope, no_wait=False):
+        management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
+        api_version = "2022-03-01"
+        sub_id = get_subscription_id(cmd.cli_ctx)
+        url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.App/containerApps/{}?api-version={}"
+        request_url = url_fmt.format(
+            management_hostname.strip('/'),
+            sub_id,
+            resource_group_name,
+            name,
+            api_version)
+
+        r = send_raw_request(cmd.cli_ctx, "PATCH", request_url, body=json.dumps(container_app_envelope))
+
+        if no_wait:
+            return r.json()
+        elif r.status_code == 202:
+            url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.App/containerApps/{}?api-version={}"
+            request_url = url_fmt.format(
+                management_hostname.strip('/'),
+                sub_id,
+                resource_group_name,
+                name,
+                api_version)
+            return poll(cmd, request_url, "inprogress")
+
+        return r.json()
+
+    @classmethod
     def delete(cls, cmd, resource_group_name, name, no_wait=False):
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
         api_version = NEW_API_VERSION
