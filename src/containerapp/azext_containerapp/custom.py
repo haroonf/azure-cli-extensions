@@ -2046,3 +2046,129 @@ def containerapp_up(cmd,
         open_containerapp_in_browser(cmd, app.name, app.resource_group.name)
 
     print(up_output(app))
+
+
+def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, env_vars, ingress, target_port, registry_server, registry_user, registry_pass):
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    try:
+        location = ManagedEnvironmentClient.show(cmd, resource_group_name, managed_env.split('/')[-1])["location"]
+    except:
+        pass
+
+    ca_exists = False
+    if containerapp_def:
+        ca_exists = True
+
+    if not ca_exists:
+        containerapp_def = None
+        containerapp_def = ContainerAppModel
+        containerapp_def["location"] = location
+        containerapp_def["properties"]["managedEnvironmentId"] = managed_env
+        containerapp_def["properties"]["configuration"] = ConfigurationModel
+    else:
+        # check provisioning state here instead of secrets so no error
+        _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
+
+
+    container = ContainerModel
+    container["image"] = image
+    container["name"] = name
+
+
+    if env_vars:
+        container["env"] = parse_env_var_flags(env_vars)
+
+
+    external_ingress = None
+    if ingress is not None:
+        if ingress.lower() == "internal":
+            external_ingress = False
+        elif ingress.lower() == "external":
+            external_ingress = True
+
+
+    ingress_def = None
+    if target_port is not None and ingress is not None:
+        ingress_def = IngressModel
+        ingress_def["external"] = external_ingress
+        ingress_def["targetPort"] = target_port
+        containerapp_def["properties"]["configuration"]["ingress"] = ingress_def
+
+
+    # handle multi-container case
+    if ca_exists:
+        existing_containers = containerapp_def["properties"]["template"]["containers"]
+        if len(existing_containers) == 0:
+            # No idea how this would ever happen, failed provisioning maybe?
+            containerapp_def["properties"]["template"] = TemplateModel
+            containerapp_def["properties"]["template"]["containers"] = [container]
+        if len(existing_containers) == 1:
+            # Assume they want it updated
+            existing_containers[0] = container
+        if len(existing_containers) > 1:
+            # Assume they want to update, if not existing just add it
+            existing_containers = [x for x in existing_containers if x['name'].lower() == name.lower()]
+            if len(existing_containers) == 1:
+                existing_containers[0] = container
+            else:
+                existing_containers.append(container)
+        containerapp_def["properties"]["template"]["containers"] = existing_containers
+    else:
+        containerapp_def["properties"]["template"] = TemplateModel
+        containerapp_def["properties"]["template"]["containers"] = [container]
+
+
+    registries_def = None
+    registry = None
+
+
+    if "secrets" not in containerapp_def["properties"]["configuration"] or containerapp_def["properties"]["configuration"]["secrets"] == None:
+        containerapp_def["properties"]["configuration"]["secrets"] = []
+
+
+    if "registries" not in containerapp_def["properties"]["configuration"] or containerapp_def["properties"]["configuration"]["registries"] == None:
+        containerapp_def["properties"]["configuration"]["registries"] = []
+
+
+    registries_def = containerapp_def["properties"]["configuration"]["registries"]
+
+    if registry_server:
+        # Check if updating existing registry
+        updating_existing_registry = False
+        for r in registries_def:
+            if r['server'].lower() == registry_server.lower():
+                updating_existing_registry = True
+                if registry_user:
+                    r["username"] = registry_user
+                if registry_pass:
+                    r["passwordSecretRef"] = store_as_secret_and_return_secret_ref(
+                        containerapp_def["properties"]["configuration"]["secrets"],
+                        r["username"],
+                        r["server"],
+                        registry_pass,
+                        update_existing_secret=True)
+
+
+        # If not updating existing registry, add as new registry
+        if not updating_existing_registry:
+            registry = RegistryCredentialsModel
+            registry["server"] = registry_server
+            registry["username"] = registry_user
+            registry["passwordSecretRef"] = store_as_secret_and_return_secret_ref(
+                containerapp_def["properties"]["configuration"]["secrets"],
+                registry_user,
+                registry_server,
+                registry_pass,
+                update_existing_secret=True)
+
+            registries_def.append(registry)
+
+    if ca_exists:
+        return ContainerAppClient.patch_update(cmd, resource_group_name, name, containerapp_def)
+    else:
+        return ContainerAppClient.create_or_update(cmd, resource_group_name, name, containerapp_def)

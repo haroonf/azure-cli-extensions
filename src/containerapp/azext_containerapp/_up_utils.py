@@ -26,7 +26,7 @@ from ._utils import (get_randomized_name, get_profile_username, create_resource_
                      _get_default_containerapps_location, safe_get, is_int, create_service_principal_for_rbac,
                      repo_url_to_name, get_container_app_if_exists)
 
-from .custom import (create_managed_environment, create_containerapp, list_containerapp,
+from .custom import (create_managed_environment, containerapp_up_logic, list_containerapp,
                      list_managed_environments, create_or_update_github_action)
 
 logger = get_logger(__name__)
@@ -216,18 +216,17 @@ class ContainerApp(Resource):
         else:
             logger.warning(f"Creating Containerapp {self.name} in resource group {self.resource_group.name}")
 
-        return create_containerapp(cmd=self.cmd,
+        return containerapp_up_logic(cmd=self.cmd,
                                    name=self.name,
                                    resource_group_name=self.resource_group.name,
                                    image=self.image,
                                    managed_env=self.env.get_rid(),
                                    target_port=self.target_port,
                                    registry_server=None if no_registry else self.registry_server,
-                                   registry_pass=None if no_registry else self.registry_server,
-                                   registry_user=None if no_registry else self.registry_server,
+                                   registry_pass=None if no_registry else self.registry_pass,
+                                   registry_user=None if no_registry else self.registry_user,
                                    env_vars=self.env_vars,
-                                   ingress=self.ingress,
-                                   disable_warnings=True)
+                                   ingress=self.ingress)
 
     def create_acr_if_needed(self):
         if self.should_create_acr:
@@ -479,9 +478,9 @@ def up_output(app):
         output = (f"\nYour container app ({app.name}) has been created a deployed! Congrats! \n\n"
                   f"Browse to your container app at: {url} \n\n"
                   f"Stream logs for your container with: az containerapp logs -n {app.name} -g {app.resource_group.name} \n\n"
-                  f"See full output using: az containerapp show n {app.name} -g {app.resource_group.name} \n")
+                  f"See full output using: az containerapp show -n {app.name} -g {app.resource_group.name} \n")
     else:
         output = (f"\nYour container app ({app.name}) has been created a deployed! Congrats! \n\n"
                   f"Stream logs for your container with: az containerapp logs -n {app.name} -g {app.resource_group.name} \n\n"
-                  f"See full output using: az containerapp show n {app.name} -g {app.resource_group.name} \n")
+                  f"See full output using: az containerapp show -n {app.name} -g {app.resource_group.name} \n")
     return output
