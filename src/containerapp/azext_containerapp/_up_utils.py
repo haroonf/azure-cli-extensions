@@ -238,8 +238,10 @@ class ContainerApp(Resource):
         registry_rg = self.resource_group.name
         url = self.registry_server
         registry_name = url[:url.rindex(".azurecr.io")]
-        registry_def = create_new_acr(self.cmd, registry_name, registry_rg, self.location)
+        registry_def = create_new_acr(self.cmd, registry_name, registry_rg, self.env.location)
         self.registry_server = registry_def.login_server
+
+        self.registry_user, self.registry_pass, _ = _get_acr_cred(self.cmd.cli_ctx, registry_name)
 
     def run_acr_build(self, dockerfile):
         image_name = self.image if self.image is not None else self.name
@@ -393,7 +395,7 @@ def _get_acr_from_image(cmd, app):
 def _get_registry_from_app(app):
     containerapp_def = app.get()
     if containerapp_def:
-            if len(safe_get(containerapp_def, "properties", "configuration", "registries")) == 1:
+            if len(safe_get(containerapp_def, "properties", "configuration", "registries", default=[])) == 1:
                 app.registry_server = containerapp_def["properties"]["configuration"]["registries"][0]["server"]
 
 

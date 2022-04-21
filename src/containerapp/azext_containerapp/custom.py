@@ -2026,7 +2026,7 @@ def containerapp_up(cmd,
 
     _set_up_defaults(cmd, name, resource_group_name, logs_customer_id, location, resource_group, env, app)
 
-    if source:
+    if source or repo:
         registry_server = _get_registry_from_app(app)  # if the app exists, get the registry
         _get_registry_details(cmd, app)  # fetch ACR creds from arguments registry arguments
 

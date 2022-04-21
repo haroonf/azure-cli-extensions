@@ -59,7 +59,7 @@ def load_command_table(self, _):
         g.custom_command('list', 'list_replicas')
 
     with self.command_group('containerapp logs', is_preview=True) as g:
-        g.custom_command('show', 'stream_containerapp_logs', validator=validate_ssh)
+        g.custom_show_command('show', 'stream_containerapp_logs', validator=validate_ssh)
 
     with self.command_group('containerapp env') as g:
         g.custom_show_command('show', 'show_managed_environment')
