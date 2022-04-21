@@ -2035,10 +2035,9 @@ def containerapp_up(cmd,
     app.create_acr_if_needed()
 
     if source:
-        app.run_acr_build(dockerfile)
+        app.run_acr_build(dockerfile, source)
 
-    app.create()
-
+    app.create(no_registry=bool(repo))
     if repo:
         _create_github_action(app, env, service_principal_client_id, service_principal_client_secret,
                               service_principal_tenant_id, branch, token, repo, context_path)

@@ -209,7 +209,8 @@ class ContainerApp(Resource):
     def _get(self):
         return ContainerAppClient.show(self.cmd, self.resource_group.name, self.name)
 
-    def create(self):
+    def create(self, no_registry=False):
+        # no_registry: don't pass in a registry during create even if the app has one (used for GH actions)
         if get_container_app_if_exists(self.cmd, self.resource_group.name, self.name):
             logger.warning(f"Updating Containerapp {self.name} in resource group {self.resource_group.name}")
         else:
@@ -221,9 +222,9 @@ class ContainerApp(Resource):
                                    image=self.image,
                                    managed_env=self.env.get_rid(),
                                    target_port=self.target_port,
-                                   registry_server=self.registry_server,
-                                   registry_pass=self.registry_pass,
-                                   registry_user=self.registry_user,
+                                   registry_server=None if no_registry else self.registry_server,
+                                   registry_pass=None if no_registry else self.registry_server,
+                                   registry_user=None if no_registry else self.registry_server,
                                    env_vars=self.env_vars,
                                    ingress=self.ingress,
                                    disable_warnings=True)
@@ -235,27 +236,28 @@ class ContainerApp(Resource):
             self.create_acr()
 
     def create_acr(self):
-        registry_rg = self.resource_group.name
+        registry_rg = self.resource_group
         url = self.registry_server
         registry_name = url[:url.rindex(".azurecr.io")]
-        registry_def = create_new_acr(self.cmd, registry_name, registry_rg, self.env.location)
+        registry_def = create_new_acr(self.cmd, registry_name, registry_rg.name, self.env.location)
         self.registry_server = registry_def.login_server
+
+        if not self.acr:
+            self.acr = AzureContainerRegistry()
+        self.acr.name = registry_name
+        self.acr.resource_group = registry_rg
 
         self.registry_user, self.registry_pass, _ = _get_acr_cred(self.cmd.cli_ctx, registry_name)
 
-    def run_acr_build(self, dockerfile):
+    def run_acr_build(self, dockerfile, source):
         image_name = self.image if self.image is not None else self.name
         from datetime import datetime
         now = datetime.now()
         # Add version tag for acr image
         image_name += ":{}".format(str(now).replace(' ', '').replace('-', '').replace('.', '').replace(':', ''))
 
-        self.registry_rg
-
         self.image = self.registry_server + '/' + image_name
-        queue_acr_build(self.cmd, self.registry_rg, self.registry_name, image_name, self.source, dockerfile, quiet=True)
-
-# up utils -- TODO move to their own file
+        queue_acr_build(self.cmd, self.acr.resource_group.name, self.acr.name, image_name, source, dockerfile, quiet=True)
 
 def _create_service_principal(cmd, resource_group_name, env_resource_group_name):
     logger.warning("No valid service principal provided. Creating a new service principal...")
