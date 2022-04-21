@@ -223,8 +223,8 @@ class ContainerApp(Resource):
                                    managed_env=self.env.get_rid(),
                                    target_port=self.target_port,
                                    registry_server=None if no_registry else self.registry_server,
-                                   registry_pass=None if no_registry else self.registry_server,
-                                   registry_user=None if no_registry else self.registry_server,
+                                   registry_pass=None if no_registry else self.registry_pass,
+                                   registry_user=None if no_registry else self.registry_user,
                                    env_vars=self.env_vars,
                                    ingress=self.ingress,
                                    disable_warnings=True)
@@ -418,8 +418,9 @@ def _get_registry_details(cmd, app: 'ContainerApp'):
     else:
         registry_rg = app.resource_group.name
         user = get_profile_username()
-        registry_name = "{}acr".format(app.name).replace('-','')
-        registry_name = registry_name + str(hash((registry_rg, user, app.name))).replace("-", "")
+        registry_name = app.name.replace('-','').lower()
+        registry_name = registry_name + str(hash((registry_rg, user, app.name))).replace("-", "").replace(".", "")[:10]  # cap at 15 characters total
+        registry_name = f"ca{registry_name}acr"  # ACR names must start + end in a letter
         app.registry_server = registry_name + ".azurecr.io"
         app.should_create_acr = True
     app.acr = AzureContainerRegistry(registry_name, ResourceGroup(cmd, registry_rg, None, None))
@@ -468,6 +469,7 @@ def _create_github_action(app:'ContainerApp',
                                                service_principal_tenant_id=service_principal_tenant_id,
                                                image=app.image,
                                                context_path=context_path)
+
 
 def up_output(app):
     url = safe_get(ContainerAppClient.show(app.cmd, app.resource_group.name, app.name), "properties",

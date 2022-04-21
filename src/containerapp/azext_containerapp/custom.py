@@ -1130,7 +1130,7 @@ def create_or_update_github_action(cmd,
         registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
 
         try:
-            registry_username, registry_password = _get_acr_cred(cmd.cli_ctx, registry_name)
+            registry_username, registry_password, _ = _get_acr_cred(cmd.cli_ctx, registry_name)
         except Exception as ex:
             raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
 
@@ -1725,7 +1725,6 @@ def set_secrets(cmd, name, resource_group_name, secrets,
                 # yaml=None,
                 no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
-
     # if not yaml and not secrets:
     #     raise RequiredArgumentMissingError('Usage error: --secrets is required if not using --yaml')
 
