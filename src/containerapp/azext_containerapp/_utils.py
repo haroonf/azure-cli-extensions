@@ -156,7 +156,7 @@ def is_int(s):
     return False
 
 
-def await_github_action(cmd, token, repo, branch, name, resource_group_name, timeout=300):
+def await_github_action(cmd, token, repo, branch, name, resource_group_name, timeout_secs=300):
     from .custom import show_github_action
     from github import Github
     from time import sleep
@@ -187,7 +187,7 @@ def await_github_action(cmd, token, repo, branch, name, resource_group_name, tim
         sleep(1)
         animation.tick()
 
-        if (datetime.utcnow() - start).seconds >= timeout:
+        if (datetime.utcnow() - start).seconds >= timeout_secs:
             raise CLIInternalError("Timed out while waiting for the Github action to start.")
 
     animation.flush()
@@ -202,7 +202,7 @@ def await_github_action(cmd, token, repo, branch, name, resource_group_name, tim
         animation.tick()
         status = [wf.status for wf in workflow.get_runs() if wf.id == run_id][0]
         animation.flush()
-        if (datetime.utcnow() - start).seconds >= timeout:
+        if (datetime.utcnow() - start).seconds >= timeout_secs:
             raise CLIInternalError("Timed out while waiting for the Github action to start.")
 
     if status != "completed":
