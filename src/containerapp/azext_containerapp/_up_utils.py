@@ -464,3 +464,20 @@ def _create_github_action(app:'ContainerApp',
                                                service_principal_tenant_id=service_principal_tenant_id,
                                                image=app.image,
                                                context_path=context_path)
+
+def up_output(app):
+    url = safe_get(ContainerAppClient.show(app.cmd, app.resource_group.name, app.name), "properties",
+                                                                                        "configuration",
+                                                                                        "ingress", "fqdn")
+    if url and not url.startswith("http"):
+        url = f"http://{url}"
+    if url:
+        output = (f"\nYour container app ({app.name}) has been created a deployed! Congrats! \n\n"
+                  f"Browse to your container app at: {url} \n\n"
+                  f"Stream logs for your container with: az containerapp logs -n {app.name} -g {app.resource_group.name} \n\n"
+                  f"See full output using: az containerapp show n {app.name} -g {app.resource_group.name} \n")
+    else:
+        output = (f"\nYour container app ({app.name}) has been created a deployed! Congrats! \n\n"
+                  f"Stream logs for your container with: az containerapp logs -n {app.name} -g {app.resource_group.name} \n\n"
+                  f"See full output using: az containerapp show n {app.name} -g {app.resource_group.name} \n")
+    return output

@@ -2008,7 +2008,7 @@ def containerapp_up(cmd,
                     service_principal_tenant_id=None):
     from ._up_utils import (_validate_up_args, _reformat_image, _get_dockerfile_content, _get_ingress_and_target_port,
                             ResourceGroup, ContainerAppEnvironment, ContainerApp, _get_registry_from_app,
-                            _get_registry_details, _create_github_action, _set_up_defaults)
+                            _get_registry_details, _create_github_action, _set_up_defaults, up_output)
 
     dockerfile="Dockerfile",  # for now the dockerfile name must be "Dockerfile" (until GH actions API is updated)
 
@@ -2046,4 +2046,4 @@ def containerapp_up(cmd,
     if browse:
         open_containerapp_in_browser(cmd, app.name, app.resource_group.name)
 
-    # TODO output
+    print(up_output(app))
