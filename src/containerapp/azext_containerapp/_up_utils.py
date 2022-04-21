@@ -481,9 +481,9 @@ def up_output(app):
         output = (f"\nYour container app ({app.name}) has been created a deployed! Congrats! \n\n"
                   f"Browse to your container app at: {url} \n\n"
                   f"Stream logs for your container with: az containerapp logs -n {app.name} -g {app.resource_group.name} \n\n"
-                  f"See full output using: az containerapp show n {app.name} -g {app.resource_group.name} \n")
+                  f"See full output using: az containerapp show -n {app.name} -g {app.resource_group.name} \n")
     else:
         output = (f"\nYour container app ({app.name}) has been created a deployed! Congrats! \n\n"
                   f"Stream logs for your container with: az containerapp logs -n {app.name} -g {app.resource_group.name} \n\n"
-                  f"See full output using: az containerapp show n {app.name} -g {app.resource_group.name} \n")
+                  f"See full output using: az containerapp show -n {app.name} -g {app.resource_group.name} \n")
     return output
