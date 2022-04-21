@@ -2010,7 +2010,7 @@ def containerapp_up(cmd,
                             ResourceGroup, ContainerAppEnvironment, ContainerApp, _get_registry_from_app,
                             _get_registry_details, _create_github_action, _set_up_defaults, up_output)
 
-    dockerfile="Dockerfile",  # for now the dockerfile name must be "Dockerfile" (until GH actions API is updated)
+    dockerfile="Dockerfile"  # for now the dockerfile name must be "Dockerfile" (until GH actions API is updated)
 
     _validate_up_args(source, image, repo)
 
