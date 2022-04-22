@@ -2,6 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
+# pylint: disable=consider-using-f-string, consider-using-with, no-member
 
 import tarfile
 import os
@@ -10,8 +11,8 @@ import codecs
 from io import open
 import requests
 from knack.log import get_logger
-from knack.util import CLIError
 from msrestazure.azure_exceptions import CloudError
+from azure.cli.core.azclierror import (CLIInternalError)
 from azure.cli.core.profiles import ResourceType, get_sdk
 from azure.cli.command_modules.acr._azure_utils import get_blob_info
 from azure.cli.command_modules.acr._constants import TASK_VALID_VSTS_URLS
@@ -48,10 +49,10 @@ def upload_source_code(cmd, client,
         upload_url = source_upload_location.upload_url
         relative_path = source_upload_location.relative_path
     except (AttributeError, CloudError) as e:
-        raise CLIError("Failed to get a SAS URL to upload context. Error: {}".format(e.message))
+        raise CLIInternalError("Failed to get a SAS URL to upload context. Error: {}".format(e.message)) from e
 
     if not upload_url:
-        raise CLIError("Failed to get a SAS URL to upload context.")
+        raise CLIInternalError("Failed to get a SAS URL to upload context.")
 
     account_name, endpoint_suffix, container_name, blob_name, sas_token = get_blob_info(upload_url)
     BlockBlobService = get_sdk(cmd.cli_ctx, ResourceType.DATA_STORAGE, 'blob#BlockBlobService')
@@ -192,7 +193,7 @@ def _archive_file_recursively(tar, name, arcname, parent_ignored, parent_matchin
     tarinfo = tar.gettarinfo(name, arcname)
 
     if tarinfo is None:
-        raise CLIError("tarfile: unsupported type {}".format(name))
+        raise CLIInternalError("tarfile: unsupported type {}".format(name))
 
     # check if the file/dir is ignored
     ignored, matching_rule_index = ignore_check(
@@ -234,9 +235,9 @@ def check_remote_source_code(source_location):
             # Others are tarball
             if requests.head(source_location).status_code < 400:
                 return source_location
-            raise CLIError("'{}' doesn't exist.".format(source_location))
+            raise CLIInternalError("'{}' doesn't exist.".format(source_location))
 
     # oci
     if lower_source_location.startswith("oci://"):
         return source_location
-    raise CLIError("'{}' doesn't exist.".format(source_location))
+    raise CLIInternalError("'{}' doesn't exist.".format(source_location))

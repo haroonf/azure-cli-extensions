@@ -52,11 +52,8 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      _object_to_dict, _add_or_update_secrets, _remove_additional_attributes, _remove_readonly_attributes,
                      _add_or_update_env_vars, _add_or_update_tags, update_nested_dictionary, _update_traffic_weights,
                      _get_app_from_revision, raise_missing_token_suggestion, _infer_acr_credentials, _remove_registry_secret, _remove_secret,
-                     _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _registry_exists, _remove_env_vars,
-                     _update_revision_env_secretrefs, get_randomized_name, _set_webapp_up_default_args, get_profile_username, create_resource_group,
-                     get_resource_group, queue_acr_build, _get_acr_cred, create_new_acr, _get_log_analytics_workspace_name,
-                     _get_default_containerapps_location, safe_get, is_int, create_service_principal_for_rbac,
-                     _get_name, await_github_action, repo_url_to_name)
+                     _ensure_identity_resource_id, _remove_dapr_readonly_attributes, _remove_env_vars,
+                     _update_revision_env_secretrefs, _get_acr_cred, safe_get, await_github_action, repo_url_to_name)
 
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
                          SSH_BACKUP_ENCODING)
@@ -1056,8 +1053,8 @@ def _validate_github(repo, branch, token):
             logger.warning('Verified GitHub repo and branch')
         except BadCredentialsException as e:
             raise ValidationError("Could not authenticate to the repository. Please create a Personal Access Token and use "
-                                    "the --token argument. Run 'az webapp deployment github-actions add --help' "
-                                    "for more information.") from e
+                                  "the --token argument. Run 'az webapp deployment github-actions add --help' "
+                                  "for more information.") from e
         except GithubException as e:
             error_msg = "Encountered GitHub error when accessing {} repo".format(repo)
             if e.data and e.data['message']:
@@ -2009,7 +2006,7 @@ def containerapp_up(cmd,
                             ResourceGroup, ContainerAppEnvironment, ContainerApp, _get_registry_from_app,
                             _get_registry_details, _create_github_action, _set_up_defaults, up_output, AzureContainerRegistry)
 
-    dockerfile="Dockerfile"  # for now the dockerfile name must be "Dockerfile" (until GH actions API is updated)
+    dockerfile = "Dockerfile"  # for now the dockerfile name must be "Dockerfile" (until GH actions API is updated)
 
     _validate_up_args(source, image, repo)
 
@@ -2034,14 +2031,12 @@ def containerapp_up(cmd,
             raise ValidationError("Containerapp has an existing provisioning in progress. Please wait until provisioning has completed and rerun the command.")
 
     if source or repo:
-        registry_server = _get_registry_from_app(app)  # if the app exists, get the registry
+        _get_registry_from_app(app)  # if the app exists, get the registry
         _get_registry_details(cmd, app)  # fetch ACR creds from arguments registry arguments
 
     resource_group.create_if_needed()
     env.create_if_needed(name)
     app.create_acr_if_needed()
-
-
 
     if source:
         app.run_acr_build(dockerfile, source, False)
@@ -2083,15 +2078,12 @@ def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, en
         # check provisioning state here instead of secrets so no error
         _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
-
     container = ContainerModel
     container["image"] = image
     container["name"] = name
 
-
     if env_vars:
         container["env"] = parse_env_var_flags(env_vars)
-
 
     external_ingress = None
     if ingress is not None:
@@ -2100,14 +2092,12 @@ def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, en
         elif ingress.lower() == "external":
             external_ingress = True
 
-
     ingress_def = None
     if target_port is not None and ingress is not None:
         ingress_def = IngressModel
         ingress_def["external"] = external_ingress
         ingress_def["targetPort"] = target_port
         containerapp_def["properties"]["configuration"]["ingress"] = ingress_def
-
 
     # handle multi-container case
     if ca_exists:
@@ -2131,18 +2121,14 @@ def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, en
         containerapp_def["properties"]["template"] = TemplateModel
         containerapp_def["properties"]["template"]["containers"] = [container]
 
-
     registries_def = None
     registry = None
 
-
-    if "secrets" not in containerapp_def["properties"]["configuration"] or containerapp_def["properties"]["configuration"]["secrets"] == None:
+    if "secrets" not in containerapp_def["properties"]["configuration"] or containerapp_def["properties"]["configuration"]["secrets"] is None:
         containerapp_def["properties"]["configuration"]["secrets"] = []
 
-
-    if "registries" not in containerapp_def["properties"]["configuration"] or containerapp_def["properties"]["configuration"]["registries"] == None:
+    if "registries" not in containerapp_def["properties"]["configuration"] or containerapp_def["properties"]["configuration"]["registries"] is None:
         containerapp_def["properties"]["configuration"]["registries"] = []
-
 
     registries_def = containerapp_def["properties"]["configuration"]["registries"]
 
@@ -2162,7 +2148,6 @@ def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, en
                         registry_pass,
                         update_existing_secret=True)
 
-
         # If not updating existing registry, add as new registry
         if not updating_existing_registry:
             registry = RegistryCredentialsModel
@@ -2179,5 +2164,4 @@ def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, en
 
     if ca_exists:
         return ContainerAppClient.update(cmd, resource_group_name, name, containerapp_def)
-    else:
-        return ContainerAppClient.create_or_update(cmd, resource_group_name, name, containerapp_def)
+    return ContainerAppClient.create_or_update(cmd, resource_group_name, name, containerapp_def)

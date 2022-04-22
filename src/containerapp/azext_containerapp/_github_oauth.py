@@ -4,9 +4,9 @@
 # --------------------------------------------------------------------------------------------
 # pylint: disable=consider-using-f-string
 
+from azure.cli.core.util import open_page_in_browser
 from azure.cli.core.azclierror import (ValidationError, CLIInternalError, UnclassifiedUserFault)
 from knack.log import get_logger
-from azure.cli.core.util import open_page_in_browser
 
 logger = get_logger(__name__)
 

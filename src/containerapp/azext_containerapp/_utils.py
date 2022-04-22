@@ -2,19 +2,20 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
-# pylint: disable=line-too-long, consider-using-f-string, no-else-return, duplicate-string-formatting-argument, expression-not-assigned, too-many-locals
+# pylint: disable=line-too-long, consider-using-f-string, no-else-return, duplicate-string-formatting-argument, expression-not-assigned, too-many-locals, logging-fstring-interpolation
 
 import time
 import json
-import datetime
-from dateutil.relativedelta import relativedelta
 import platform
+
 from urllib.parse import urlparse
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from azure.cli.core.azclierror import (ValidationError, RequiredArgumentMissingError, CLIInternalError,
                                        ResourceNotFoundError, ArgumentUsageError)
 from azure.cli.core.commands.client_factory import get_subscription_id
 from knack.log import get_logger
-from msrestazure.tools import parse_resource_id, is_valid_resource_id
+from msrestazure.tools import parse_resource_id, is_valid_resource_id, resource_id
 
 from ._clients import ContainerAppClient
 from ._client_factory import handle_raw_exception, providers_client_factory, cf_resource_groups, log_analytics_client_factory, log_analytics_shared_key_client_factory
@@ -22,18 +23,15 @@ from ._client_factory import handle_raw_exception, providers_client_factory, cf_
 logger = get_logger(__name__)
 
 
-
 # original implementation at azure.cli.command_modules.role.custom.create_service_principal_for_rbac
 # reimplemented to remove unnecessary warning statements
-def create_service_principal_for_rbac(
-        # pylint:disable=too-many-statements,too-many-locals, too-many-branches, unused-argument
+def create_service_principal_for_rbac(  # pylint:disable=too-many-statements,too-many-locals, too-many-branches, unused-argument, inconsistent-return-statements
         cmd, name=None, years=None, create_cert=False, cert=None, scopes=None, role=None,
         show_auth_for_sdk=None, skip_assignment=False, keyvault=None):
     from azure.cli.command_modules.role.custom import (_graph_client_factory, TZ_UTC, _process_service_principal_creds,
-                                                       _validate_app_dates,  create_application,
+                                                       _validate_app_dates, create_application,
                                                        _create_service_principal, _create_role_assignment,
                                                        _error_caused_by_role_assignment_exists)
-
 
     if role and not scopes or not role and scopes:
         raise ArgumentUsageError("Usage error: To create role assignments, specify both --role and --scopes.")
@@ -161,7 +159,6 @@ def await_github_action(cmd, token, repo, branch, name, resource_group_name, tim
     from github import Github
     from time import sleep
     from ._clients import PollingAnimation
-    from datetime import datetime
 
     start = datetime.utcnow()
 
@@ -170,7 +167,6 @@ def await_github_action(cmd, token, repo, branch, name, resource_group_name, tim
     g = Github(token)
 
     github_repo = g.get_repo(repo)
-
 
     workflow = None
     while workflow is None:
@@ -191,13 +187,14 @@ def await_github_action(cmd, token, repo, branch, name, resource_group_name, tim
             raise CLIInternalError("Timed out while waiting for the Github action to start.")
 
     animation.flush()
-    animation.tick(); animation.flush()
+    animation.tick()
+    animation.flush()
     run = workflow.get_runs()[0]
     logger.warning(f"Github action run: https://github.com/{repo}/actions/runs/{run.id}")
     logger.warning("Waiting for deployment to complete...")
     run_id = run.id
     status = run.status
-    while status == "queued" or status == "in_progress":
+    while status in ('queued', 'in_progress'):
         sleep(3)
         animation.tick()
         status = [wf.status for wf in workflow.get_runs() if wf.id == run_id][0]
@@ -410,7 +407,7 @@ def get_container_app_if_exists(cmd, resource_group_name, name):
     app = None
     try:
         app = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
-    except:
+    except:  # pylint: disable=bare-except
         pass
     return app
 
@@ -554,7 +551,6 @@ def _get_existing_secrets(cmd, resource_group_name, name, containerapp_def):
 
 
 def _ensure_identity_resource_id(subscription_id, resource_group, resource):
-    from msrestazure.tools import resource_id, is_valid_resource_id
     if is_valid_resource_id(resource):
         return resource
 
@@ -676,8 +672,6 @@ def _add_or_update_tags(containerapp_def, tags):
 
 
 def _object_to_dict(obj):
-    import json
-    import datetime
 
     def default_handler(x):
         if isinstance(x, datetime.datetime):
