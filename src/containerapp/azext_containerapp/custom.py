@@ -1130,7 +1130,7 @@ def create_or_update_github_action(cmd,
         registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
 
         try:
-            registry_username, registry_password = _get_acr_cred(cmd.cli_ctx, registry_name)
+            registry_username, registry_password, _ = _get_acr_cred(cmd.cli_ctx, registry_name)
         except Exception as ex:
             raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
 
@@ -1725,7 +1725,6 @@ def set_secrets(cmd, name, resource_group_name, secrets,
                 # yaml=None,
                 no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
-
     # if not yaml and not secrets:
     #     raise RequiredArgumentMissingError('Usage error: --secrets is required if not using --yaml')
 
@@ -2008,7 +2007,7 @@ def containerapp_up(cmd,
                     service_principal_tenant_id=None):
     from ._up_utils import (_validate_up_args, _reformat_image, _get_dockerfile_content, _get_ingress_and_target_port,
                             ResourceGroup, ContainerAppEnvironment, ContainerApp, _get_registry_from_app,
-                            _get_registry_details, _create_github_action, _set_up_defaults, up_output)
+                            _get_registry_details, _create_github_action, _set_up_defaults, up_output, AzureContainerRegistry)
 
     dockerfile="Dockerfile"  # for now the dockerfile name must be "Dockerfile" (until GH actions API is updated)
 
@@ -2041,6 +2040,8 @@ def containerapp_up(cmd,
     resource_group.create_if_needed()
     env.create_if_needed(name)
     app.create_acr_if_needed()
+
+
 
     if source:
         app.run_acr_build(dockerfile, source, False)

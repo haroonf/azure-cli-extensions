@@ -367,7 +367,7 @@ class ContainerAppClient():
             resource_group_name,
             container_app_name,
             revision_name,
-            PREVIEW_API_VERSION)
+            STABLE_API_VERSION)
 
         r = send_raw_request(cmd.cli_ctx, "GET", request_url)
         j = r.json()
@@ -395,7 +395,7 @@ class ContainerAppClient():
             container_app_name,
             revision_name,
             replica_name,
-            PREVIEW_API_VERSION)
+            STABLE_API_VERSION)
 
         r = send_raw_request(cmd.cli_ctx, "GET", request_url)
         return r.json()
@@ -410,7 +410,7 @@ class ContainerAppClient():
             sub_id,
             resource_group_name,
             name,
-            PREVIEW_API_VERSION)
+            STABLE_API_VERSION)
 
         r = send_raw_request(cmd.cli_ctx, "POST", request_url)
         return r.json()

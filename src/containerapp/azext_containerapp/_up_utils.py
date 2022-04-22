@@ -15,6 +15,9 @@ from azure.cli.core.azclierror import (
     MutuallyExclusiveArgumentError)
 from azure.cli.core.commands.client_factory import get_subscription_id
 from azure.cli.command_modules.appservice._create_util import check_resource_group_exists
+from azure.cli.command_modules.acr.custom import acr_show
+from azure.cli.core.commands.client_factory import get_mgmt_service_client
+from azure.mgmt.containerregistry import ContainerRegistryManagementClient
 from knack.log import get_logger
 
 from msrestazure.tools import parse_resource_id, is_valid_resource_id, resource_id
@@ -381,16 +384,19 @@ def _get_env_and_group_from_log_analytics(cmd, resource_group_name, env:'Contain
 
 def _get_acr_from_image(cmd, app):
     if app.image is not None and "azurecr.io" in app.image:
+        app.registry_server = app.image.split('/')[0]  # TODO what if this conflicts with registry_server param?
+        parsed = urlparse(app.image)
+        registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
         if app.registry_user is None or app.registry_pass is None:
             logger.info('No credential was provided to access Azure Container Registry. Trying to look up...')
-            app.registry_server = app.image.split('/')[0]  # TODO what if this conflicts with registry_server param?
-            parsed = urlparse(app.image)
-            registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
-        try:
-            app.registry_user, app.registry_pass, registry_rg = _get_acr_cred(cmd.cli_ctx, registry_name)
-            app.acr = AzureContainerRegistry(registry_name, ResourceGroup(cmd, registry_rg, None, None))
-        except Exception as ex:
-            raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
+            try:
+                app.registry_user, app.registry_pass, registry_rg = _get_acr_cred(cmd.cli_ctx, registry_name)
+                app.acr = AzureContainerRegistry(registry_name, ResourceGroup(cmd, registry_rg, None, None))
+            except Exception as ex:
+                raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
+        else:
+            acr_rg = _get_acr_rg(app)
+            app.acr = AzureContainerRegistry(name=registry_name, resource_group=ResourceGroup(app.cmd, acr_rg, None, None))
 
 
 def _get_registry_from_app(app):
@@ -400,28 +406,36 @@ def _get_registry_from_app(app):
                 app.registry_server = containerapp_def["properties"]["configuration"]["registries"][0]["server"]
 
 
+def _get_acr_rg(app):
+    registry_name = app.registry_server[:app.registry_server.rindex(".azurecr.io")]
+    client = get_mgmt_service_client(app.cmd.cli_ctx, ContainerRegistryManagementClient).registries
+    return parse_resource_id(acr_show(app.cmd, client, registry_name).id)["resource_group"]
+
 def _get_registry_details(cmd, app: 'ContainerApp'):
     registry_rg = None
     registry_name = None
     if app.registry_server:
         if "azurecr.io" not in app.registry_server:
             raise ValidationError("Cannot supply non-Azure registry when using --source.")
+        parsed = urlparse(app.registry_server)
+        registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
         if app.registry_user is None or app.registry_pass is None:
             logger.info('No credential was provided to access Azure Container Registry. Trying to look up...')
-            parsed = urlparse(app.registry_server)
-            registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
             try:
                 app.registry_user, app.registry_pass, registry_rg = _get_acr_cred(cmd.cli_ctx, registry_name)
             except Exception as ex:
                 raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
+        else:
+            registry_rg = _get_acr_rg(app)
     else:
         registry_rg = app.resource_group.name
         user = get_profile_username()
-        registry_name = app.name.replace('-','')
-        registry_name = registry_name + str(hash((registry_rg, user, app.name))).replace("-", "")[:10]
-        registry_name = f"ca{registry_name}acr"
+        registry_name = app.name.replace('-','').lower()
+        registry_name = registry_name + str(hash((registry_rg, user, app.name))).replace("-", "").replace(".", "")[:10]  # cap at 15 characters total
+        registry_name = f"ca{registry_name}acr"  # ACR names must start + end in a letter
         app.registry_server = registry_name + ".azurecr.io"
         app.should_create_acr = True
+
     app.acr = AzureContainerRegistry(registry_name, ResourceGroup(cmd, registry_rg, None, None))
 
 
@@ -436,6 +450,7 @@ def _set_up_defaults(cmd, name, resource_group_name, logs_customer_id, location,
 
     # get ACR details from --image, if possible
     _get_acr_from_image(cmd, app)
+
 
 def _create_github_action(app:'ContainerApp',
                           env:'ContainerAppEnvironment',
@@ -468,6 +483,7 @@ def _create_github_action(app:'ContainerApp',
                                                service_principal_tenant_id=service_principal_tenant_id,
                                                image=app.image,
                                                context_path=context_path)
+
 
 def up_output(app):
     url = safe_get(ContainerAppClient.show(app.cmd, app.resource_group.name, app.name), "properties",

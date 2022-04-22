@@ -33,7 +33,7 @@ def load_arguments(self, _):
 
     with self.argument_context('containerapp exec') as c:
         c.argument('container', help="The name of the container to ssh into")
-        c.argument('replica', help="The name of the replica (pod) to ssh into. List replicas with 'az containerapp replica list'. A replica may not exist if there is not traffic to your app.")
+        c.argument('replica', help="The name of the replica to ssh into. List replicas with 'az containerapp replica list'. A replica may not exist if there is not traffic to your app.")
         c.argument('revision', help="The name of the container app revision to ssh into. Defaults to the latest revision.")
         c.argument('startup_command', options_list=["--command"], help="The startup command (bash, zsh, sh, etc.).")
         c.argument('name', name_type, id_part=None, help="The name of the Containerapp.")
@@ -44,21 +44,20 @@ def load_arguments(self, _):
         c.argument('tail', help="The number of past logs to print (0-300)", type=int, default=20)
         c.argument('container', help="The name of the container")
         c.argument('output_format', options_list=["--format"], help="Log output format", arg_type=get_enum_type(["json", "text"]), default="json")
-        c.argument('replica', help="The name of the replica (pod). List replicas with 'az containerapp replica list'. A replica may not exist if there is not traffic to your app.")
+        c.argument('replica', help="The name of the replica. List replicas with 'az containerapp replica list'. A replica may not exist if there is not traffic to your app.")
         c.argument('revision', help="The name of the container app revision. Defaults to the latest revision.")
         c.argument('name', name_type, id_part=None, help="The name of the Containerapp.")
         c.argument('resource_group_name', arg_type=resource_group_name_type, id_part=None)
 
     # Replica
     with self.argument_context('containerapp replica') as c:
-        c.argument('replica', help="The name of the replica (pod). ")
+        c.argument('replica', help="The name of the replica. ")
         c.argument('revision', help="The name of the container app revision. Defaults to the latest revision.")
         c.argument('name', name_type, id_part=None, help="The name of the Containerapp.")
         c.argument('resource_group_name', arg_type=resource_group_name_type, id_part=None)
 
     # Container
     with self.argument_context('containerapp', arg_group='Container') as c:
-        # c.argument('image', type=str, options_list=['--image', '-i'], help="Container image, e.g. publisher/image-name:tag.")
         c.argument('container_name', type=str, help="Name of the container.")
         c.argument('cpu', type=float, validator=validate_cpu, help="Required CPU in cores from 0.25 - 2.0, e.g. 0.5")
         c.argument('memory', type=str, validator=validate_memory, help="Required memory from 0.5 - 4.0 ending with \"Gi\", e.g. 1.0Gi")
@@ -225,7 +224,6 @@ def load_arguments(self, _):
         c.argument('name', configured_default='name', id_part=None)
         c.argument('managed_env', configured_default='managed_env')
         c.argument('registry_server', configured_default='registry_server')
-        c.argument('dryrun', help="Show summary of the operation instead of executing it.")
         c.argument('source', type=str, help='Local directory path to upload to Azure container registry.')
         c.argument('image', type=str, options_list=['--image', '-i'], help="Container image, e.g. publisher/image-name:tag.")
         c.argument('browse', help='Open the app in a web browser after creation and deployment, if possible.')

@@ -88,7 +88,7 @@ helps['containerapp list'] = """
 
 helps['containerapp exec'] = """
     type: command
-    short-summary: Open an SSH-like interactive shell within a container app replica (pod)
+    short-summary: Open an SSH-like interactive shell within a container app replica
     examples:
     - name: exec into a container app
       text: |
@@ -132,7 +132,7 @@ helps['containerapp logs'] = """
 
 helps['containerapp logs show'] = """
     type: command
-    short-summary: Show past logs and/or print logs in real time (with the --follow parameter). Note that the logs are only taken from one revision, replica (pod), and container.
+    short-summary: Show past logs and/or print logs in real time (with the --follow parameter). Note that the logs are only taken from one revision, replica, and container.
     examples:
     - name: Fetch the past 20 lines of logs from an app and return
       text: |
@@ -148,12 +148,12 @@ helps['containerapp logs show'] = """
 # Replica Commands
 helps['containerapp replica'] = """
     type: group
-    short-summary: Manage container app replicas (pods)
+    short-summary: Manage container app replicas
 """
 
 helps['containerapp replica list'] = """
     type: command
-    short-summary: List a container app revision's replicas (pods)
+    short-summary: List a container app revision's replica
     examples:
     - name: List a container app's replicas in the latest revision
       text: |
@@ -165,7 +165,7 @@ helps['containerapp replica list'] = """
 
 helps['containerapp replica show'] = """
     type: command
-    short-summary: Show a container app replica (pod)
+    short-summary: Show a container app replica
     examples:
     - name: Show a replica from the latest revision
       text: |

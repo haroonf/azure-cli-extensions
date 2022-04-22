@@ -3,7 +3,7 @@
 Release History
 ===============
 
-0.4.0
+0.3.2
 ++++++
 * Create or update a container app and all associated resources (container app environment, ACR, Github Actions, resource group, etc.) with 'az containerapp up'
 * Open an ssh-like shell in a Container App with 'az containerapp exec'
