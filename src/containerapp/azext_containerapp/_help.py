@@ -114,15 +114,18 @@ helps['containerapp up'] = """
     type: command
     short-summary: Create or update a container app as well as any associated resources (ACR, resource group, container apps environment, Github Actions, etc.)
     examples:
-    - name: Create a container app from a Github repo (setting up github actions)
+    - name: Create a container app from a dockerfile in a Github repo (setting up github actions)
       text: |
           az containerapp up -n MyContainerapp --repo https://github.com/myAccount/myRepo
-    - name: Create a container app from content in a local directory
+    - name: Create a container app from a dockerfile in a local directory
       text: |
           az containerapp up -n MyContainerapp --source .
-    - name: Create a container app from a container in a registry
+    - name: Create a container app from an image in a registry
       text: |
           az containerapp up -n MyContainerapp --image myregistry.azurecr.io/myImage:myTag
+    - name: Create a container app from an image in a registry with ingress enabled and a specified environment
+      text: |
+          az containerapp up -n MyContainerapp --image myregistry.azurecr.io/myImage:myTag --ingress external --target-port 80 --environment MyEnv
 """
 
 helps['containerapp logs'] = """
