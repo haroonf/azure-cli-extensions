@@ -29,7 +29,7 @@ from ._utils import (get_randomized_name, get_profile_username, create_resource_
                      _get_default_containerapps_location, safe_get, is_int, create_service_principal_for_rbac,
                      repo_url_to_name, get_container_app_if_exists)
 
-from .custom import (create_managed_environment, create_containerapp, list_containerapp,
+from .custom import (create_managed_environment, containerapp_up_logic, list_containerapp,
                      list_managed_environments, create_or_update_github_action)
 
 logger = get_logger(__name__)
@@ -219,7 +219,7 @@ class ContainerApp(Resource):
         else:
             logger.warning(f"Creating Containerapp {self.name} in resource group {self.resource_group.name}")
 
-        return create_containerapp(cmd=self.cmd,
+        return containerapp_up_logic(cmd=self.cmd,
                                    name=self.name,
                                    resource_group_name=self.resource_group.name,
                                    image=self.image,
@@ -229,8 +229,7 @@ class ContainerApp(Resource):
                                    registry_pass=None if no_registry else self.registry_pass,
                                    registry_user=None if no_registry else self.registry_user,
                                    env_vars=self.env_vars,
-                                   ingress=self.ingress,
-                                   disable_warnings=True)
+                                   ingress=self.ingress)
 
     def create_acr_if_needed(self):
         if self.should_create_acr:
@@ -252,7 +251,7 @@ class ContainerApp(Resource):
 
         self.registry_user, self.registry_pass, _ = _get_acr_cred(self.cmd.cli_ctx, registry_name)
 
-    def run_acr_build(self, dockerfile, source):
+    def run_acr_build(self, dockerfile, source, quiet=False):
         image_name = self.image if self.image is not None else self.name
         from datetime import datetime
         now = datetime.now()
@@ -260,7 +259,7 @@ class ContainerApp(Resource):
         image_name += ":{}".format(str(now).replace(' ', '').replace('-', '').replace('.', '').replace(':', ''))
 
         self.image = self.registry_server + '/' + image_name
-        queue_acr_build(self.cmd, self.acr.resource_group.name, self.acr.name, image_name, source, dockerfile, quiet=True)
+        queue_acr_build(self.cmd, self.acr.resource_group.name, self.acr.name, image_name, source, dockerfile, quiet)
 
 def _create_service_principal(cmd, resource_group_name, env_resource_group_name):
     logger.warning("No valid service principal provided. Creating a new service principal...")
@@ -492,13 +491,8 @@ def up_output(app):
                                                                                         "ingress", "fqdn")
     if url and not url.startswith("http"):
         url = f"http://{url}"
-    if url:
-        output = (f"\nYour container app ({app.name}) has been created a deployed! Congrats! \n\n"
-                  f"Browse to your container app at: {url} \n\n"
-                  f"Stream logs for your container with: az containerapp logs -n {app.name} -g {app.resource_group.name} \n\n"
-                  f"See full output using: az containerapp show -n {app.name} -g {app.resource_group.name} \n")
-    else:
-        output = (f"\nYour container app ({app.name}) has been created a deployed! Congrats! \n\n"
-                  f"Stream logs for your container with: az containerapp logs -n {app.name} -g {app.resource_group.name} \n\n"
-                  f"See full output using: az containerapp show -n {app.name} -g {app.resource_group.name} \n")
-    return output
+
+    logger.warning(f"\nYour container app ({app.name}) has been created a deployed! Congrats! \n")
+    url and logger.warning(f"Browse to your container app at: {url} \n")
+    logger.warning(f"Stream logs for your container with: az containerapp logs -n {app.name} -g {app.resource_group.name} \n")
+    logger.warning(f"See full output using: az containerapp show -n {app.name} -g {app.resource_group.name} \n")
