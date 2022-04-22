@@ -6,7 +6,6 @@
 # Changes may cause incorrect behavior and will be lost if the code is regenerated.
 # --------------------------------------------------------------------------
 
-from ._database_migrations_sql_db_operations import DatabaseMigrationsSqlDbOperations
 from ._database_migrations_sql_mi_operations import DatabaseMigrationsSqlMiOperations
 from ._database_migrations_sql_vm_operations import DatabaseMigrationsSqlVmOperations
 from ._operations import Operations
@@ -20,7 +19,6 @@ from ._usages_operations import UsagesOperations
 from ._files_operations import FilesOperations
 
 __all__ = [
-    'DatabaseMigrationsSqlDbOperations',
     'DatabaseMigrationsSqlMiOperations',
     'DatabaseMigrationsSqlVmOperations',
     'Operations',

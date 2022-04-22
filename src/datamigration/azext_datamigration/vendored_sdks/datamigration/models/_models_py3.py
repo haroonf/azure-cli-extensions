@@ -179,37 +179,40 @@ class AvailableServiceSkuCapacity(msrest.serialization.Model):
 class AzureActiveDirectoryApp(msrest.serialization.Model):
     """Azure Active Directory Application.
 
-    :param application_id: Application ID of the Azure Active Directory Application.
+    All required parameters must be populated in order to send to Azure.
+
+    :param application_id: Required. Application ID of the Azure Active Directory Application.
     :type application_id: str
-    :param app_key: Key used to authenticate to the Azure Active Directory Application.
+    :param app_key: Required. Key used to authenticate to the Azure Active Directory Application.
     :type app_key: str
-    :param tenant_id: Tenant id of the customer.
+    :param tenant_id: Required. Tenant id of the customer.
     :type tenant_id: str
-    :param ignore_azure_permissions: Ignore checking azure permissions on the AAD app.
-    :type ignore_azure_permissions: bool
     """
+
+    _validation = {
+        'application_id': {'required': True},
+        'app_key': {'required': True},
+        'tenant_id': {'required': True},
+    }
 
     _attribute_map = {
         'application_id': {'key': 'applicationId', 'type': 'str'},
         'app_key': {'key': 'appKey', 'type': 'str'},
         'tenant_id': {'key': 'tenantId', 'type': 'str'},
-        'ignore_azure_permissions': {'key': 'ignoreAzurePermissions', 'type': 'bool'},
     }
 
     def __init__(
         self,
         *,
-        application_id: Optional[str] = None,
-        app_key: Optional[str] = None,
-        tenant_id: Optional[str] = None,
-        ignore_azure_permissions: Optional[bool] = None,
+        application_id: str,
+        app_key: str,
+        tenant_id: str,
         **kwargs
     ):
         super(AzureActiveDirectoryApp, self).__init__(**kwargs)
         self.application_id = application_id
         self.app_key = app_key
         self.tenant_id = tenant_id
-        self.ignore_azure_permissions = ignore_azure_permissions
 
 
 class AzureBlob(msrest.serialization.Model):
@@ -373,9 +376,15 @@ class BackupSetInfo(msrest.serialization.Model):
 class BlobShare(msrest.serialization.Model):
     """Blob container storage information.
 
-    :param sas_uri: SAS URI of Azure Storage Account Container.
+    All required parameters must be populated in order to send to Azure.
+
+    :param sas_uri: Required. SAS URI of Azure Storage Account Container.
     :type sas_uri: str
     """
+
+    _validation = {
+        'sas_uri': {'required': True},
+    }
 
     _attribute_map = {
         'sas_uri': {'key': 'sasUri', 'type': 'str'},
@@ -384,7 +393,7 @@ class BlobShare(msrest.serialization.Model):
     def __init__(
         self,
         *,
-        sas_uri: Optional[str] = None,
+        sas_uri: str,
         **kwargs
     ):
         super(BlobShare, self).__init__(**kwargs)
@@ -765,7 +774,7 @@ class ConnectToSourceMySqlTaskInput(msrest.serialization.Model):
     :type target_platform: str or ~azure.mgmt.datamigration.models.MySqlTargetPlatformType
     :param check_permissions_group: Permission group for validations. Possible values include:
      "Default", "MigrationFromSqlServerToAzureDB", "MigrationFromSqlServerToAzureMI",
-     "MigrationFromMySQLToAzureDBForMySQL", "MigrationFromSqlServerToAzureVM".
+     "MigrationFromMySQLToAzureDBForMySQL".
     :type check_permissions_group: str or
      ~azure.mgmt.datamigration.models.ServerLevelPermissionsGroup
     :param is_offline_migration: Flag for whether or not the migration is offline.
@@ -1284,7 +1293,7 @@ class ConnectToSourceSqlServerTaskInput(msrest.serialization.Model):
     :type source_connection_info: ~azure.mgmt.datamigration.models.SqlConnectionInfo
     :param check_permissions_group: Permission group for validations. Possible values include:
      "Default", "MigrationFromSqlServerToAzureDB", "MigrationFromSqlServerToAzureMI",
-     "MigrationFromMySQLToAzureDBForMySQL", "MigrationFromSqlServerToAzureVM".
+     "MigrationFromMySQLToAzureDBForMySQL".
     :type check_permissions_group: str or
      ~azure.mgmt.datamigration.models.ServerLevelPermissionsGroup
     :param collect_databases: Flag for whether to collect databases from source server.
@@ -1299,8 +1308,6 @@ class ConnectToSourceSqlServerTaskInput(msrest.serialization.Model):
     :param validate_ssis_catalog_only: Flag for whether to validate SSIS catalog is reachable on
      the source server.
     :type validate_ssis_catalog_only: bool
-    :param encrypted_key_for_secure_fields: encrypted key for secure fields.
-    :type encrypted_key_for_secure_fields: str
     """
 
     _validation = {
@@ -1315,7 +1322,6 @@ class ConnectToSourceSqlServerTaskInput(msrest.serialization.Model):
         'collect_agent_jobs': {'key': 'collectAgentJobs', 'type': 'bool'},
         'collect_tde_certificate_info': {'key': 'collectTdeCertificateInfo', 'type': 'bool'},
         'validate_ssis_catalog_only': {'key': 'validateSsisCatalogOnly', 'type': 'bool'},
-        'encrypted_key_for_secure_fields': {'key': 'encryptedKeyForSecureFields', 'type': 'str'},
     }
 
     def __init__(
@@ -1328,7 +1334,6 @@ class ConnectToSourceSqlServerTaskInput(msrest.serialization.Model):
         collect_agent_jobs: Optional[bool] = False,
         collect_tde_certificate_info: Optional[bool] = False,
         validate_ssis_catalog_only: Optional[bool] = False,
-        encrypted_key_for_secure_fields: Optional[str] = None,
         **kwargs
     ):
         super(ConnectToSourceSqlServerTaskInput, self).__init__(**kwargs)
@@ -1339,7 +1344,6 @@ class ConnectToSourceSqlServerTaskInput(msrest.serialization.Model):
         self.collect_agent_jobs = collect_agent_jobs
         self.collect_tde_certificate_info = collect_tde_certificate_info
         self.validate_ssis_catalog_only = validate_ssis_catalog_only
-        self.encrypted_key_for_secure_fields = encrypted_key_for_secure_fields
 
 
 class ConnectToSourceSqlServerTaskOutput(msrest.serialization.Model):
@@ -1676,8 +1680,6 @@ class ConnectToSourceSqlServerTaskProperties(ProjectTaskProperties):
     :type input: ~azure.mgmt.datamigration.models.ConnectToSourceSqlServerTaskInput
     :ivar output: Task output. This is ignored if submitted.
     :vartype output: list[~azure.mgmt.datamigration.models.ConnectToSourceSqlServerTaskOutput]
-    :param task_id: Task id.
-    :type task_id: str
     """
 
     _validation = {
@@ -1696,7 +1698,6 @@ class ConnectToSourceSqlServerTaskProperties(ProjectTaskProperties):
         'client_data': {'key': 'clientData', 'type': '{str}'},
         'input': {'key': 'input', 'type': 'ConnectToSourceSqlServerTaskInput'},
         'output': {'key': 'output', 'type': '[ConnectToSourceSqlServerTaskOutput]'},
-        'task_id': {'key': 'taskId', 'type': 'str'},
     }
 
     def __init__(
@@ -1704,14 +1705,12 @@ class ConnectToSourceSqlServerTaskProperties(ProjectTaskProperties):
         *,
         client_data: Optional[Dict[str, str]] = None,
         input: Optional["ConnectToSourceSqlServerTaskInput"] = None,
-        task_id: Optional[str] = None,
         **kwargs
     ):
         super(ConnectToSourceSqlServerTaskProperties, self).__init__(client_data=client_data, **kwargs)
         self.task_type = 'ConnectToSource.SqlServer'  # type: str
         self.input = input
         self.output = None
-        self.task_id = task_id
 
 
 class ConnectToTargetAzureDbForMySqlTaskInput(msrest.serialization.Model):
@@ -2314,9 +2313,6 @@ class ConnectToTargetSqlDbTaskInput(msrest.serialization.Model):
 
     :param target_connection_info: Required. Connection information for target SQL DB.
     :type target_connection_info: ~azure.mgmt.datamigration.models.SqlConnectionInfo
-    :param query_object_counts: Boolean flag indicating whether to query object counts for each
-     database on the target server.
-    :type query_object_counts: bool
     """
 
     _validation = {
@@ -2325,19 +2321,16 @@ class ConnectToTargetSqlDbTaskInput(msrest.serialization.Model):
 
     _attribute_map = {
         'target_connection_info': {'key': 'targetConnectionInfo', 'type': 'SqlConnectionInfo'},
-        'query_object_counts': {'key': 'queryObjectCounts', 'type': 'bool'},
     }
 
     def __init__(
         self,
         *,
         target_connection_info: "SqlConnectionInfo",
-        query_object_counts: Optional[bool] = None,
         **kwargs
     ):
         super(ConnectToTargetSqlDbTaskInput, self).__init__(**kwargs)
         self.target_connection_info = target_connection_info
-        self.query_object_counts = query_object_counts
 
 
 class ConnectToTargetSqlDbTaskOutput(msrest.serialization.Model):
@@ -2420,8 +2413,6 @@ class ConnectToTargetSqlDbTaskProperties(ProjectTaskProperties):
     :type input: ~azure.mgmt.datamigration.models.ConnectToTargetSqlDbTaskInput
     :ivar output: Task output. This is ignored if submitted.
     :vartype output: list[~azure.mgmt.datamigration.models.ConnectToTargetSqlDbTaskOutput]
-    :param created_on: DateTime in UTC when the task was created.
-    :type created_on: str
     """
 
     _validation = {
@@ -2440,7 +2431,6 @@ class ConnectToTargetSqlDbTaskProperties(ProjectTaskProperties):
         'client_data': {'key': 'clientData', 'type': '{str}'},
         'input': {'key': 'input', 'type': 'ConnectToTargetSqlDbTaskInput'},
         'output': {'key': 'output', 'type': '[ConnectToTargetSqlDbTaskOutput]'},
-        'created_on': {'key': 'createdOn', 'type': 'str'},
     }
 
     def __init__(
@@ -2448,14 +2438,12 @@ class ConnectToTargetSqlDbTaskProperties(ProjectTaskProperties):
         *,
         client_data: Optional[Dict[str, str]] = None,
         input: Optional["ConnectToTargetSqlDbTaskInput"] = None,
-        created_on: Optional[str] = None,
         **kwargs
     ):
         super(ConnectToTargetSqlDbTaskProperties, self).__init__(client_data=client_data, **kwargs)
         self.task_type = 'ConnectToTarget.SqlDb'  # type: str
         self.input = input
         self.output = None
-        self.created_on = created_on
 
 
 class ConnectToTargetSqlMiSyncTaskInput(msrest.serialization.Model):
@@ -2766,81 +2754,6 @@ class ConnectToTargetSqlMiTaskProperties(ProjectTaskProperties):
         self.task_type = 'ConnectToTarget.AzureSqlDbMI'  # type: str
         self.input = input
         self.output = None
-
-
-class CopyProgressDetails(msrest.serialization.Model):
-    """Details on progress of ADF copy activity.
-
-    Variables are only populated by the server, and will be ignored when sending a request.
-
-    :ivar table_name: Table Name.
-    :vartype table_name: str
-    :ivar status: Status of the Copy activity (InProgress, Succeeded, Failed, Canceled).
-    :vartype status: str
-    :ivar parallel_copy_type: Type of parallel copy (Dynamic range, Physical partition, none).
-    :vartype parallel_copy_type: str
-    :ivar used_parallel_copies: The degree of parallelization.
-    :vartype used_parallel_copies: int
-    :ivar data_read: Bytes read.
-    :vartype data_read: long
-    :ivar data_written: Bytes written.
-    :vartype data_written: long
-    :ivar rows_read: Rows read.
-    :vartype rows_read: long
-    :ivar rows_copied: Rows Copied.
-    :vartype rows_copied: long
-    :ivar copy_start: Copy Start.
-    :vartype copy_start: ~datetime.datetime
-    :ivar copy_throughput: Copy throughput in KBps.
-    :vartype copy_throughput: float
-    :ivar copy_duration: Copy Duration in seconds.
-    :vartype copy_duration: int
-    """
-
-    _validation = {
-        'table_name': {'readonly': True},
-        'status': {'readonly': True},
-        'parallel_copy_type': {'readonly': True},
-        'used_parallel_copies': {'readonly': True},
-        'data_read': {'readonly': True},
-        'data_written': {'readonly': True},
-        'rows_read': {'readonly': True},
-        'rows_copied': {'readonly': True},
-        'copy_start': {'readonly': True},
-        'copy_throughput': {'readonly': True},
-        'copy_duration': {'readonly': True},
-    }
-
-    _attribute_map = {
-        'table_name': {'key': 'tableName', 'type': 'str'},
-        'status': {'key': 'status', 'type': 'str'},
-        'parallel_copy_type': {'key': 'parallelCopyType', 'type': 'str'},
-        'used_parallel_copies': {'key': 'usedParallelCopies', 'type': 'int'},
-        'data_read': {'key': 'dataRead', 'type': 'long'},
-        'data_written': {'key': 'dataWritten', 'type': 'long'},
-        'rows_read': {'key': 'rowsRead', 'type': 'long'},
-        'rows_copied': {'key': 'rowsCopied', 'type': 'long'},
-        'copy_start': {'key': 'copyStart', 'type': 'iso-8601'},
-        'copy_throughput': {'key': 'copyThroughput', 'type': 'float'},
-        'copy_duration': {'key': 'copyDuration', 'type': 'int'},
-    }
-
-    def __init__(
-        self,
-        **kwargs
-    ):
-        super(CopyProgressDetails, self).__init__(**kwargs)
-        self.table_name = None
-        self.status = None
-        self.parallel_copy_type = None
-        self.used_parallel_copies = None
-        self.data_read = None
-        self.data_written = None
-        self.rows_read = None
-        self.rows_copied = None
-        self.copy_start = None
-        self.copy_throughput = None
-        self.copy_duration = None
 
 
 class Database(msrest.serialization.Model):
@@ -3244,16 +3157,15 @@ class DatabaseMigrationProperties(msrest.serialization.Model):
     """Database Migration Resource properties.
 
     You probably want to use the sub-classes and not this class directly. Known
-    sub-classes are: DatabaseMigrationPropertiesSqlDb, DatabaseMigrationPropertiesSqlMi, DatabaseMigrationPropertiesSqlVm.
+    sub-classes are: DatabaseMigrationPropertiesSqlMi, DatabaseMigrationPropertiesSqlVm.
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
     All required parameters must be populated in order to send to Azure.
 
-    :param kind: Required. Constant filled by server.  Possible values include: "SqlMi", "SqlVm",
-     "SqlDb".
+    :param kind: Required. Constant filled by server.  Possible values include: "SqlMi", "SqlVm".
     :type kind: str or ~azure.mgmt.datamigration.models.ResourceType
-    :param scope: Resource Id of the target resource (SQL VM, SQL Managed Instance or SQL DB).
+    :param scope: Resource Id of the target resource (SQL VM or SQL Managed Instance).
     :type scope: str
     :ivar provisioning_state: Provisioning State of migration. ProvisioningState as Succeeded
      implies that validations have been performed and migration has started.
@@ -3268,18 +3180,12 @@ class DatabaseMigrationProperties(msrest.serialization.Model):
     :type source_sql_connection: ~azure.mgmt.datamigration.models.SqlConnectionInformation
     :param source_database_name: Name of the source database.
     :type source_database_name: str
-    :ivar source_server_name: Name of the source sql server.
-    :vartype source_server_name: str
     :param migration_service: Resource Id of the Migration Service.
     :type migration_service: str
-    :ivar migration_operation_id: ID tracking current migration operation.
-    :vartype migration_operation_id: str
+    :param migration_operation_id: ID tracking current migration operation.
+    :type migration_operation_id: str
     :ivar migration_failure_error: Error details in case of migration failure.
     :vartype migration_failure_error: ~azure.mgmt.datamigration.models.ErrorInfo
-    :param target_database_collation: Database collation to be used for the target database.
-    :type target_database_collation: str
-    :ivar provisioning_error: Error message for migration provisioning failure, if any.
-    :vartype provisioning_error: str
     """
 
     _validation = {
@@ -3288,10 +3194,7 @@ class DatabaseMigrationProperties(msrest.serialization.Model):
         'migration_status': {'readonly': True},
         'started_on': {'readonly': True},
         'ended_on': {'readonly': True},
-        'source_server_name': {'readonly': True},
-        'migration_operation_id': {'readonly': True},
         'migration_failure_error': {'readonly': True},
-        'provisioning_error': {'readonly': True},
     }
 
     _attribute_map = {
@@ -3303,16 +3206,13 @@ class DatabaseMigrationProperties(msrest.serialization.Model):
         'ended_on': {'key': 'endedOn', 'type': 'iso-8601'},
         'source_sql_connection': {'key': 'sourceSqlConnection', 'type': 'SqlConnectionInformation'},
         'source_database_name': {'key': 'sourceDatabaseName', 'type': 'str'},
-        'source_server_name': {'key': 'sourceServerName', 'type': 'str'},
         'migration_service': {'key': 'migrationService', 'type': 'str'},
         'migration_operation_id': {'key': 'migrationOperationId', 'type': 'str'},
         'migration_failure_error': {'key': 'migrationFailureError', 'type': 'ErrorInfo'},
-        'target_database_collation': {'key': 'targetDatabaseCollation', 'type': 'str'},
-        'provisioning_error': {'key': 'provisioningError', 'type': 'str'},
     }
 
     _subtype_map = {
-        'kind': {'SqlDb': 'DatabaseMigrationPropertiesSqlDb', 'SqlMi': 'DatabaseMigrationPropertiesSqlMi', 'SqlVm': 'DatabaseMigrationPropertiesSqlVm'}
+        'kind': {'SqlMi': 'DatabaseMigrationPropertiesSqlMi', 'SqlVm': 'DatabaseMigrationPropertiesSqlVm'}
     }
 
     def __init__(
@@ -3322,7 +3222,7 @@ class DatabaseMigrationProperties(msrest.serialization.Model):
         source_sql_connection: Optional["SqlConnectionInformation"] = None,
         source_database_name: Optional[str] = None,
         migration_service: Optional[str] = None,
-        target_database_collation: Optional[str] = None,
+        migration_operation_id: Optional[str] = None,
         **kwargs
     ):
         super(DatabaseMigrationProperties, self).__init__(**kwargs)
@@ -3334,114 +3234,9 @@ class DatabaseMigrationProperties(msrest.serialization.Model):
         self.ended_on = None
         self.source_sql_connection = source_sql_connection
         self.source_database_name = source_database_name
-        self.source_server_name = None
         self.migration_service = migration_service
-        self.migration_operation_id = None
+        self.migration_operation_id = migration_operation_id
         self.migration_failure_error = None
-        self.target_database_collation = target_database_collation
-        self.provisioning_error = None
-
-
-class DatabaseMigrationPropertiesSqlDb(DatabaseMigrationProperties):
-    """Database Migration Resource properties for SQL database.
-
-    Variables are only populated by the server, and will be ignored when sending a request.
-
-    All required parameters must be populated in order to send to Azure.
-
-    :param kind: Required. Constant filled by server.  Possible values include: "SqlMi", "SqlVm",
-     "SqlDb".
-    :type kind: str or ~azure.mgmt.datamigration.models.ResourceType
-    :param scope: Resource Id of the target resource (SQL VM, SQL Managed Instance or SQL DB).
-    :type scope: str
-    :ivar provisioning_state: Provisioning State of migration. ProvisioningState as Succeeded
-     implies that validations have been performed and migration has started.
-    :vartype provisioning_state: str
-    :ivar migration_status: Migration status.
-    :vartype migration_status: str
-    :ivar started_on: Database migration start time.
-    :vartype started_on: ~datetime.datetime
-    :ivar ended_on: Database migration end time.
-    :vartype ended_on: ~datetime.datetime
-    :param source_sql_connection: Source SQL Server connection details.
-    :type source_sql_connection: ~azure.mgmt.datamigration.models.SqlConnectionInformation
-    :param source_database_name: Name of the source database.
-    :type source_database_name: str
-    :ivar source_server_name: Name of the source sql server.
-    :vartype source_server_name: str
-    :param migration_service: Resource Id of the Migration Service.
-    :type migration_service: str
-    :ivar migration_operation_id: ID tracking current migration operation.
-    :vartype migration_operation_id: str
-    :ivar migration_failure_error: Error details in case of migration failure.
-    :vartype migration_failure_error: ~azure.mgmt.datamigration.models.ErrorInfo
-    :param target_database_collation: Database collation to be used for the target database.
-    :type target_database_collation: str
-    :ivar provisioning_error: Error message for migration provisioning failure, if any.
-    :vartype provisioning_error: str
-    :ivar migration_status_details: Detailed migration status. Not included by default.
-    :vartype migration_status_details: ~azure.mgmt.datamigration.models.SqlDbMigrationStatusDetails
-    :param target_sql_connection: Target SQL DB connection details.
-    :type target_sql_connection: ~azure.mgmt.datamigration.models.SqlConnectionInformation
-    :ivar offline_configuration: Offline configuration.
-    :vartype offline_configuration: ~azure.mgmt.datamigration.models.SqlDbOfflineConfiguration
-    :param table_list: List of tables to copy.
-    :type table_list: list[str]
-    """
-
-    _validation = {
-        'kind': {'required': True},
-        'provisioning_state': {'readonly': True},
-        'migration_status': {'readonly': True},
-        'started_on': {'readonly': True},
-        'ended_on': {'readonly': True},
-        'source_server_name': {'readonly': True},
-        'migration_operation_id': {'readonly': True},
-        'migration_failure_error': {'readonly': True},
-        'provisioning_error': {'readonly': True},
-        'migration_status_details': {'readonly': True},
-        'offline_configuration': {'readonly': True},
-    }
-
-    _attribute_map = {
-        'kind': {'key': 'kind', 'type': 'str'},
-        'scope': {'key': 'scope', 'type': 'str'},
-        'provisioning_state': {'key': 'provisioningState', 'type': 'str'},
-        'migration_status': {'key': 'migrationStatus', 'type': 'str'},
-        'started_on': {'key': 'startedOn', 'type': 'iso-8601'},
-        'ended_on': {'key': 'endedOn', 'type': 'iso-8601'},
-        'source_sql_connection': {'key': 'sourceSqlConnection', 'type': 'SqlConnectionInformation'},
-        'source_database_name': {'key': 'sourceDatabaseName', 'type': 'str'},
-        'source_server_name': {'key': 'sourceServerName', 'type': 'str'},
-        'migration_service': {'key': 'migrationService', 'type': 'str'},
-        'migration_operation_id': {'key': 'migrationOperationId', 'type': 'str'},
-        'migration_failure_error': {'key': 'migrationFailureError', 'type': 'ErrorInfo'},
-        'target_database_collation': {'key': 'targetDatabaseCollation', 'type': 'str'},
-        'provisioning_error': {'key': 'provisioningError', 'type': 'str'},
-        'migration_status_details': {'key': 'migrationStatusDetails', 'type': 'SqlDbMigrationStatusDetails'},
-        'target_sql_connection': {'key': 'targetSqlConnection', 'type': 'SqlConnectionInformation'},
-        'offline_configuration': {'key': 'offlineConfiguration', 'type': 'SqlDbOfflineConfiguration'},
-        'table_list': {'key': 'tableList', 'type': '[str]'},
-    }
-
-    def __init__(
-        self,
-        *,
-        scope: Optional[str] = None,
-        source_sql_connection: Optional["SqlConnectionInformation"] = None,
-        source_database_name: Optional[str] = None,
-        migration_service: Optional[str] = None,
-        target_database_collation: Optional[str] = None,
-        target_sql_connection: Optional["SqlConnectionInformation"] = None,
-        table_list: Optional[List[str]] = None,
-        **kwargs
-    ):
-        super(DatabaseMigrationPropertiesSqlDb, self).__init__(scope=scope, source_sql_connection=source_sql_connection, source_database_name=source_database_name, migration_service=migration_service, target_database_collation=target_database_collation, **kwargs)
-        self.kind = 'SqlDb'  # type: str
-        self.migration_status_details = None
-        self.target_sql_connection = target_sql_connection
-        self.offline_configuration = None
-        self.table_list = table_list
 
 
 class DatabaseMigrationPropertiesSqlMi(DatabaseMigrationProperties):
@@ -3451,10 +3246,9 @@ class DatabaseMigrationPropertiesSqlMi(DatabaseMigrationProperties):
 
     All required parameters must be populated in order to send to Azure.
 
-    :param kind: Required. Constant filled by server.  Possible values include: "SqlMi", "SqlVm",
-     "SqlDb".
+    :param kind: Required. Constant filled by server.  Possible values include: "SqlMi", "SqlVm".
     :type kind: str or ~azure.mgmt.datamigration.models.ResourceType
-    :param scope: Resource Id of the target resource (SQL VM, SQL Managed Instance or SQL DB).
+    :param scope: Resource Id of the target resource (SQL VM or SQL Managed Instance).
     :type scope: str
     :ivar provisioning_state: Provisioning State of migration. ProvisioningState as Succeeded
      implies that validations have been performed and migration has started.
@@ -3469,20 +3263,18 @@ class DatabaseMigrationPropertiesSqlMi(DatabaseMigrationProperties):
     :type source_sql_connection: ~azure.mgmt.datamigration.models.SqlConnectionInformation
     :param source_database_name: Name of the source database.
     :type source_database_name: str
-    :ivar source_server_name: Name of the source sql server.
-    :vartype source_server_name: str
     :param migration_service: Resource Id of the Migration Service.
     :type migration_service: str
-    :ivar migration_operation_id: ID tracking current migration operation.
-    :vartype migration_operation_id: str
+    :param migration_operation_id: ID tracking current migration operation.
+    :type migration_operation_id: str
     :ivar migration_failure_error: Error details in case of migration failure.
     :vartype migration_failure_error: ~azure.mgmt.datamigration.models.ErrorInfo
-    :param target_database_collation: Database collation to be used for the target database.
-    :type target_database_collation: str
-    :ivar provisioning_error: Error message for migration provisioning failure, if any.
-    :vartype provisioning_error: str
     :ivar migration_status_details: Detailed migration status. Not included by default.
     :vartype migration_status_details: ~azure.mgmt.datamigration.models.MigrationStatusDetails
+    :param target_database_collation: Database collation to be used for the target database.
+    :type target_database_collation: str
+    :param provisioning_error: Error message for migration provisioning failure, if any.
+    :type provisioning_error: str
     :param backup_configuration: Backup configuration info.
     :type backup_configuration: ~azure.mgmt.datamigration.models.BackupConfiguration
     :param offline_configuration: Offline configuration.
@@ -3495,10 +3287,7 @@ class DatabaseMigrationPropertiesSqlMi(DatabaseMigrationProperties):
         'migration_status': {'readonly': True},
         'started_on': {'readonly': True},
         'ended_on': {'readonly': True},
-        'source_server_name': {'readonly': True},
-        'migration_operation_id': {'readonly': True},
         'migration_failure_error': {'readonly': True},
-        'provisioning_error': {'readonly': True},
         'migration_status_details': {'readonly': True},
     }
 
@@ -3511,13 +3300,12 @@ class DatabaseMigrationPropertiesSqlMi(DatabaseMigrationProperties):
         'ended_on': {'key': 'endedOn', 'type': 'iso-8601'},
         'source_sql_connection': {'key': 'sourceSqlConnection', 'type': 'SqlConnectionInformation'},
         'source_database_name': {'key': 'sourceDatabaseName', 'type': 'str'},
-        'source_server_name': {'key': 'sourceServerName', 'type': 'str'},
         'migration_service': {'key': 'migrationService', 'type': 'str'},
         'migration_operation_id': {'key': 'migrationOperationId', 'type': 'str'},
         'migration_failure_error': {'key': 'migrationFailureError', 'type': 'ErrorInfo'},
+        'migration_status_details': {'key': 'migrationStatusDetails', 'type': 'MigrationStatusDetails'},
         'target_database_collation': {'key': 'targetDatabaseCollation', 'type': 'str'},
         'provisioning_error': {'key': 'provisioningError', 'type': 'str'},
-        'migration_status_details': {'key': 'migrationStatusDetails', 'type': 'MigrationStatusDetails'},
         'backup_configuration': {'key': 'backupConfiguration', 'type': 'BackupConfiguration'},
         'offline_configuration': {'key': 'offlineConfiguration', 'type': 'OfflineConfiguration'},
     }
@@ -3529,14 +3317,18 @@ class DatabaseMigrationPropertiesSqlMi(DatabaseMigrationProperties):
         source_sql_connection: Optional["SqlConnectionInformation"] = None,
         source_database_name: Optional[str] = None,
         migration_service: Optional[str] = None,
+        migration_operation_id: Optional[str] = None,
         target_database_collation: Optional[str] = None,
+        provisioning_error: Optional[str] = None,
         backup_configuration: Optional["BackupConfiguration"] = None,
         offline_configuration: Optional["OfflineConfiguration"] = None,
         **kwargs
     ):
-        super(DatabaseMigrationPropertiesSqlMi, self).__init__(scope=scope, source_sql_connection=source_sql_connection, source_database_name=source_database_name, migration_service=migration_service, target_database_collation=target_database_collation, **kwargs)
+        super(DatabaseMigrationPropertiesSqlMi, self).__init__(scope=scope, source_sql_connection=source_sql_connection, source_database_name=source_database_name, migration_service=migration_service, migration_operation_id=migration_operation_id, **kwargs)
         self.kind = 'SqlMi'  # type: str
         self.migration_status_details = None
+        self.target_database_collation = target_database_collation
+        self.provisioning_error = provisioning_error
         self.backup_configuration = backup_configuration
         self.offline_configuration = offline_configuration
 
@@ -3548,10 +3340,9 @@ class DatabaseMigrationPropertiesSqlVm(DatabaseMigrationProperties):
 
     All required parameters must be populated in order to send to Azure.
 
-    :param kind: Required. Constant filled by server.  Possible values include: "SqlMi", "SqlVm",
-     "SqlDb".
+    :param kind: Required. Constant filled by server.  Possible values include: "SqlMi", "SqlVm".
     :type kind: str or ~azure.mgmt.datamigration.models.ResourceType
-    :param scope: Resource Id of the target resource (SQL VM, SQL Managed Instance or SQL DB).
+    :param scope: Resource Id of the target resource (SQL VM or SQL Managed Instance).
     :type scope: str
     :ivar provisioning_state: Provisioning State of migration. ProvisioningState as Succeeded
      implies that validations have been performed and migration has started.
@@ -3566,20 +3357,18 @@ class DatabaseMigrationPropertiesSqlVm(DatabaseMigrationProperties):
     :type source_sql_connection: ~azure.mgmt.datamigration.models.SqlConnectionInformation
     :param source_database_name: Name of the source database.
     :type source_database_name: str
-    :ivar source_server_name: Name of the source sql server.
-    :vartype source_server_name: str
     :param migration_service: Resource Id of the Migration Service.
     :type migration_service: str
-    :ivar migration_operation_id: ID tracking current migration operation.
-    :vartype migration_operation_id: str
+    :param migration_operation_id: ID tracking current migration operation.
+    :type migration_operation_id: str
     :ivar migration_failure_error: Error details in case of migration failure.
     :vartype migration_failure_error: ~azure.mgmt.datamigration.models.ErrorInfo
-    :param target_database_collation: Database collation to be used for the target database.
-    :type target_database_collation: str
-    :ivar provisioning_error: Error message for migration provisioning failure, if any.
-    :vartype provisioning_error: str
     :ivar migration_status_details: Detailed migration status. Not included by default.
     :vartype migration_status_details: ~azure.mgmt.datamigration.models.MigrationStatusDetails
+    :param target_database_collation: Database collation to be used for the target database.
+    :type target_database_collation: str
+    :param provisioning_error: Error message for migration provisioning failure, if any.
+    :type provisioning_error: str
     :param backup_configuration: Backup configuration info.
     :type backup_configuration: ~azure.mgmt.datamigration.models.BackupConfiguration
     :param offline_configuration: Offline configuration.
@@ -3592,10 +3381,7 @@ class DatabaseMigrationPropertiesSqlVm(DatabaseMigrationProperties):
         'migration_status': {'readonly': True},
         'started_on': {'readonly': True},
         'ended_on': {'readonly': True},
-        'source_server_name': {'readonly': True},
-        'migration_operation_id': {'readonly': True},
         'migration_failure_error': {'readonly': True},
-        'provisioning_error': {'readonly': True},
         'migration_status_details': {'readonly': True},
     }
 
@@ -3608,13 +3394,12 @@ class DatabaseMigrationPropertiesSqlVm(DatabaseMigrationProperties):
         'ended_on': {'key': 'endedOn', 'type': 'iso-8601'},
         'source_sql_connection': {'key': 'sourceSqlConnection', 'type': 'SqlConnectionInformation'},
         'source_database_name': {'key': 'sourceDatabaseName', 'type': 'str'},
-        'source_server_name': {'key': 'sourceServerName', 'type': 'str'},
         'migration_service': {'key': 'migrationService', 'type': 'str'},
         'migration_operation_id': {'key': 'migrationOperationId', 'type': 'str'},
         'migration_failure_error': {'key': 'migrationFailureError', 'type': 'ErrorInfo'},
+        'migration_status_details': {'key': 'migrationStatusDetails', 'type': 'MigrationStatusDetails'},
         'target_database_collation': {'key': 'targetDatabaseCollation', 'type': 'str'},
         'provisioning_error': {'key': 'provisioningError', 'type': 'str'},
-        'migration_status_details': {'key': 'migrationStatusDetails', 'type': 'MigrationStatusDetails'},
         'backup_configuration': {'key': 'backupConfiguration', 'type': 'BackupConfiguration'},
         'offline_configuration': {'key': 'offlineConfiguration', 'type': 'OfflineConfiguration'},
     }
@@ -3626,59 +3411,20 @@ class DatabaseMigrationPropertiesSqlVm(DatabaseMigrationProperties):
         source_sql_connection: Optional["SqlConnectionInformation"] = None,
         source_database_name: Optional[str] = None,
         migration_service: Optional[str] = None,
+        migration_operation_id: Optional[str] = None,
         target_database_collation: Optional[str] = None,
+        provisioning_error: Optional[str] = None,
         backup_configuration: Optional["BackupConfiguration"] = None,
         offline_configuration: Optional["OfflineConfiguration"] = None,
         **kwargs
     ):
-        super(DatabaseMigrationPropertiesSqlVm, self).__init__(scope=scope, source_sql_connection=source_sql_connection, source_database_name=source_database_name, migration_service=migration_service, target_database_collation=target_database_collation, **kwargs)
+        super(DatabaseMigrationPropertiesSqlVm, self).__init__(scope=scope, source_sql_connection=source_sql_connection, source_database_name=source_database_name, migration_service=migration_service, migration_operation_id=migration_operation_id, **kwargs)
         self.kind = 'SqlVm'  # type: str
         self.migration_status_details = None
+        self.target_database_collation = target_database_collation
+        self.provisioning_error = provisioning_error
         self.backup_configuration = backup_configuration
         self.offline_configuration = offline_configuration
-
-
-class DatabaseMigrationSqlDb(ProxyResource):
-    """Database Migration Resource for SQL Database.
-
-    Variables are only populated by the server, and will be ignored when sending a request.
-
-    :ivar id:
-    :vartype id: str
-    :ivar name:
-    :vartype name: str
-    :ivar type:
-    :vartype type: str
-    :ivar system_data: Metadata pertaining to creation and last modification of the resource.
-    :vartype system_data: ~azure.mgmt.datamigration.models.SystemData
-    :param properties: Database Migration Resource properties for SQL database.
-    :type properties: ~azure.mgmt.datamigration.models.DatabaseMigrationPropertiesSqlDb
-    """
-
-    _validation = {
-        'id': {'readonly': True},
-        'name': {'readonly': True},
-        'type': {'readonly': True},
-        'system_data': {'readonly': True},
-    }
-
-    _attribute_map = {
-        'id': {'key': 'id', 'type': 'str'},
-        'name': {'key': 'name', 'type': 'str'},
-        'type': {'key': 'type', 'type': 'str'},
-        'system_data': {'key': 'systemData', 'type': 'SystemData'},
-        'properties': {'key': 'properties', 'type': 'DatabaseMigrationPropertiesSqlDb'},
-    }
-
-    def __init__(
-        self,
-        *,
-        properties: Optional["DatabaseMigrationPropertiesSqlDb"] = None,
-        **kwargs
-    ):
-        super(DatabaseMigrationSqlDb, self).__init__(**kwargs)
-        self.system_data = None
-        self.properties = properties
 
 
 class DatabaseMigrationSqlMi(ProxyResource):
@@ -4265,8 +4011,6 @@ class DataMigrationServiceStatusResponse(msrest.serialization.Model):
 
     :param agent_version: The DMS instance agent version.
     :type agent_version: str
-    :param agent_configuration: Agent Configuration.
-    :type agent_configuration: object
     :param status: The machine-readable status, such as 'Initializing', 'Offline', 'Online',
      'Deploying', 'Deleting', 'Stopped', 'Stopping', 'Starting', 'FailedToStart', 'FailedToStop' or
      'Failed'.
@@ -4279,7 +4023,6 @@ class DataMigrationServiceStatusResponse(msrest.serialization.Model):
 
     _attribute_map = {
         'agent_version': {'key': 'agentVersion', 'type': 'str'},
-        'agent_configuration': {'key': 'agentConfiguration', 'type': 'object'},
         'status': {'key': 'status', 'type': 'str'},
         'vm_size': {'key': 'vmSize', 'type': 'str'},
         'supported_task_types': {'key': 'supportedTaskTypes', 'type': '[str]'},
@@ -4289,7 +4032,6 @@ class DataMigrationServiceStatusResponse(msrest.serialization.Model):
         self,
         *,
         agent_version: Optional[str] = None,
-        agent_configuration: Optional[object] = None,
         status: Optional[str] = None,
         vm_size: Optional[str] = None,
         supported_task_types: Optional[List[str]] = None,
@@ -4297,7 +4039,6 @@ class DataMigrationServiceStatusResponse(msrest.serialization.Model):
     ):
         super(DataMigrationServiceStatusResponse, self).__init__(**kwargs)
         self.agent_version = agent_version
-        self.agent_configuration = agent_configuration
         self.status = status
         self.vm_size = vm_size
         self.supported_task_types = supported_task_types
@@ -5264,8 +5005,6 @@ class GetUserTablesSqlTaskInput(msrest.serialization.Model):
     :type connection_info: ~azure.mgmt.datamigration.models.SqlConnectionInfo
     :param selected_databases: Required. List of database names to collect tables for.
     :type selected_databases: list[str]
-    :param encrypted_key_for_secure_fields: encrypted key for secure fields.
-    :type encrypted_key_for_secure_fields: str
     """
 
     _validation = {
@@ -5276,7 +5015,6 @@ class GetUserTablesSqlTaskInput(msrest.serialization.Model):
     _attribute_map = {
         'connection_info': {'key': 'connectionInfo', 'type': 'SqlConnectionInfo'},
         'selected_databases': {'key': 'selectedDatabases', 'type': '[str]'},
-        'encrypted_key_for_secure_fields': {'key': 'encryptedKeyForSecureFields', 'type': 'str'},
     }
 
     def __init__(
@@ -5284,13 +5022,11 @@ class GetUserTablesSqlTaskInput(msrest.serialization.Model):
         *,
         connection_info: "SqlConnectionInfo",
         selected_databases: List[str],
-        encrypted_key_for_secure_fields: Optional[str] = None,
         **kwargs
     ):
         super(GetUserTablesSqlTaskInput, self).__init__(**kwargs)
         self.connection_info = connection_info
         self.selected_databases = selected_databases
-        self.encrypted_key_for_secure_fields = encrypted_key_for_secure_fields
 
 
 class GetUserTablesSqlTaskOutput(msrest.serialization.Model):
@@ -5368,8 +5104,6 @@ class GetUserTablesSqlTaskProperties(ProjectTaskProperties):
     :type input: ~azure.mgmt.datamigration.models.GetUserTablesSqlTaskInput
     :ivar output: Task output. This is ignored if submitted.
     :vartype output: list[~azure.mgmt.datamigration.models.GetUserTablesSqlTaskOutput]
-    :param task_id: Task id.
-    :type task_id: str
     """
 
     _validation = {
@@ -5388,7 +5122,6 @@ class GetUserTablesSqlTaskProperties(ProjectTaskProperties):
         'client_data': {'key': 'clientData', 'type': '{str}'},
         'input': {'key': 'input', 'type': 'GetUserTablesSqlTaskInput'},
         'output': {'key': 'output', 'type': '[GetUserTablesSqlTaskOutput]'},
-        'task_id': {'key': 'taskId', 'type': 'str'},
     }
 
     def __init__(
@@ -5396,14 +5129,12 @@ class GetUserTablesSqlTaskProperties(ProjectTaskProperties):
         *,
         client_data: Optional[Dict[str, str]] = None,
         input: Optional["GetUserTablesSqlTaskInput"] = None,
-        task_id: Optional[str] = None,
         **kwargs
     ):
         super(GetUserTablesSqlTaskProperties, self).__init__(client_data=client_data, **kwargs)
         self.task_type = 'GetUserTables.Sql'  # type: str
         self.input = input
         self.output = None
-        self.task_id = task_id
 
 
 class InstallOciDriverTaskInput(msrest.serialization.Model):
@@ -5777,8 +5508,6 @@ class MigrateMySqlAzureDbForMySqlOfflineTaskInput(msrest.serialization.Model):
     :param optional_agent_settings: Optional parameters for fine tuning the data transfer rate
      during migration.
     :type optional_agent_settings: dict[str, str]
-    :param encrypted_key_for_secure_fields: encrypted key for secure fields.
-    :type encrypted_key_for_secure_fields: str
     """
 
     _validation = {
@@ -5794,7 +5523,6 @@ class MigrateMySqlAzureDbForMySqlOfflineTaskInput(msrest.serialization.Model):
         'make_source_server_read_only': {'key': 'makeSourceServerReadOnly', 'type': 'bool'},
         'started_on': {'key': 'startedOn', 'type': 'iso-8601'},
         'optional_agent_settings': {'key': 'optionalAgentSettings', 'type': '{str}'},
-        'encrypted_key_for_secure_fields': {'key': 'encryptedKeyForSecureFields', 'type': 'str'},
     }
 
     def __init__(
@@ -5806,7 +5534,6 @@ class MigrateMySqlAzureDbForMySqlOfflineTaskInput(msrest.serialization.Model):
         make_source_server_read_only: Optional[bool] = False,
         started_on: Optional[datetime.datetime] = None,
         optional_agent_settings: Optional[Dict[str, str]] = None,
-        encrypted_key_for_secure_fields: Optional[str] = None,
         **kwargs
     ):
         super(MigrateMySqlAzureDbForMySqlOfflineTaskInput, self).__init__(**kwargs)
@@ -5816,7 +5543,6 @@ class MigrateMySqlAzureDbForMySqlOfflineTaskInput(msrest.serialization.Model):
         self.make_source_server_read_only = make_source_server_read_only
         self.started_on = started_on
         self.optional_agent_settings = optional_agent_settings
-        self.encrypted_key_for_secure_fields = encrypted_key_for_secure_fields
 
 
 class MigrateMySqlAzureDbForMySqlOfflineTaskOutput(msrest.serialization.Model):
@@ -6237,10 +5963,6 @@ class MigrateMySqlAzureDbForMySqlOfflineTaskProperties(ProjectTaskProperties):
     :ivar output: Task output. This is ignored if submitted.
     :vartype output:
      list[~azure.mgmt.datamigration.models.MigrateMySqlAzureDbForMySqlOfflineTaskOutput]
-    :param is_cloneable: whether the task can be cloned or not.
-    :type is_cloneable: bool
-    :param task_id: Task id.
-    :type task_id: str
     """
 
     _validation = {
@@ -6259,8 +5981,6 @@ class MigrateMySqlAzureDbForMySqlOfflineTaskProperties(ProjectTaskProperties):
         'client_data': {'key': 'clientData', 'type': '{str}'},
         'input': {'key': 'input', 'type': 'MigrateMySqlAzureDbForMySqlOfflineTaskInput'},
         'output': {'key': 'output', 'type': '[MigrateMySqlAzureDbForMySqlOfflineTaskOutput]'},
-        'is_cloneable': {'key': 'isCloneable', 'type': 'bool'},
-        'task_id': {'key': 'taskId', 'type': 'str'},
     }
 
     def __init__(
@@ -6268,16 +5988,12 @@ class MigrateMySqlAzureDbForMySqlOfflineTaskProperties(ProjectTaskProperties):
         *,
         client_data: Optional[Dict[str, str]] = None,
         input: Optional["MigrateMySqlAzureDbForMySqlOfflineTaskInput"] = None,
-        is_cloneable: Optional[bool] = None,
-        task_id: Optional[str] = None,
         **kwargs
     ):
         super(MigrateMySqlAzureDbForMySqlOfflineTaskProperties, self).__init__(client_data=client_data, **kwargs)
         self.task_type = 'Migrate.MySql.AzureDbForMySql'  # type: str
         self.input = input
         self.output = None
-        self.is_cloneable = is_cloneable
-        self.task_id = task_id
 
 
 class MigrateMySqlAzureDbForMySqlSyncDatabaseInput(msrest.serialization.Model):
@@ -7389,17 +7105,13 @@ class MigrateOracleAzureDbPostgreSqlSyncTaskOutputTableLevel(MigrateOracleAzureD
 class MigratePostgreSqlAzureDbForPostgreSqlSyncDatabaseInput(msrest.serialization.Model):
     """Database specific information for PostgreSQL to Azure Database for PostgreSQL migration task inputs.
 
-    Variables are only populated by the server, and will be ignored when sending a request.
-
     :param name: Name of the database.
     :type name: str
-    :ivar id: Result identifier.
-    :vartype id: str
     :param target_database_name: Name of target database. Note: Target database will be truncated
      before starting migration.
     :type target_database_name: str
     :param migration_setting: Migration settings which tune the migration behavior.
-    :type migration_setting: dict[str, object]
+    :type migration_setting: dict[str, str]
     :param source_setting: Source settings to tune source endpoint migration behavior.
     :type source_setting: dict[str, str]
     :param target_setting: Target settings to tune target endpoint migration behavior.
@@ -7409,15 +7121,10 @@ class MigratePostgreSqlAzureDbForPostgreSqlSyncDatabaseInput(msrest.serializatio
      list[~azure.mgmt.datamigration.models.MigratePostgreSqlAzureDbForPostgreSqlSyncDatabaseTableInput]
     """
 
-    _validation = {
-        'id': {'readonly': True},
-    }
-
     _attribute_map = {
         'name': {'key': 'name', 'type': 'str'},
-        'id': {'key': 'id', 'type': 'str'},
         'target_database_name': {'key': 'targetDatabaseName', 'type': 'str'},
-        'migration_setting': {'key': 'migrationSetting', 'type': '{object}'},
+        'migration_setting': {'key': 'migrationSetting', 'type': '{str}'},
         'source_setting': {'key': 'sourceSetting', 'type': '{str}'},
         'target_setting': {'key': 'targetSetting', 'type': '{str}'},
         'selected_tables': {'key': 'selectedTables', 'type': '[MigratePostgreSqlAzureDbForPostgreSqlSyncDatabaseTableInput]'},
@@ -7428,7 +7135,7 @@ class MigratePostgreSqlAzureDbForPostgreSqlSyncDatabaseInput(msrest.serializatio
         *,
         name: Optional[str] = None,
         target_database_name: Optional[str] = None,
-        migration_setting: Optional[Dict[str, object]] = None,
+        migration_setting: Optional[Dict[str, str]] = None,
         source_setting: Optional[Dict[str, str]] = None,
         target_setting: Optional[Dict[str, str]] = None,
         selected_tables: Optional[List["MigratePostgreSqlAzureDbForPostgreSqlSyncDatabaseTableInput"]] = None,
@@ -7436,7 +7143,6 @@ class MigratePostgreSqlAzureDbForPostgreSqlSyncDatabaseInput(msrest.serializatio
     ):
         super(MigratePostgreSqlAzureDbForPostgreSqlSyncDatabaseInput, self).__init__(**kwargs)
         self.name = name
-        self.id = None
         self.target_database_name = target_database_name
         self.migration_setting = migration_setting
         self.source_setting = source_setting
@@ -7468,8 +7174,6 @@ class MigratePostgreSqlAzureDbForPostgreSqlSyncDatabaseTableInput(msrest.seriali
 class MigratePostgreSqlAzureDbForPostgreSqlSyncTaskInput(msrest.serialization.Model):
     """Input for the task that migrates PostgreSQL databases to Azure Database for PostgreSQL for online migrations.
 
-    Variables are only populated by the server, and will be ignored when sending a request.
-
     All required parameters must be populated in order to send to Azure.
 
     :param selected_databases: Required. Databases to migrate.
@@ -7482,15 +7186,12 @@ class MigratePostgreSqlAzureDbForPostgreSqlSyncTaskInput(msrest.serialization.Mo
     :type source_connection_info: ~azure.mgmt.datamigration.models.PostgreSqlConnectionInfo
     :param encrypted_key_for_secure_fields: encrypted key for secure fields.
     :type encrypted_key_for_secure_fields: str
-    :ivar started_on: Migration start time.
-    :vartype started_on: ~datetime.datetime
     """
 
     _validation = {
         'selected_databases': {'required': True},
         'target_connection_info': {'required': True},
         'source_connection_info': {'required': True},
-        'started_on': {'readonly': True},
     }
 
     _attribute_map = {
@@ -7498,7 +7199,6 @@ class MigratePostgreSqlAzureDbForPostgreSqlSyncTaskInput(msrest.serialization.Mo
         'target_connection_info': {'key': 'targetConnectionInfo', 'type': 'PostgreSqlConnectionInfo'},
         'source_connection_info': {'key': 'sourceConnectionInfo', 'type': 'PostgreSqlConnectionInfo'},
         'encrypted_key_for_secure_fields': {'key': 'encryptedKeyForSecureFields', 'type': 'str'},
-        'started_on': {'key': 'startedOn', 'type': 'iso-8601'},
     }
 
     def __init__(
@@ -7515,7 +7215,6 @@ class MigratePostgreSqlAzureDbForPostgreSqlSyncTaskInput(msrest.serialization.Mo
         self.target_connection_info = target_connection_info
         self.source_connection_info = source_connection_info
         self.encrypted_key_for_secure_fields = encrypted_key_for_secure_fields
-        self.started_on = None
 
 
 class MigratePostgreSqlAzureDbForPostgreSqlSyncTaskOutput(msrest.serialization.Model):
@@ -7981,8 +7680,6 @@ class MigratePostgreSqlAzureDbForPostgreSqlSyncTaskProperties(ProjectTaskPropert
     :type task_id: str
     :param created_on: DateTime in UTC when the task was created.
     :type created_on: str
-    :param is_cloneable: whether the task can be cloned or not.
-    :type is_cloneable: bool
     """
 
     _validation = {
@@ -8003,7 +7700,6 @@ class MigratePostgreSqlAzureDbForPostgreSqlSyncTaskProperties(ProjectTaskPropert
         'output': {'key': 'output', 'type': '[MigratePostgreSqlAzureDbForPostgreSqlSyncTaskOutput]'},
         'task_id': {'key': 'taskId', 'type': 'str'},
         'created_on': {'key': 'createdOn', 'type': 'str'},
-        'is_cloneable': {'key': 'isCloneable', 'type': 'bool'},
     }
 
     def __init__(
@@ -8013,7 +7709,6 @@ class MigratePostgreSqlAzureDbForPostgreSqlSyncTaskProperties(ProjectTaskPropert
         input: Optional["MigratePostgreSqlAzureDbForPostgreSqlSyncTaskInput"] = None,
         task_id: Optional[str] = None,
         created_on: Optional[str] = None,
-        is_cloneable: Optional[bool] = None,
         **kwargs
     ):
         super(MigratePostgreSqlAzureDbForPostgreSqlSyncTaskProperties, self).__init__(client_data=client_data, **kwargs)
@@ -8022,7 +7717,6 @@ class MigratePostgreSqlAzureDbForPostgreSqlSyncTaskProperties(ProjectTaskPropert
         self.output = None
         self.task_id = task_id
         self.created_on = created_on
-        self.is_cloneable = is_cloneable
 
 
 class MigrateSchemaSqlServerSqlDbDatabaseInput(msrest.serialization.Model):
@@ -8418,8 +8112,6 @@ class MigrateSchemaSqlServerSqlDbTaskProperties(ProjectTaskProperties):
     :type created_on: str
     :param task_id: Task id.
     :type task_id: str
-    :param is_cloneable: whether the task can be cloned or not.
-    :type is_cloneable: bool
     """
 
     _validation = {
@@ -8440,7 +8132,6 @@ class MigrateSchemaSqlServerSqlDbTaskProperties(ProjectTaskProperties):
         'output': {'key': 'output', 'type': '[MigrateSchemaSqlServerSqlDbTaskOutput]'},
         'created_on': {'key': 'createdOn', 'type': 'str'},
         'task_id': {'key': 'taskId', 'type': 'str'},
-        'is_cloneable': {'key': 'isCloneable', 'type': 'bool'},
     }
 
     def __init__(
@@ -8450,7 +8141,6 @@ class MigrateSchemaSqlServerSqlDbTaskProperties(ProjectTaskProperties):
         input: Optional["MigrateSchemaSqlServerSqlDbTaskInput"] = None,
         created_on: Optional[str] = None,
         task_id: Optional[str] = None,
-        is_cloneable: Optional[bool] = None,
         **kwargs
     ):
         super(MigrateSchemaSqlServerSqlDbTaskProperties, self).__init__(client_data=client_data, **kwargs)
@@ -8459,7 +8149,6 @@ class MigrateSchemaSqlServerSqlDbTaskProperties(ProjectTaskProperties):
         self.output = None
         self.created_on = created_on
         self.task_id = task_id
-        self.is_cloneable = is_cloneable
 
 
 class MigrateSchemaSqlTaskOutputError(MigrateSchemaSqlServerSqlDbTaskOutput):
@@ -9878,8 +9567,6 @@ class MigrateSqlServerSqlDbTaskProperties(ProjectTaskProperties):
     :type task_id: str
     :param is_cloneable: whether the task can be cloned or not.
     :type is_cloneable: bool
-    :param created_on: DateTime in UTC when the task was created.
-    :type created_on: str
     """
 
     _validation = {
@@ -9900,7 +9587,6 @@ class MigrateSqlServerSqlDbTaskProperties(ProjectTaskProperties):
         'output': {'key': 'output', 'type': '[MigrateSqlServerSqlDbTaskOutput]'},
         'task_id': {'key': 'taskId', 'type': 'str'},
         'is_cloneable': {'key': 'isCloneable', 'type': 'bool'},
-        'created_on': {'key': 'createdOn', 'type': 'str'},
     }
 
     def __init__(
@@ -9910,7 +9596,6 @@ class MigrateSqlServerSqlDbTaskProperties(ProjectTaskProperties):
         input: Optional["MigrateSqlServerSqlDbTaskInput"] = None,
         task_id: Optional[str] = None,
         is_cloneable: Optional[bool] = None,
-        created_on: Optional[str] = None,
         **kwargs
     ):
         super(MigrateSqlServerSqlDbTaskProperties, self).__init__(client_data=client_data, **kwargs)
@@ -9919,7 +9604,6 @@ class MigrateSqlServerSqlDbTaskProperties(ProjectTaskProperties):
         self.output = None
         self.task_id = task_id
         self.is_cloneable = is_cloneable
-        self.created_on = created_on
 
 
 class MigrateSqlServerSqlMiDatabaseInput(msrest.serialization.Model):
@@ -10051,9 +9735,6 @@ class MigrateSqlServerSqlMiSyncTaskInput(SqlServerSqlMiSyncTaskInput):
      connect to the target instance of Azure SQL Database Managed Instance and the Azure Storage
      Account.
     :type azure_app: ~azure.mgmt.datamigration.models.AzureActiveDirectoryApp
-    :param number_of_parallel_database_migrations: Number of database migrations to start in
-     parallel.
-    :type number_of_parallel_database_migrations: float
     """
 
     _validation = {
@@ -10071,7 +9752,6 @@ class MigrateSqlServerSqlMiSyncTaskInput(SqlServerSqlMiSyncTaskInput):
         'source_connection_info': {'key': 'sourceConnectionInfo', 'type': 'SqlConnectionInfo'},
         'target_connection_info': {'key': 'targetConnectionInfo', 'type': 'MiSqlConnectionInfo'},
         'azure_app': {'key': 'azureApp', 'type': 'AzureActiveDirectoryApp'},
-        'number_of_parallel_database_migrations': {'key': 'numberOfParallelDatabaseMigrations', 'type': 'float'},
     }
 
     def __init__(
@@ -10083,11 +9763,9 @@ class MigrateSqlServerSqlMiSyncTaskInput(SqlServerSqlMiSyncTaskInput):
         target_connection_info: "MiSqlConnectionInfo",
         azure_app: "AzureActiveDirectoryApp",
         backup_file_share: Optional["FileShare"] = None,
-        number_of_parallel_database_migrations: Optional[float] = None,
         **kwargs
     ):
         super(MigrateSqlServerSqlMiSyncTaskInput, self).__init__(selected_databases=selected_databases, backup_file_share=backup_file_share, storage_resource_id=storage_resource_id, source_connection_info=source_connection_info, target_connection_info=target_connection_info, azure_app=azure_app, **kwargs)
-        self.number_of_parallel_database_migrations = number_of_parallel_database_migrations
 
 
 class MigrateSqlServerSqlMiSyncTaskOutput(msrest.serialization.Model):
@@ -10380,11 +10058,9 @@ class MigrateSqlServerSqlMiSyncTaskProperties(ProjectTaskProperties):
     :param client_data: Key value pairs of client data to attach meta data information to task.
     :type client_data: dict[str, str]
     :param input: Task input.
-    :type input: ~azure.mgmt.datamigration.models.MigrateSqlServerSqlMiSyncTaskInput
+    :type input: ~azure.mgmt.datamigration.models.SqlServerSqlMiSyncTaskInput
     :ivar output: Task output. This is ignored if submitted.
     :vartype output: list[~azure.mgmt.datamigration.models.MigrateSqlServerSqlMiSyncTaskOutput]
-    :param created_on: DateTime in UTC when the task was created.
-    :type created_on: str
     """
 
     _validation = {
@@ -10401,24 +10077,21 @@ class MigrateSqlServerSqlMiSyncTaskProperties(ProjectTaskProperties):
         'state': {'key': 'state', 'type': 'str'},
         'commands': {'key': 'commands', 'type': '[CommandProperties]'},
         'client_data': {'key': 'clientData', 'type': '{str}'},
-        'input': {'key': 'input', 'type': 'MigrateSqlServerSqlMiSyncTaskInput'},
+        'input': {'key': 'input', 'type': 'SqlServerSqlMiSyncTaskInput'},
         'output': {'key': 'output', 'type': '[MigrateSqlServerSqlMiSyncTaskOutput]'},
-        'created_on': {'key': 'createdOn', 'type': 'str'},
     }
 
     def __init__(
         self,
         *,
         client_data: Optional[Dict[str, str]] = None,
-        input: Optional["MigrateSqlServerSqlMiSyncTaskInput"] = None,
-        created_on: Optional[str] = None,
+        input: Optional["SqlServerSqlMiSyncTaskInput"] = None,
         **kwargs
     ):
         super(MigrateSqlServerSqlMiSyncTaskProperties, self).__init__(client_data=client_data, **kwargs)
         self.task_type = 'Migrate.SqlServer.AzureSqlDbMI.Sync.LRS'  # type: str
         self.input = input
         self.output = None
-        self.created_on = created_on
 
 
 class MigrateSqlServerSqlMiTaskInput(SqlMigrationTaskInput):
@@ -10452,8 +10125,6 @@ class MigrateSqlServerSqlMiTaskInput(SqlMigrationTaskInput):
      federated Azure AD or 'contoso.onmicrosoft.com' for managed domain, required if and only if
      Windows logins are selected.
     :type aad_domain_name: str
-    :param encrypted_key_for_secure_fields: encrypted key for secure fields.
-    :type encrypted_key_for_secure_fields: str
     """
 
     _validation = {
@@ -10474,7 +10145,6 @@ class MigrateSqlServerSqlMiTaskInput(SqlMigrationTaskInput):
         'backup_blob_share': {'key': 'backupBlobShare', 'type': 'BlobShare'},
         'backup_mode': {'key': 'backupMode', 'type': 'str'},
         'aad_domain_name': {'key': 'aadDomainName', 'type': 'str'},
-        'encrypted_key_for_secure_fields': {'key': 'encryptedKeyForSecureFields', 'type': 'str'},
     }
 
     def __init__(
@@ -10490,7 +10160,6 @@ class MigrateSqlServerSqlMiTaskInput(SqlMigrationTaskInput):
         backup_file_share: Optional["FileShare"] = None,
         backup_mode: Optional[Union[str, "BackupMode"]] = None,
         aad_domain_name: Optional[str] = None,
-        encrypted_key_for_secure_fields: Optional[str] = None,
         **kwargs
     ):
         super(MigrateSqlServerSqlMiTaskInput, self).__init__(source_connection_info=source_connection_info, target_connection_info=target_connection_info, **kwargs)
@@ -10502,7 +10171,6 @@ class MigrateSqlServerSqlMiTaskInput(SqlMigrationTaskInput):
         self.backup_blob_share = backup_blob_share
         self.backup_mode = backup_mode
         self.aad_domain_name = aad_domain_name
-        self.encrypted_key_for_secure_fields = encrypted_key_for_secure_fields
 
 
 class MigrateSqlServerSqlMiTaskOutput(msrest.serialization.Model):
@@ -10940,12 +10608,6 @@ class MigrateSqlServerSqlMiTaskProperties(ProjectTaskProperties):
     :vartype output: list[~azure.mgmt.datamigration.models.MigrateSqlServerSqlMiTaskOutput]
     :param task_id: task id.
     :type task_id: str
-    :param created_on: DateTime in UTC when the task was created.
-    :type created_on: str
-    :param parent_task_id: parent task id.
-    :type parent_task_id: str
-    :param is_cloneable: whether the task can be cloned or not.
-    :type is_cloneable: bool
     """
 
     _validation = {
@@ -10965,9 +10627,6 @@ class MigrateSqlServerSqlMiTaskProperties(ProjectTaskProperties):
         'input': {'key': 'input', 'type': 'MigrateSqlServerSqlMiTaskInput'},
         'output': {'key': 'output', 'type': '[MigrateSqlServerSqlMiTaskOutput]'},
         'task_id': {'key': 'taskId', 'type': 'str'},
-        'created_on': {'key': 'createdOn', 'type': 'str'},
-        'parent_task_id': {'key': 'parentTaskId', 'type': 'str'},
-        'is_cloneable': {'key': 'isCloneable', 'type': 'bool'},
     }
 
     def __init__(
@@ -10976,9 +10635,6 @@ class MigrateSqlServerSqlMiTaskProperties(ProjectTaskProperties):
         client_data: Optional[Dict[str, str]] = None,
         input: Optional["MigrateSqlServerSqlMiTaskInput"] = None,
         task_id: Optional[str] = None,
-        created_on: Optional[str] = None,
-        parent_task_id: Optional[str] = None,
-        is_cloneable: Optional[bool] = None,
         **kwargs
     ):
         super(MigrateSqlServerSqlMiTaskProperties, self).__init__(client_data=client_data, **kwargs)
@@ -10986,9 +10642,6 @@ class MigrateSqlServerSqlMiTaskProperties(ProjectTaskProperties):
         self.input = input
         self.output = None
         self.task_id = task_id
-        self.created_on = created_on
-        self.parent_task_id = parent_task_id
-        self.is_cloneable = is_cloneable
 
 
 class MigrateSsisTaskInput(SqlMigrationTaskInput):
@@ -11379,8 +11032,6 @@ class MigrateSyncCompleteCommandProperties(CommandProperties):
     :type input: ~azure.mgmt.datamigration.models.MigrateSyncCompleteCommandInput
     :ivar output: Command output. This is ignored if submitted.
     :vartype output: ~azure.mgmt.datamigration.models.MigrateSyncCompleteCommandOutput
-    :param command_id: Command id.
-    :type command_id: str
     """
 
     _validation = {
@@ -11396,21 +11047,18 @@ class MigrateSyncCompleteCommandProperties(CommandProperties):
         'state': {'key': 'state', 'type': 'str'},
         'input': {'key': 'input', 'type': 'MigrateSyncCompleteCommandInput'},
         'output': {'key': 'output', 'type': 'MigrateSyncCompleteCommandOutput'},
-        'command_id': {'key': 'commandId', 'type': 'str'},
     }
 
     def __init__(
         self,
         *,
         input: Optional["MigrateSyncCompleteCommandInput"] = None,
-        command_id: Optional[str] = None,
         **kwargs
     ):
         super(MigrateSyncCompleteCommandProperties, self).__init__(**kwargs)
         self.command_type = 'Migrate.Sync.Complete.Database'  # type: str
         self.input = input
         self.output = None
-        self.command_id = command_id
 
 
 class MigrationEligibilityInfo(msrest.serialization.Model):
@@ -11446,15 +11094,9 @@ class MigrationEligibilityInfo(msrest.serialization.Model):
 class MigrationOperationInput(msrest.serialization.Model):
     """Migration Operation Input.
 
-    All required parameters must be populated in order to send to Azure.
-
-    :param migration_operation_id: Required. ID tracking migration operation.
+    :param migration_operation_id: ID tracking migration operation.
     :type migration_operation_id: str
     """
-
-    _validation = {
-        'migration_operation_id': {'required': True},
-    }
 
     _attribute_map = {
         'migration_operation_id': {'key': 'migrationOperationId', 'type': 'str'},
@@ -11463,7 +11105,7 @@ class MigrationOperationInput(msrest.serialization.Model):
     def __init__(
         self,
         *,
-        migration_operation_id: str,
+        migration_operation_id: Optional[str] = None,
         **kwargs
     ):
         super(MigrationOperationInput, self).__init__(**kwargs)
@@ -12279,22 +11921,12 @@ class MongoDbConnectionInfo(ConnectionInfo):
     :type encrypt_connection: bool
     :param server_brand_version: server brand version.
     :type server_brand_version: str
-    :param server_version: server version.
-    :type server_version: str
-    :param server_name: name of the server.
-    :type server_name: str
-    :param trust_server_certificate: Whether to trust the server certificate.
-    :type trust_server_certificate: bool
     :param enforce_ssl:
     :type enforce_ssl: bool
     :param port: port for server.
     :type port: int
     :param additional_settings: Additional connection settings.
     :type additional_settings: str
-    :param authentication: Authentication type to use for connection. Possible values include:
-     "None", "WindowsAuthentication", "SqlAuthentication", "ActiveDirectoryIntegrated",
-     "ActiveDirectoryPassword".
-    :type authentication: str or ~azure.mgmt.datamigration.models.AuthenticationType
     """
 
     _validation = {
@@ -12310,13 +11942,9 @@ class MongoDbConnectionInfo(ConnectionInfo):
         'data_source': {'key': 'dataSource', 'type': 'str'},
         'encrypt_connection': {'key': 'encryptConnection', 'type': 'bool'},
         'server_brand_version': {'key': 'serverBrandVersion', 'type': 'str'},
-        'server_version': {'key': 'serverVersion', 'type': 'str'},
-        'server_name': {'key': 'serverName', 'type': 'str'},
-        'trust_server_certificate': {'key': 'trustServerCertificate', 'type': 'bool'},
         'enforce_ssl': {'key': 'enforceSSL', 'type': 'bool'},
         'port': {'key': 'port', 'type': 'int'},
         'additional_settings': {'key': 'additionalSettings', 'type': 'str'},
-        'authentication': {'key': 'authentication', 'type': 'str'},
     }
 
     def __init__(
@@ -12328,13 +11956,9 @@ class MongoDbConnectionInfo(ConnectionInfo):
         data_source: Optional[str] = None,
         encrypt_connection: Optional[bool] = None,
         server_brand_version: Optional[str] = None,
-        server_version: Optional[str] = None,
-        server_name: Optional[str] = None,
-        trust_server_certificate: Optional[bool] = False,
         enforce_ssl: Optional[bool] = None,
         port: Optional[int] = None,
         additional_settings: Optional[str] = None,
-        authentication: Optional[Union[str, "AuthenticationType"]] = None,
         **kwargs
     ):
         super(MongoDbConnectionInfo, self).__init__(user_name=user_name, password=password, **kwargs)
@@ -12343,13 +11967,9 @@ class MongoDbConnectionInfo(ConnectionInfo):
         self.data_source = data_source
         self.encrypt_connection = encrypt_connection
         self.server_brand_version = server_brand_version
-        self.server_version = server_version
-        self.server_name = server_name
-        self.trust_server_certificate = trust_server_certificate
         self.enforce_ssl = enforce_ssl
         self.port = port
         self.additional_settings = additional_settings
-        self.authentication = authentication
 
 
 class MongoDbDatabaseInfo(MongoDbObjectInfo):
@@ -12954,12 +12574,13 @@ class MongoDbShardKeySetting(msrest.serialization.Model):
 
     :param fields: Required. The fields within the shard key.
     :type fields: list[~azure.mgmt.datamigration.models.MongoDbShardKeyField]
-    :param is_unique: Whether the shard key is unique.
+    :param is_unique: Required. Whether the shard key is unique.
     :type is_unique: bool
     """
 
     _validation = {
         'fields': {'required': True},
+        'is_unique': {'required': True},
     }
 
     _attribute_map = {
@@ -12971,7 +12592,7 @@ class MongoDbShardKeySetting(msrest.serialization.Model):
         self,
         *,
         fields: List["MongoDbShardKeyField"],
-        is_unique: Optional[bool] = None,
+        is_unique: bool,
         **kwargs
     ):
         super(MongoDbShardKeySetting, self).__init__(**kwargs)
@@ -13032,12 +12653,6 @@ class MySqlConnectionInfo(ConnectionInfo):
     :type port: int
     :param encrypt_connection: Whether to encrypt the connection.
     :type encrypt_connection: bool
-    :param authentication: Authentication type to use for connection. Possible values include:
-     "None", "WindowsAuthentication", "SqlAuthentication", "ActiveDirectoryIntegrated",
-     "ActiveDirectoryPassword".
-    :type authentication: str or ~azure.mgmt.datamigration.models.AuthenticationType
-    :param additional_settings: Additional connection settings.
-    :type additional_settings: str
     """
 
     _validation = {
@@ -13054,8 +12669,6 @@ class MySqlConnectionInfo(ConnectionInfo):
         'data_source': {'key': 'dataSource', 'type': 'str'},
         'port': {'key': 'port', 'type': 'int'},
         'encrypt_connection': {'key': 'encryptConnection', 'type': 'bool'},
-        'authentication': {'key': 'authentication', 'type': 'str'},
-        'additional_settings': {'key': 'additionalSettings', 'type': 'str'},
     }
 
     def __init__(
@@ -13067,8 +12680,6 @@ class MySqlConnectionInfo(ConnectionInfo):
         password: Optional[str] = None,
         data_source: Optional[str] = None,
         encrypt_connection: Optional[bool] = True,
-        authentication: Optional[Union[str, "AuthenticationType"]] = None,
-        additional_settings: Optional[str] = None,
         **kwargs
     ):
         super(MySqlConnectionInfo, self).__init__(user_name=user_name, password=password, **kwargs)
@@ -13077,8 +12688,6 @@ class MySqlConnectionInfo(ConnectionInfo):
         self.data_source = data_source
         self.port = port
         self.encrypt_connection = encrypt_connection
-        self.authentication = authentication
-        self.additional_settings = additional_settings
 
 
 class NameAvailabilityRequest(msrest.serialization.Model):
@@ -13589,16 +13198,6 @@ class OracleConnectionInfo(ConnectionInfo):
     :type password: str
     :param data_source: Required. EZConnect or TNSName connection string.
     :type data_source: str
-    :param server_name: name of the server.
-    :type server_name: str
-    :param server_version: server version.
-    :type server_version: str
-    :param port: port for server.
-    :type port: int
-    :param authentication: Authentication type to use for connection. Possible values include:
-     "None", "WindowsAuthentication", "SqlAuthentication", "ActiveDirectoryIntegrated",
-     "ActiveDirectoryPassword".
-    :type authentication: str or ~azure.mgmt.datamigration.models.AuthenticationType
     """
 
     _validation = {
@@ -13611,10 +13210,6 @@ class OracleConnectionInfo(ConnectionInfo):
         'user_name': {'key': 'userName', 'type': 'str'},
         'password': {'key': 'password', 'type': 'str'},
         'data_source': {'key': 'dataSource', 'type': 'str'},
-        'server_name': {'key': 'serverName', 'type': 'str'},
-        'server_version': {'key': 'serverVersion', 'type': 'str'},
-        'port': {'key': 'port', 'type': 'int'},
-        'authentication': {'key': 'authentication', 'type': 'str'},
     }
 
     def __init__(
@@ -13623,19 +13218,11 @@ class OracleConnectionInfo(ConnectionInfo):
         data_source: str,
         user_name: Optional[str] = None,
         password: Optional[str] = None,
-        server_name: Optional[str] = None,
-        server_version: Optional[str] = None,
-        port: Optional[int] = None,
-        authentication: Optional[Union[str, "AuthenticationType"]] = None,
         **kwargs
     ):
         super(OracleConnectionInfo, self).__init__(user_name=user_name, password=password, **kwargs)
         self.type = 'OracleConnectionInfo'  # type: str
         self.data_source = data_source
-        self.server_name = server_name
-        self.server_version = server_version
-        self.port = port
-        self.authentication = authentication
 
 
 class OracleOciDriverInfo(msrest.serialization.Model):
@@ -13740,14 +13327,6 @@ class PostgreSqlConnectionInfo(ConnectionInfo):
     :type encrypt_connection: bool
     :param trust_server_certificate: Whether to trust the server certificate.
     :type trust_server_certificate: bool
-    :param additional_settings: Additional connection settings.
-    :type additional_settings: str
-    :param server_brand_version: server brand version.
-    :type server_brand_version: str
-    :param authentication: Authentication type to use for connection. Possible values include:
-     "None", "WindowsAuthentication", "SqlAuthentication", "ActiveDirectoryIntegrated",
-     "ActiveDirectoryPassword".
-    :type authentication: str or ~azure.mgmt.datamigration.models.AuthenticationType
     """
 
     _validation = {
@@ -13767,9 +13346,6 @@ class PostgreSqlConnectionInfo(ConnectionInfo):
         'port': {'key': 'port', 'type': 'int'},
         'encrypt_connection': {'key': 'encryptConnection', 'type': 'bool'},
         'trust_server_certificate': {'key': 'trustServerCertificate', 'type': 'bool'},
-        'additional_settings': {'key': 'additionalSettings', 'type': 'str'},
-        'server_brand_version': {'key': 'serverBrandVersion', 'type': 'str'},
-        'authentication': {'key': 'authentication', 'type': 'str'},
     }
 
     def __init__(
@@ -13784,9 +13360,6 @@ class PostgreSqlConnectionInfo(ConnectionInfo):
         database_name: Optional[str] = None,
         encrypt_connection: Optional[bool] = True,
         trust_server_certificate: Optional[bool] = False,
-        additional_settings: Optional[str] = None,
-        server_brand_version: Optional[str] = None,
-        authentication: Optional[Union[str, "AuthenticationType"]] = None,
         **kwargs
     ):
         super(PostgreSqlConnectionInfo, self).__init__(user_name=user_name, password=password, **kwargs)
@@ -13798,9 +13371,6 @@ class PostgreSqlConnectionInfo(ConnectionInfo):
         self.port = port
         self.encrypt_connection = encrypt_connection
         self.trust_server_certificate = trust_server_certificate
-        self.additional_settings = additional_settings
-        self.server_brand_version = server_brand_version
-        self.authentication = authentication
 
 
 class Project(TrackedResource):
@@ -13820,14 +13390,14 @@ class Project(TrackedResource):
     :vartype type: str
     :ivar system_data:
     :vartype system_data: ~azure.mgmt.datamigration.models.SystemData
-    :param etag: HTTP strong entity tag value. This is ignored if submitted.
-    :type etag: str
+    :param e_tag: HTTP strong entity tag value. This is ignored if submitted.
+    :type e_tag: str
     :param source_platform: Source platform for the project. Possible values include: "SQL",
      "MySQL", "PostgreSql", "MongoDb", "Unknown".
     :type source_platform: str or ~azure.mgmt.datamigration.models.ProjectSourcePlatform
     :param azure_authentication_info: Field that defines the Azure active directory application
      info, used to connect to the target Azure resource.
-    :type azure_authentication_info: ~azure.mgmt.datamigration.models.AzureActiveDirectoryApp
+    :type azure_authentication_info: str
     :param target_platform: Target platform for the project. Possible values include: "SQLDB",
      "SQLMI", "AzureDbForMySql", "AzureDbForPostgreSql", "MongoDb", "Unknown".
     :type target_platform: str or ~azure.mgmt.datamigration.models.ProjectTargetPlatform
@@ -13860,9 +13430,9 @@ class Project(TrackedResource):
         'name': {'key': 'name', 'type': 'str'},
         'type': {'key': 'type', 'type': 'str'},
         'system_data': {'key': 'systemData', 'type': 'SystemData'},
-        'etag': {'key': 'etag', 'type': 'str'},
+        'e_tag': {'key': 'eTag', 'type': 'str'},
         'source_platform': {'key': 'properties.sourcePlatform', 'type': 'str'},
-        'azure_authentication_info': {'key': 'properties.azureAuthenticationInfo', 'type': 'AzureActiveDirectoryApp'},
+        'azure_authentication_info': {'key': 'properties.azureAuthenticationInfo', 'type': 'str'},
         'target_platform': {'key': 'properties.targetPlatform', 'type': 'str'},
         'creation_time': {'key': 'properties.creationTime', 'type': 'iso-8601'},
         'source_connection_info': {'key': 'properties.sourceConnectionInfo', 'type': 'ConnectionInfo'},
@@ -13876,9 +13446,9 @@ class Project(TrackedResource):
         *,
         location: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
-        etag: Optional[str] = None,
+        e_tag: Optional[str] = None,
         source_platform: Optional[Union[str, "ProjectSourcePlatform"]] = None,
-        azure_authentication_info: Optional["AzureActiveDirectoryApp"] = None,
+        azure_authentication_info: Optional[str] = None,
         target_platform: Optional[Union[str, "ProjectTargetPlatform"]] = None,
         source_connection_info: Optional["ConnectionInfo"] = None,
         target_connection_info: Optional["ConnectionInfo"] = None,
@@ -13886,7 +13456,7 @@ class Project(TrackedResource):
         **kwargs
     ):
         super(Project, self).__init__(location=location, tags=tags, **kwargs)
-        self.etag = etag
+        self.e_tag = e_tag
         self.source_platform = source_platform
         self.azure_authentication_info = azure_authentication_info
         self.target_platform = target_platform
@@ -14941,24 +14511,15 @@ class ServiceSkuList(msrest.serialization.Model):
 class SourceLocation(msrest.serialization.Model):
     """Source Location details of backups.
 
-    Variables are only populated by the server, and will be ignored when sending a request.
-
     :param file_share: Source File share.
     :type file_share: ~azure.mgmt.datamigration.models.SqlFileShare
     :param azure_blob: Source Azure Blob.
     :type azure_blob: ~azure.mgmt.datamigration.models.AzureBlob
-    :ivar file_storage_type: Backup storage Type.
-    :vartype file_storage_type: str
     """
-
-    _validation = {
-        'file_storage_type': {'readonly': True},
-    }
 
     _attribute_map = {
         'file_share': {'key': 'fileShare', 'type': 'SqlFileShare'},
         'azure_blob': {'key': 'azureBlob', 'type': 'AzureBlob'},
-        'file_storage_type': {'key': 'fileStorageType', 'type': 'str'},
     }
 
     def __init__(
@@ -14971,7 +14532,6 @@ class SourceLocation(msrest.serialization.Model):
         super(SourceLocation, self).__init__(**kwargs)
         self.file_share = file_share
         self.azure_blob = azure_blob
-        self.file_storage_type = None
 
 
 class SqlBackupFileInfo(msrest.serialization.Model):
@@ -15126,12 +14686,8 @@ class SqlConnectionInfo(ConnectionInfo):
     :type data_source: str
     :param server_name: name of the server.
     :type server_name: str
-    :param port: Port for Server.
-    :type port: int
-    :param server_version: server version.
-    :type server_version: str
-    :param server_brand_version: server brand version.
-    :type server_brand_version: str
+    :param port: port for server.
+    :type port: str
     :param resource_id: Represents the ID of an HTTP resource represented by an Azure resource
      provider.
     :type resource_id: str
@@ -15160,9 +14716,7 @@ class SqlConnectionInfo(ConnectionInfo):
         'password': {'key': 'password', 'type': 'str'},
         'data_source': {'key': 'dataSource', 'type': 'str'},
         'server_name': {'key': 'serverName', 'type': 'str'},
-        'port': {'key': 'port', 'type': 'int'},
-        'server_version': {'key': 'serverVersion', 'type': 'str'},
-        'server_brand_version': {'key': 'serverBrandVersion', 'type': 'str'},
+        'port': {'key': 'port', 'type': 'str'},
         'resource_id': {'key': 'resourceId', 'type': 'str'},
         'authentication': {'key': 'authentication', 'type': 'str'},
         'encrypt_connection': {'key': 'encryptConnection', 'type': 'bool'},
@@ -15178,9 +14732,7 @@ class SqlConnectionInfo(ConnectionInfo):
         user_name: Optional[str] = None,
         password: Optional[str] = None,
         server_name: Optional[str] = None,
-        port: Optional[int] = None,
-        server_version: Optional[str] = None,
-        server_brand_version: Optional[str] = None,
+        port: Optional[str] = None,
         resource_id: Optional[str] = None,
         authentication: Optional[Union[str, "AuthenticationType"]] = None,
         encrypt_connection: Optional[bool] = True,
@@ -15194,8 +14746,6 @@ class SqlConnectionInfo(ConnectionInfo):
         self.data_source = data_source
         self.server_name = server_name
         self.port = port
-        self.server_version = server_version
-        self.server_brand_version = server_brand_version
         self.resource_id = resource_id
         self.authentication = authentication
         self.encrypt_connection = encrypt_connection
@@ -15248,67 +14798,6 @@ class SqlConnectionInformation(msrest.serialization.Model):
         self.password = password
         self.encrypt_connection = encrypt_connection
         self.trust_server_certificate = trust_server_certificate
-
-
-class SqlDbMigrationStatusDetails(msrest.serialization.Model):
-    """Detailed status of current Sql Db migration.
-
-    Variables are only populated by the server, and will be ignored when sending a request.
-
-    :ivar migration_state: Current State of Migration.
-    :vartype migration_state: str
-    :ivar sql_data_copy_errors: Sql Data Copy errors, if any.
-    :vartype sql_data_copy_errors: list[str]
-    :ivar list_of_copy_progress_details: Details on progress of ADF copy activities.
-    :vartype list_of_copy_progress_details:
-     list[~azure.mgmt.datamigration.models.CopyProgressDetails]
-    """
-
-    _validation = {
-        'migration_state': {'readonly': True},
-        'sql_data_copy_errors': {'readonly': True},
-        'list_of_copy_progress_details': {'readonly': True},
-    }
-
-    _attribute_map = {
-        'migration_state': {'key': 'migrationState', 'type': 'str'},
-        'sql_data_copy_errors': {'key': 'sqlDataCopyErrors', 'type': '[str]'},
-        'list_of_copy_progress_details': {'key': 'listOfCopyProgressDetails', 'type': '[CopyProgressDetails]'},
-    }
-
-    def __init__(
-        self,
-        **kwargs
-    ):
-        super(SqlDbMigrationStatusDetails, self).__init__(**kwargs)
-        self.migration_state = None
-        self.sql_data_copy_errors = None
-        self.list_of_copy_progress_details = None
-
-
-class SqlDbOfflineConfiguration(msrest.serialization.Model):
-    """Offline configuration.
-
-    Variables are only populated by the server, and will be ignored when sending a request.
-
-    :ivar offline: Offline migration.
-    :vartype offline: bool
-    """
-
-    _validation = {
-        'offline': {'readonly': True},
-    }
-
-    _attribute_map = {
-        'offline': {'key': 'offline', 'type': 'bool'},
-    }
-
-    def __init__(
-        self,
-        **kwargs
-    ):
-        super(SqlDbOfflineConfiguration, self).__init__(**kwargs)
-        self.offline = None
 
 
 class SqlFileShare(msrest.serialization.Model):

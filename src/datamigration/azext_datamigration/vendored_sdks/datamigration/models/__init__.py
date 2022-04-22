@@ -62,7 +62,6 @@ try:
     from ._models_py3 import ConnectToTargetSqlMiTaskOutput
     from ._models_py3 import ConnectToTargetSqlMiTaskProperties
     from ._models_py3 import ConnectionInfo
-    from ._models_py3 import CopyProgressDetails
     from ._models_py3 import DataIntegrityValidationResult
     from ._models_py3 import DataItemMigrationSummaryResult
     from ._models_py3 import DataMigrationError
@@ -78,10 +77,8 @@ try:
     from ._models_py3 import DatabaseMigration
     from ._models_py3 import DatabaseMigrationListResult
     from ._models_py3 import DatabaseMigrationProperties
-    from ._models_py3 import DatabaseMigrationPropertiesSqlDb
     from ._models_py3 import DatabaseMigrationPropertiesSqlMi
     from ._models_py3 import DatabaseMigrationPropertiesSqlVm
-    from ._models_py3 import DatabaseMigrationSqlDb
     from ._models_py3 import DatabaseMigrationSqlMi
     from ._models_py3 import DatabaseMigrationSqlVm
     from ._models_py3 import DatabaseObjectName
@@ -292,8 +289,6 @@ try:
     from ._models_py3 import SqlBackupSetInfo
     from ._models_py3 import SqlConnectionInfo
     from ._models_py3 import SqlConnectionInformation
-    from ._models_py3 import SqlDbMigrationStatusDetails
-    from ._models_py3 import SqlDbOfflineConfiguration
     from ._models_py3 import SqlFileShare
     from ._models_py3 import SqlMigrationListResult
     from ._models_py3 import SqlMigrationService
@@ -380,7 +375,6 @@ except (SyntaxError, ImportError):
     from ._models import ConnectToTargetSqlMiTaskOutput  # type: ignore
     from ._models import ConnectToTargetSqlMiTaskProperties  # type: ignore
     from ._models import ConnectionInfo  # type: ignore
-    from ._models import CopyProgressDetails  # type: ignore
     from ._models import DataIntegrityValidationResult  # type: ignore
     from ._models import DataItemMigrationSummaryResult  # type: ignore
     from ._models import DataMigrationError  # type: ignore
@@ -396,10 +390,8 @@ except (SyntaxError, ImportError):
     from ._models import DatabaseMigration  # type: ignore
     from ._models import DatabaseMigrationListResult  # type: ignore
     from ._models import DatabaseMigrationProperties  # type: ignore
-    from ._models import DatabaseMigrationPropertiesSqlDb  # type: ignore
     from ._models import DatabaseMigrationPropertiesSqlMi  # type: ignore
     from ._models import DatabaseMigrationPropertiesSqlVm  # type: ignore
-    from ._models import DatabaseMigrationSqlDb  # type: ignore
     from ._models import DatabaseMigrationSqlMi  # type: ignore
     from ._models import DatabaseMigrationSqlVm  # type: ignore
     from ._models import DatabaseObjectName  # type: ignore
@@ -610,8 +602,6 @@ except (SyntaxError, ImportError):
     from ._models import SqlBackupSetInfo  # type: ignore
     from ._models import SqlConnectionInfo  # type: ignore
     from ._models import SqlConnectionInformation  # type: ignore
-    from ._models import SqlDbMigrationStatusDetails  # type: ignore
-    from ._models import SqlDbOfflineConfiguration  # type: ignore
     from ._models import SqlFileShare  # type: ignore
     from ._models import SqlMigrationListResult  # type: ignore
     from ._models import SqlMigrationService  # type: ignore
@@ -756,7 +746,6 @@ __all__ = [
     'ConnectToTargetSqlMiTaskOutput',
     'ConnectToTargetSqlMiTaskProperties',
     'ConnectionInfo',
-    'CopyProgressDetails',
     'DataIntegrityValidationResult',
     'DataItemMigrationSummaryResult',
     'DataMigrationError',
@@ -772,10 +761,8 @@ __all__ = [
     'DatabaseMigration',
     'DatabaseMigrationListResult',
     'DatabaseMigrationProperties',
-    'DatabaseMigrationPropertiesSqlDb',
     'DatabaseMigrationPropertiesSqlMi',
     'DatabaseMigrationPropertiesSqlVm',
-    'DatabaseMigrationSqlDb',
     'DatabaseMigrationSqlMi',
     'DatabaseMigrationSqlVm',
     'DatabaseObjectName',
@@ -986,8 +973,6 @@ __all__ = [
     'SqlBackupSetInfo',
     'SqlConnectionInfo',
     'SqlConnectionInformation',
-    'SqlDbMigrationStatusDetails',
-    'SqlDbOfflineConfiguration',
     'SqlFileShare',
     'SqlMigrationListResult',
     'SqlMigrationService',
