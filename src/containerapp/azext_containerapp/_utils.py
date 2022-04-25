@@ -189,6 +189,7 @@ def await_github_action(cmd, token, repo, branch, name, resource_group_name, tim
     animation.flush()
     animation.tick()
     animation.flush()
+    sleep(3)  # adding sleep until there is a way of verifying index[0] is latest workflow run based on id/time
     runs = workflow.get_runs()
     while runs is None or runs.totalCount < 1:
         runs = workflow.get_runs()

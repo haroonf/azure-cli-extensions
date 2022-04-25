@@ -1043,6 +1043,8 @@ def _validate_github(repo, branch, token):
             if not github_repo.permissions.push or not github_repo.permissions.maintain:
                 raise ValidationError("The token does not have appropriate access rights to repository {}.".format(repo))
             try:
+                if not branch:
+                    branch = github_repo.default_branch
                 github_repo.get_branch(branch=branch)
             except GithubException as e:
                 error_msg = "Encountered GitHub error when accessing {} branch in {} repo.".format(branch, repo)
@@ -1059,7 +1061,7 @@ def _validate_github(repo, branch, token):
             if e.data and e.data['message']:
                 error_msg += " Error: {}".format(e.data['message'])
             raise CLIInternalError(error_msg) from e
-
+    return branch
 
 def create_or_update_github_action(cmd,
                                    name,
@@ -1088,7 +1090,7 @@ def create_or_update_github_action(cmd,
     repo = repo_url_to_name(repo_url)
     repo_url = f"https://github.com/{repo}"  # allow specifying repo as <user>/<repo> without the full github url
 
-    _validate_github(repo, branch, token)
+    branch = _validate_github(repo, branch, token)
 
     source_control_info = None
 
@@ -1102,10 +1104,7 @@ def create_or_update_github_action(cmd,
 
     source_control_info["properties"]["repoUrl"] = repo_url
 
-    if branch:
-        source_control_info["properties"]["branch"] = branch
-    if not source_control_info["properties"]["branch"]:
-        source_control_info["properties"]["branch"] = "main"
+    source_control_info["properties"]["branch"] = branch
 
     azure_credentials = None
 
@@ -1995,7 +1994,7 @@ def containerapp_up(cmd,
                     logs_key=None,
                     repo=None,
                     token=None,
-                    branch="main",
+                    branch=None,
                     browse=False,
                     context_path=None,
                     service_principal_client_id=None,

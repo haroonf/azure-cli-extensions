@@ -380,6 +380,8 @@ def _get_dockerfile_content_from_repo(  # pylint: disable=inconsistent-return-st
     context_path = context_path or "."
     repo = repo_url_to_name(repo_url)
     r = g.get_repo(repo)
+    if not branch:
+        branch = r.default_branch
     files = r.get_contents(context_path, ref=branch)
     for f in files:
         if f.path == dockerfile or f.path.endswith(f"/{dockerfile}"):
