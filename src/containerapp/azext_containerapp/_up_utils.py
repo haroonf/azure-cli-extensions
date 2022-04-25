@@ -604,20 +604,34 @@ def _get_registry_details(cmd, app: "ContainerApp"):
         else:
             registry_rg = _get_acr_rg(app)
     else:
-        registry_rg = app.resource_group.name
-        user = get_profile_username()
-        registry_name = app.name.replace("-", "").lower()
-        registry_name = (
-            registry_name
-            + str(hash((registry_rg, user, app.name)))
-            .replace("-", "")
-            .replace(".", "")[:10]
-        )  # cap at 15 characters total
-        registry_name = (
-            f"ca{registry_name}acr"  # ACR names must start + end in a letter
-        )
-        app.registry_server = registry_name + ".azurecr.io"
-        app.should_create_acr = True
+        registry_name, registry_rg = find_existing_acr(cmd, app.resource_group.name, app.env.name)
+        if registry_name and registry_name:
+            logger.warning("Using existing registry {} found on resource group {}.".format(registry_name, registry_rg))
+            app.registry_server = registry_name + ".azurecr.io"
+            # user and pass can't be supplied if we are inferring
+            try:
+                app.registry_user, app.registry_pass, registry_rg = _get_acr_cred(
+                    cmd.cli_ctx, registry_name
+                )
+            except Exception as ex:
+                raise RequiredArgumentMissingError(
+                    "Failed to retrieve credentials for container registry. Please provide the registry server, username, and password"
+                ) from ex
+        else:
+            registry_rg = app.resource_group.name
+            user = get_profile_username()
+            registry_name = app.env.name.replace("-", "").lower()
+            registry_name = (
+                registry_name
+                + str(hash((registry_rg, user, app.name)))
+                .replace("-", "")
+                .replace(".", "")[:10]
+            )  # cap at 15 characters total
+            registry_name = (
+                f"ca{registry_name}acr"  # ACR names must start + end in a letter
+            )
+            app.registry_server = registry_name + ".azurecr.io"
+            app.should_create_acr = True
 
     app.acr = AzureContainerRegistry(
         registry_name, ResourceGroup(cmd, registry_rg, None, None)
@@ -713,3 +727,21 @@ def up_output(app):
     logger.warning(
         f"See full output using: az containerapp show -n {app.name} -g {app.resource_group.name} \n"
     )
+
+
+def find_existing_acr(cmd, resource_group_name, env_name):
+    from azure.cli.command_modules.acr.custom import acr_list as list_acr
+    from azure.cli.command_modules.acr._client_factory import cf_acr_registries
+    client = cf_acr_registries(cmd.cli_ctx)
+    acr_list = list_acr(client, resource_group_name)
+    acr_list = list(acr_list)
+    acr = None
+    acr_list = [a for a in acr_list if env_name.lower().replace('-','') in a.name.lower()]
+
+    if len(acr_list) > 0:
+        acr = acr_list[0]
+
+    if acr:
+        return acr.name, parse_resource_id(acr.id)["resource_group"]
+    else:
+        return None, None

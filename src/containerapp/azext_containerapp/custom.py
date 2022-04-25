@@ -2029,12 +2029,13 @@ def containerapp_up(cmd,
         if app.get()["properties"]["provisioningState"] == "InProgress":
             raise ValidationError("Containerapp has an existing provisioning in progress. Please wait until provisioning has completed and rerun the command.")
 
+    resource_group.create_if_needed()
+    env.create_if_needed(name)
+
     if source or repo:
         _get_registry_from_app(app)  # if the app exists, get the registry
         _get_registry_details(cmd, app)  # fetch ACR creds from arguments registry arguments
 
-    resource_group.create_if_needed()
-    env.create_if_needed(name)
     app.create_acr_if_needed()
 
     if source:
