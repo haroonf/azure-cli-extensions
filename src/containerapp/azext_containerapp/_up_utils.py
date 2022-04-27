@@ -484,14 +484,11 @@ def _get_app_env_and_group(
             c for c in list_containerapp(cmd) if c["name"].lower() == name.lower()
         ]
         if len(matched_apps) == 1:
-            if env.name:
-                logger.warning(
-                    "User passed custom environment name for an existing containerapp. Using existing environment."
-                )
-            resource_group.name = parse_resource_id(matched_apps[0]["id"])[
-                "resource_group"
-            ]
-            env.set_name(matched_apps[0]["properties"]["managedEnvironmentId"])
+            if env.name.lower() == parse_resource_id(matched_apps[0]["properties"]["managedEnvironmentId"])["name"].lower():
+                resource_group.name = parse_resource_id(matched_apps[0]["id"])[
+                    "resource_group"
+                ]
+                env.set_name(matched_apps[0]["properties"]["managedEnvironmentId"])
         elif len(matched_apps) > 1:
             raise ValidationError(
                 f"There are multiple containerapps with name {name} on the subscription. "
