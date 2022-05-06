@@ -136,7 +136,7 @@
         "src\\containerapp\\azext_containerapp\\tests\\latest\\recordings\\test_containerapp_identity_system.yaml",
         "src\\containerapp\\azext_containerapp\\tests\\latest\\recordings\\test_containerapp_identity_user.yaml",
         "src\\containerapp\\azext_containerapp\\tests\\latest\\recordings\\test_containerapp_ingress_e2e.yaml",
-        "src\\containerapp\\azext_containerapp\\tests\\latest\\recordings\\test_containerapp_ingress_traffic.yaml",
+        "src\\containerapp\\azext_containerapp\\tests\\latest\\recordings\\test_containerapp_ingress_traffic_e2e.yaml",
         "src\\containerapp\\azext_containerapp\\tests\\latest\\recordings\\test_containerapp_logstream.yaml",
         "src\\containerapp\\azext_containerapp\\tests\\latest\\recordings\\test_containerapp_update.yaml"
       ],
