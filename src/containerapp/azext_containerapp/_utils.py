@@ -912,20 +912,23 @@ def _update_weights(containerapp_def, revision_weights, old_weight_sum):
 
     new_weight_sum = sum([int(w.split('=', 1)[1]) for w in revision_weights])
     revision_weight_names = [w.split('=', 1)[0].lower() for w in revision_weights]
-    existing_weight_sum = sum([int(w["weight"]) for w in containerapp_def["properties"]["configuration"]["ingress"]["traffic"]]) - new_weight_sum
+    divisor = sum([int(w["weight"]) for w in containerapp_def["properties"]["configuration"]["ingress"]["traffic"]]) - new_weight_sum
     round_up = True
-    scale_factor = (old_weight_sum-new_weight_sum)/existing_weight_sum + 1
+    # if there is no change to be made, don't even try (also can't divide by zero)
+    if divisor == 0:
+        return
+
+    scale_factor = (old_weight_sum-new_weight_sum)/divisor + 1
 
     for existing_weight in containerapp_def["properties"]["configuration"]["ingress"]["traffic"]:
         if "latestRevision" in existing_weight and existing_weight["latestRevision"]:
             if "latest" not in revision_weight_names:
-                print(str(scale_factor*existing_weight["weight"]))
                 existing_weight["weight"], round_up = round(scale_factor*existing_weight["weight"], round_up)
         elif "revisionName" in existing_weight and existing_weight["revisionName"].lower() not in revision_weight_names:
-            print(str(scale_factor*existing_weight["weight"]))
             existing_weight["weight"], round_up = round(scale_factor*existing_weight["weight"], round_up)
 
 
+# required because what if .5, .5? We need sum to be 100, so can't round up or down both times
 def round(number, round_up):
     import math
     if round_up:
@@ -936,8 +939,7 @@ def round(number, round_up):
 def _validate_traffic_sum(revision_weights):
     weight_sum = sum([int(w.split('=', 1)[1]) for w in revision_weights if len(w.split('=', 1)) == 2 and _validate_weight(w.split('=', 1)[1])])
     if weight_sum > 100:
-        #raise ValidationError("Traffic sums may not exceed 100.")
-        pass
+        raise ValidationError("Traffic sums may not exceed 100.")
 
 
 def _get_app_from_revision(revision):
