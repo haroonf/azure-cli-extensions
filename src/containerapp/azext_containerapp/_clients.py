@@ -167,7 +167,7 @@ class ContainerAppClient():
     @classmethod
     def show(cls, cmd, resource_group_name, name):
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
-        api_version = PREVIEW_API_VERSION
+        api_version = STABLE_API_VERSION
         sub_id = get_subscription_id(cmd.cli_ctx)
         url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.App/containerApps/{}?api-version={}"
         request_url = url_fmt.format(
