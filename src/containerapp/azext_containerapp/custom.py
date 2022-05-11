@@ -1043,6 +1043,8 @@ def _validate_github(repo, branch, token):
         github_repo = None
         try:
             github_repo = g.get_repo(repo)
+            if not branch:
+                branch = github_repo.default_branch
             if not github_repo.permissions.push or not github_repo.permissions.maintain:
                 raise ValidationError("The token does not have appropriate access rights to repository {}.".format(repo))
             try:
@@ -1062,6 +1064,7 @@ def _validate_github(repo, branch, token):
             if e.data and e.data['message']:
                 error_msg += " Error: {}".format(e.data['message'])
             raise CLIInternalError(error_msg) from e
+    return branch
 
 
 def create_or_update_github_action(cmd,
@@ -1071,7 +1074,7 @@ def create_or_update_github_action(cmd,
                                    registry_url=None,
                                    registry_username=None,
                                    registry_password=None,
-                                   branch="main",
+                                   branch=None,
                                    token=None,
                                    login_with_github=False,
                                    image=None,
@@ -1091,7 +1094,7 @@ def create_or_update_github_action(cmd,
     repo = repo_url_to_name(repo_url)
     repo_url = f"https://github.com/{repo}"  # allow specifying repo as <user>/<repo> without the full github url
 
-    _validate_github(repo, branch, token)
+    branch = _validate_github(repo, branch, token)
 
     source_control_info = None
 
@@ -1104,11 +1107,7 @@ def create_or_update_github_action(cmd,
         source_control_info = SourceControlModel
 
     source_control_info["properties"]["repoUrl"] = repo_url
-
-    if branch:
-        source_control_info["properties"]["branch"] = branch
-    if not source_control_info["properties"]["branch"]:
-        source_control_info["properties"]["branch"] = "main"
+    source_control_info["properties"]["branch"] = branch
 
     azure_credentials = None
 
@@ -2115,7 +2114,7 @@ def containerapp_up(cmd,
                     logs_key=None,
                     repo=None,
                     token=None,
-                    branch="main",
+                    branch=None,
                     browse=False,
                     context_path=None,
                     service_principal_client_id=None,
@@ -2123,8 +2122,9 @@ def containerapp_up(cmd,
                     service_principal_tenant_id=None):
     from ._up_utils import (_validate_up_args, _reformat_image, _get_dockerfile_content, _get_ingress_and_target_port,
                             ResourceGroup, ContainerAppEnvironment, ContainerApp, _get_registry_from_app,
-                            _get_registry_details, _create_github_action, _set_up_defaults, up_output, AzureContainerRegistry,
-                            check_env_name_on_rg)
+                            _get_registry_details, _create_github_action, _set_up_defaults, up_output,
+                            check_env_name_on_rg, get_token)
+    from ._github_oauth import cache_github_token
     HELLOWORLD = "mcr.microsoft.com/azuredocs/containerapps-helloworld"
     dockerfile = "Dockerfile"  # for now the dockerfile name must be "Dockerfile" (until GH actions API is updated)
 
@@ -2133,7 +2133,7 @@ def containerapp_up(cmd,
     check_env_name_on_rg(cmd, managed_env, resource_group_name, location)
 
     image = _reformat_image(source, repo, image)
-    token = None if not repo else get_github_access_token(cmd, ["admin:repo_hook", "repo", "workflow"], token)
+    token = get_token(cmd, repo, token)
 
     if image and HELLOWORLD in image.lower():
         ingress = "external" if not ingress else ingress
@@ -2173,6 +2173,7 @@ def containerapp_up(cmd,
     if repo:
         _create_github_action(app, env, service_principal_client_id, service_principal_client_secret,
                               service_principal_tenant_id, branch, token, repo, context_path)
+        cache_github_token(cmd, token, repo)
 
     if browse:
         open_containerapp_in_browser(cmd, app.name, app.resource_group.name)

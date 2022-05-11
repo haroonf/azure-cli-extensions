@@ -173,7 +173,7 @@ def get_workflow(github_repo, name):  # pylint: disable=inconsistent-return-stat
     workflows = list(github_repo.get_workflows())
     workflows.sort(key=lambda r: r.created_at, reverse=True)  # sort by latest first
     for wf in workflows:
-        if wf.path.startswith(f".github/workflows/{name}") and "Trigger auto deployment for containerapp" in wf.name:
+        if wf.path.startswith(f".github/workflows/{name}") and "Trigger auto deployment for" in wf.name:
             return wf
 
 
@@ -183,6 +183,7 @@ def trigger_workflow(token, repo, name, branch):
     wf.create_dispatch(branch)
 
 
+# pylint:disable=unused-argument
 def await_github_action(cmd, token, repo, branch, name, resource_group_name, timeout_secs=1200):
     from .custom import show_github_action
     from ._clients import PollingAnimation
@@ -244,7 +245,7 @@ def await_github_action(cmd, token, repo, branch, name, resource_group_name, tim
 
 def repo_url_to_name(repo_url):
     repo = None
-    repo = repo_url.split('/')
+    repo = [s for s in repo_url.split('/') if s]
     if len(repo) >= 2:
         repo = '/'.join(repo[-2:])
     return repo
