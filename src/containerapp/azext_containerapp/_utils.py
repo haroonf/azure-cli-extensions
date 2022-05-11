@@ -923,14 +923,15 @@ def _update_weights(containerapp_def, revision_weights, old_weight_sum):
     for existing_weight in containerapp_def["properties"]["configuration"]["ingress"]["traffic"]:
         if "latestRevision" in existing_weight and existing_weight["latestRevision"]:
             if "latest" not in revision_weight_names:
-                existing_weight["weight"], round_up = round(scale_factor*existing_weight["weight"], round_up)
+                existing_weight["weight"], round_up = _round(scale_factor*existing_weight["weight"], round_up)
         elif "revisionName" in existing_weight and existing_weight["revisionName"].lower() not in revision_weight_names:
-            existing_weight["weight"], round_up = round(scale_factor*existing_weight["weight"], round_up)
+            existing_weight["weight"], round_up = _round(scale_factor*existing_weight["weight"], round_up)
 
 
 # required because what if .5, .5? We need sum to be 100, so can't round up or down both times
-def round(number, round_up):
+def _round(number, round_up):
     import math
+    number = round(number, 2)  # required because we are dealing with floats
     if round_up:
         return math.ceil(number), not round_up
     return math.floor(number), not round_up
