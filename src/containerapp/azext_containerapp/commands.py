@@ -27,7 +27,7 @@ def transform_containerapp_list_output(apps):
 
 
 def transform_revision_output(rev):
-    props = ['name', 'active', 'createdTime', 'trafficWeight']
+    props = ['name', 'active', 'createdTime', 'trafficWeight', 'healthState', 'provisioningState', 'replicas']
     result = {k: rev['properties'][k] for k in rev['properties'] if k in props}
 
     if 'name' in rev:
