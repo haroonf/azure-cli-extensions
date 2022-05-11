@@ -1552,12 +1552,16 @@ def set_ingress_traffic(cmd, name, resource_group_name, label_weights=None, revi
 
     _update_weights(containerapp_def, revision_weights, old_weight_sum)
 
-    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
+    containerapp_patch_def = {}
+    containerapp_patch_def['properties'] = {}
+    containerapp_patch_def['properties']['configuration'] = {}
+    containerapp_patch_def['properties']['configuration']['ingress'] = {}
+    containerapp_patch_def['properties']['configuration']['ingress']['traffic'] = containerapp_def["properties"]["configuration"]["ingress"]["traffic"]
 
     try:
-        r = ContainerAppClient.create_or_update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
-        return r["properties"]["configuration"]["ingress"]["traffic"]
+        r = ContainerAppClient.update(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_patch_def, no_wait=no_wait)
+        return r['properties']['configuration']['ingress']['traffic']
     except Exception as e:
         handle_raw_exception(e)
 
