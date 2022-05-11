@@ -947,7 +947,8 @@ def _validate_traffic_sum(revision_weights):
 def _get_app_from_revision(revision):
     if not revision:
         raise ValidationError('Invalid revision. Revision must not be empty')
-
+    if revision.lower() == "latest":
+        raise ValidationError('Please provide a name for your containerapp. Cannot lookup name of containerapp without a full revision name.')
     revision = revision.split('--')
     revision.pop()
     revision = "--".join(revision)

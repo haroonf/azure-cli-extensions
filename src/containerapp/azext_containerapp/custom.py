@@ -1344,9 +1344,12 @@ def set_revision_mode(cmd, resource_group_name, name, mode, no_wait=False):
         handle_raw_exception(e)
 
 
-def add_revision_label(cmd, resource_group_name, name, revision, label, no_wait=False):
+def add_revision_label(cmd, resource_group_name, revision, label, name=None, no_wait=False):
     _validate_subscription_registered(cmd, "Microsoft.App")
-    
+
+    if not name:
+        name = _get_app_from_revision(revision)
+
     containerapp_def = None
     try:
         containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
@@ -1354,7 +1357,7 @@ def add_revision_label(cmd, resource_group_name, name, revision, label, no_wait=
         pass
 
     if not containerapp_def:
-        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError(f"The containerapp '{name}' does not exist in group '{resource_group_name}'")
 
     if "ingress" not in containerapp_def['properties']['configuration'] and "traffic" not in containerapp_def['properties']['configuration']['ingress']:
         raise ValidationError("Ingress and traffic weights are required to set labels.")
@@ -1402,7 +1405,7 @@ def remove_revision_label(cmd, resource_group_name, name, label, no_wait=False):
         pass
 
     if not containerapp_def:
-        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError(f"The containerapp '{name}' does not exist in group '{resource_group_name}'")
 
     if "ingress" not in containerapp_def['properties']['configuration'] and "traffic" not in containerapp_def['properties']['configuration']['ingress']:
         raise ValidationError("Ingress and traffic weights are required to set labels.")
@@ -1529,7 +1532,7 @@ def set_ingress_traffic(cmd, name, resource_group_name, label_weights=None, revi
         pass
 
     if not containerapp_def:
-        raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
+        raise ResourceNotFoundError(f"The containerapp '{name}' does not exist in group '{resource_group_name}'")
 
     try:
         containerapp_def["properties"]["configuration"]["ingress"]
