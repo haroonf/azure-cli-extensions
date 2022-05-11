@@ -1534,17 +1534,23 @@ def set_ingress_traffic(cmd, name, resource_group_name, label_weights=None, revi
 
     try:
         containerapp_def["properties"]["configuration"]["ingress"]
+        containerapp_def["properties"]["configuration"]["ingress"]["traffic"]
     except Exception as e:
         raise ValidationError("Ingress must be enabled to set ingress traffic. Try running `az containerapp ingress -h` for more info.") from e
 
-    
+    if not revision_weights:
+        revision_weights = []
+
+    # convert label weights to appropriate revision name
     _append_label_weights(containerapp_def, label_weights, revision_weights)
+
+    # validate sum is less than 100
     _validate_traffic_sum(revision_weights)
 
-    if revision_weights is not None:
-        _update_revision_weights(containerapp_def, revision_weights)
+    # update revision weights to containerapp, get the old weight sum
+    old_weight_sum = _update_revision_weights(containerapp_def, revision_weights)
 
-    _update_weights(containerapp_def, revision_weights, label_weights)
+    _update_weights(containerapp_def, revision_weights, old_weight_sum)
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 

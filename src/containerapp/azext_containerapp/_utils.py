@@ -840,6 +840,7 @@ def _validate_weight(weight):
 
 
 def _update_revision_weights(containerapp_def, list_weights):
+    old_weight_sum = 0
     if "traffic" not in containerapp_def["properties"]["configuration"]["ingress"]:
         containerapp_def["properties"]["configuration"]["ingress"]["traffic"] = []
 
@@ -858,10 +859,12 @@ def _update_revision_weights(containerapp_def, list_weights):
         for existing_weight in containerapp_def["properties"]["configuration"]["ingress"]["traffic"]:
             if "latestRevision" in existing_weight and existing_weight["latestRevision"]:
                 if revision.lower() == "latest":
+                    old_weight_sum += existing_weight["weight"]
                     existing_weight["weight"] = weight
                     is_existing = True
                     break
             elif "revisionName" in existing_weight and existing_weight["revisionName"].lower() == revision.lower():
+                old_weight_sum += existing_weight["weight"]
                 existing_weight["weight"] = weight
                 is_existing = True
                 break
@@ -871,6 +874,7 @@ def _update_revision_weights(containerapp_def, list_weights):
                 "weight": int(weight),
                 "latestRevision": revision.lower() == "latest"
             })
+    return old_weight_sum
 
 
 def _append_label_weights(containerapp_def, label_weights, revision_weights):
@@ -904,19 +908,36 @@ def _append_label_weights(containerapp_def, label_weights, revision_weights):
             raise ValidationError(f"No label {label} assigned to any traffic weight.")
 
 
-def _update_weights(containerapp_def, revision_weights, label_weights):
-    # get name list of the ones we have changed, validation can be dropped should be caught above
-    revision_weight_names = [w.split('=', 1)[0] for w in revision_weights]
-    
-    print(revision_weight_names)
-    # sum the others
-    # math the others
+def _update_weights(containerapp_def, revision_weights, old_weight_sum):
+
+    new_weight_sum = sum([int(w.split('=', 1)[1]) for w in revision_weights])
+    revision_weight_names = [w.split('=', 1)[0].lower() for w in revision_weights]
+    existing_weight_sum = sum([int(w["weight"]) for w in containerapp_def["properties"]["configuration"]["ingress"]["traffic"]]) - new_weight_sum
+    round_up = True
+    scale_factor = (old_weight_sum-new_weight_sum)/existing_weight_sum + 1
+
+    for existing_weight in containerapp_def["properties"]["configuration"]["ingress"]["traffic"]:
+        if "latestRevision" in existing_weight and existing_weight["latestRevision"]:
+            if "latest" not in revision_weight_names:
+                print(str(scale_factor*existing_weight["weight"]))
+                existing_weight["weight"], round_up = round(scale_factor*existing_weight["weight"], round_up)
+        elif "revisionName" in existing_weight and existing_weight["revisionName"].lower() not in revision_weight_names:
+            print(str(scale_factor*existing_weight["weight"]))
+            existing_weight["weight"], round_up = round(scale_factor*existing_weight["weight"], round_up)
+
+
+def round(number, round_up):
+    import math
+    if round_up:
+        return math.ceil(number), not round_up
+    return math.floor(number), not round_up
 
 
 def _validate_traffic_sum(revision_weights):
     weight_sum = sum([int(w.split('=', 1)[1]) for w in revision_weights if len(w.split('=', 1)) == 2 and _validate_weight(w.split('=', 1)[1])])
     if weight_sum > 100:
-        raise ValidationError("Traffic sums may not exceed 100.")
+        #raise ValidationError("Traffic sums may not exceed 100.")
+        pass
 
 
 def _get_app_from_revision(revision):
