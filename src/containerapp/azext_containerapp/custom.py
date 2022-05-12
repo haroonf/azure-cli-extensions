@@ -1418,7 +1418,6 @@ def remove_revision_label(cmd, resource_group_name, name, label, no_wait=False):
             label_removed = True
             weight["label"] = None
             break
-            
     if not label_removed:
         raise ValidationError("Please specify a label name with an associated traffic weight.")
 
