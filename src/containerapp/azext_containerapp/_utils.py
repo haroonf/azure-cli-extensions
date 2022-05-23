@@ -857,6 +857,21 @@ def _update_revision_weights(containerapp_def, list_weights):
     return old_weight_sum
 
 
+def _validate_revision_name(cmd, revision, resource_group_name, name):
+    from ._clients import ContainerAppClient
+
+    if revision.lower() == "latest":
+        return
+    revision_def = None
+    try:
+        revision_def = ContainerAppClient.show_revision(cmd, resource_group_name, name, revision)
+    except:
+        pass
+
+    if not revision_def:
+        raise ValidationError(f"Revision '{revision}' is not a valid revision name.")
+
+
 def _append_label_weights(containerapp_def, label_weights, revision_weights):
     if "traffic" not in containerapp_def["properties"]["configuration"]["ingress"]:
         containerapp_def["properties"]["configuration"]["ingress"]["traffic"] = []
@@ -893,7 +908,6 @@ def _update_weights(containerapp_def, revision_weights, old_weight_sum):
     new_weight_sum = sum([int(w.split('=', 1)[1]) for w in revision_weights])
     revision_weight_names = [w.split('=', 1)[0].lower() for w in revision_weights]
     divisor = sum([int(w["weight"]) for w in containerapp_def["properties"]["configuration"]["ingress"]["traffic"]]) - new_weight_sum
-    round_up = True
     # if there is no change to be made, don't even try (also can't divide by zero)
     if divisor == 0:
         return
@@ -903,9 +917,17 @@ def _update_weights(containerapp_def, revision_weights, old_weight_sum):
     for existing_weight in containerapp_def["properties"]["configuration"]["ingress"]["traffic"]:
         if "latestRevision" in existing_weight and existing_weight["latestRevision"]:
             if "latest" not in revision_weight_names:
-                existing_weight["weight"], round_up = _round(scale_factor * existing_weight["weight"], round_up)
+                existing_weight["weight"]= round(scale_factor * existing_weight["weight"])
         elif "revisionName" in existing_weight and existing_weight["revisionName"].lower() not in revision_weight_names:
-            existing_weight["weight"], round_up = _round(scale_factor * existing_weight["weight"], round_up)
+            existing_weight["weight"]= round(scale_factor * existing_weight["weight"])
+
+    total_sum = sum([int(w["weight"]) for w in containerapp_def["properties"]["configuration"]["ingress"]["traffic"]])
+    index = 0
+    while(total_sum < 100):
+        weight = containerapp_def["properties"]["configuration"]["ingress"]["traffic"][index % len(containerapp_def["properties"]["configuration"]["ingress"]["traffic"])]
+        index +=1
+        total_sum +=1
+        weight["weight"] += 1
 
 
 # required because what if .5, .5? We need sum to be 100, so can't round up or down both times

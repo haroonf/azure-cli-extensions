@@ -62,7 +62,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      _update_revision_env_secretrefs, _get_acr_cred, safe_get, await_github_action, repo_url_to_name,
                      validate_container_app_name, _update_weights, get_vnet_location, register_provider_if_needed,
                      generate_randomized_cert_name, _get_name, load_cert_file, check_cert_name_availability,
-                     validate_hostname, patch_new_custom_domain, get_custom_domains)
+                     validate_hostname, patch_new_custom_domain, get_custom_domains, _validate_revision_name)
 
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
                          SSH_BACKUP_ENCODING)
@@ -1386,7 +1386,9 @@ def add_revision_label(cmd, resource_group_name, revision, label, name=None, no_
     if "ingress" not in containerapp_def['properties']['configuration'] and "traffic" not in containerapp_def['properties']['configuration']['ingress']:
         raise ValidationError("Ingress and traffic weights are required to set labels.")
 
-    traffic_weight = containerapp_def['properties']['configuration']['ingress']['traffic']
+    traffic_weight = containerapp_def['properties']['configuration']['ingress']['traffic'] if 'traffic' in containerapp_def['properties']['configuration']['ingress'] else {}
+
+    _validate_revision_name(cmd, revision, resource_group_name, name)
 
     label_added = False
     for weight in traffic_weight:
@@ -1402,7 +1404,12 @@ def add_revision_label(cmd, resource_group_name, revision, label, name=None, no_
                 break
 
     if not label_added:
-        raise ValidationError("Please specify a revision name with an associated traffic weight.")
+        containerapp_def["properties"]["configuration"]["ingress"]["traffic"].append({
+            "revisionName": revision if revision.lower() != "latest" else None,
+            "weight": 0,
+            "latestRevision": revision.lower() == "latest",
+            "label": label
+        })
 
     containerapp_patch_def = {}
     containerapp_patch_def['properties'] = {}
@@ -1574,6 +1581,10 @@ def set_ingress_traffic(cmd, name, resource_group_name, label_weights=None, revi
 
     # update revision weights to containerapp, get the old weight sum
     old_weight_sum = _update_revision_weights(containerapp_def, revision_weights)
+
+    # validate revision names
+    for revision in revision_weights:
+        _validate_revision_name(cmd, revision.split('=')[0], resource_group_name, name)
 
     _update_weights(containerapp_def, revision_weights, old_weight_sum)
 
