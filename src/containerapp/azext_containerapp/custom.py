@@ -1368,7 +1368,7 @@ def set_revision_mode(cmd, resource_group_name, name, mode, no_wait=False):
         handle_raw_exception(e)
 
 
-def add_revision_label(cmd, resource_group_name, revision, label, name=None, no_wait=False):
+def add_revision_label(cmd, resource_group_name, revision, label, name=None, no_wait=False, yes=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     if not name:
@@ -1392,16 +1392,22 @@ def add_revision_label(cmd, resource_group_name, revision, label, name=None, no_
 
     label_added = False
     for weight in traffic_weight:
+        if "label" in weight and weight["label"].lower() == label.lower():
+            r_name = "latest" if "latestRevision" in weight and weight["latestRevision"] else weight["revisionName"]
+            if not yes and r_name.lower() != revision.lower():
+                msg = f"A weight with the label '{label}' already exists. Remove existing label '{label}' from '{r_name}' and add to '{revision}'?"
+                if not prompt_y_n(msg, default="n"):
+                    raise ArgumentUsageError(f"Usage Error: cannot specify existing label without agreeing to remove existing label '{label}' from '{r_name}' and add to '{revision}'.")
+            weight["label"] = None
+
         if "latestRevision" in weight:
             if revision.lower() == "latest" and weight["latestRevision"]:
                 label_added = True
                 weight["label"] = label
-                break
         else:
             if revision.lower() == weight["revisionName"].lower():
                 label_added = True
                 weight["label"] = label
-                break
 
     if not label_added:
         containerapp_def["properties"]["configuration"]["ingress"]["traffic"].append({
@@ -1563,6 +1569,9 @@ def set_ingress_traffic(cmd, name, resource_group_name, label_weights=None, revi
 
     if not containerapp_def:
         raise ResourceNotFoundError(f"The containerapp '{name}' does not exist in group '{resource_group_name}'")
+
+    if containerapp_def["properties"]["configuration"]["activeRevisionsMode"].lower() == "single":
+        raise ValidationError(f"Containerapp '{name}' is configured for single revision. Set revision mode to multiple in order to set ingress traffic. Try `az containerapp revision set-mode -h` for more details.")
 
     try:
         containerapp_def["properties"]["configuration"]["ingress"]
