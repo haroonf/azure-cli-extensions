@@ -928,15 +928,6 @@ def _update_weights(containerapp_def, revision_weights, old_weight_sum):
         weight["weight"] += 1
 
 
-# required because what if .5, .5? We need sum to be 100, so can't round up or down both times
-def _round(number, round_up):
-    import math
-    number = round(number, 2)  # required because we are dealing with floats
-    if round_up:
-        return math.ceil(number), not round_up
-    return math.floor(number), not round_up
-
-
 def _validate_traffic_sum(revision_weights):
     weight_sum = sum([int(w.split('=', 1)[1]) for w in revision_weights if len(w.split('=', 1)) == 2 and _validate_weight(w.split('=', 1)[1])])
     if weight_sum > 100:
