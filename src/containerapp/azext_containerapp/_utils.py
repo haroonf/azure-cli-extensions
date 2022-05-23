@@ -858,14 +858,12 @@ def _update_revision_weights(containerapp_def, list_weights):
 
 
 def _validate_revision_name(cmd, revision, resource_group_name, name):
-    from ._clients import ContainerAppClient
-
     if revision.lower() == "latest":
         return
     revision_def = None
     try:
         revision_def = ContainerAppClient.show_revision(cmd, resource_group_name, name, revision)
-    except:
+    except:  # pylint: disable=bare-except
         pass
 
     if not revision_def:
@@ -917,16 +915,16 @@ def _update_weights(containerapp_def, revision_weights, old_weight_sum):
     for existing_weight in containerapp_def["properties"]["configuration"]["ingress"]["traffic"]:
         if "latestRevision" in existing_weight and existing_weight["latestRevision"]:
             if "latest" not in revision_weight_names:
-                existing_weight["weight"]= round(scale_factor * existing_weight["weight"])
+                existing_weight["weight"] = round(scale_factor * existing_weight["weight"])
         elif "revisionName" in existing_weight and existing_weight["revisionName"].lower() not in revision_weight_names:
-            existing_weight["weight"]= round(scale_factor * existing_weight["weight"])
+            existing_weight["weight"] = round(scale_factor * existing_weight["weight"])
 
     total_sum = sum([int(w["weight"]) for w in containerapp_def["properties"]["configuration"]["ingress"]["traffic"]])
     index = 0
-    while(total_sum < 100):
+    while total_sum < 100:
         weight = containerapp_def["properties"]["configuration"]["ingress"]["traffic"][index % len(containerapp_def["properties"]["configuration"]["ingress"]["traffic"])]
-        index +=1
-        total_sum +=1
+        index += 1
+        total_sum += 1
         weight["weight"] += 1
 
 
