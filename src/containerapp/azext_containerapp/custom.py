@@ -736,7 +736,10 @@ def list_containerapp(cmd, resource_group_name=None, managed_env=None):
 
         if managed_env:
             env_name = parse_resource_id(managed_env)["name"].lower()
-            containerapps = [c for c in containerapps if parse_resource_id(c["properties"]["managedEnvironmentId"])["name"].lower() == env_name]
+            if "resource_group" in parse_resource_id(managed_env):  # case where RID is passed
+                containerapps = [c for c in containerapps if c["properties"]["managedEnvironmentId"].lower() == managed_env.lower()]
+            else:
+                containerapps = [c for c in containerapps if parse_resource_id(c["properties"]["managedEnvironmentId"])["name"].lower() == env_name]
 
         return containerapps
     except CLIError as e:
