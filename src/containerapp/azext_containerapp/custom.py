@@ -724,7 +724,7 @@ def show_containerapp(cmd, name, resource_group_name):
         handle_raw_exception(e)
 
 
-def list_containerapp(cmd, resource_group_name=None):
+def list_containerapp(cmd, resource_group_name=None, managed_env=None):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
@@ -733,6 +733,10 @@ def list_containerapp(cmd, resource_group_name=None):
             containerapps = ContainerAppClient.list_by_subscription(cmd=cmd)
         else:
             containerapps = ContainerAppClient.list_by_resource_group(cmd=cmd, resource_group_name=resource_group_name)
+
+        if managed_env:
+            env_name = parse_resource_id(managed_env)["name"].lower()
+            containerapps = [c for c in containerapps if parse_resource_id(c["properties"]["managedEnvironmentId"])["name"].lower() == env_name]
 
         return containerapps
     except CLIError as e:
