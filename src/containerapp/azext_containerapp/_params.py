@@ -210,6 +210,8 @@ def load_arguments(self, _):
         c.argument('revision', help='Name of the revision.')
         c.argument('label', help='Name of the label.')
         c.argument('yes', options_list=['--yes', '-y'], help='Do not prompt for confirmation.')
+        c.argument('label1', help='Name of the label to be swapped with label2.')
+        c.argument('label2', help='Name of the label to be swapped with label1.')
 
     with self.argument_context('containerapp ingress') as c:
         c.argument('allow_insecure', help='Allow insecure connections for ingress traffic.')

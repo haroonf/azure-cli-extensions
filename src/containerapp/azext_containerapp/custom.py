@@ -1432,6 +1432,59 @@ def add_revision_label(cmd, resource_group_name, revision, label, name=None, no_
         handle_raw_exception(e)
 
 
+def swap_revision_label(cmd, name, resource_group_name, label1, label2, no_wait=False):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
+    if label1 == label2:
+        raise ArgumentUsageError("Label names to be swapped must be different.")
+
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise ResourceNotFoundError(f"The containerapp '{name}' does not exist in group '{resource_group_name}'")
+
+    if "ingress" not in containerapp_def['properties']['configuration'] and "traffic" not in containerapp_def['properties']['configuration']['ingress']:
+        raise ValidationError("Ingress and traffic weights are required to set labels.")
+
+    traffic_weight = containerapp_def['properties']['configuration']['ingress']['traffic'] if 'traffic' in containerapp_def['properties']['configuration']['ingress'] else {}
+
+
+    label1_found = False
+    label2_found = False
+    for weight in traffic_weight:
+        if "label" in weight:
+            if weight["label"].lower() == label1.lower():
+                if not label1_found:
+                    label1_found = True
+                    weight["label"] = label2
+            elif weight["label"].lower() == label2.lower():
+                if not label2_found:
+                    label2_found = True
+                    weight["label"] = label1
+    if not label1_found:
+        raise ArgumentUsageError(f"Could not find label '{label1}' in traffic.")
+    if not label2_found:
+        raise ArgumentUsageError(f"Could not find label '{label2}' in traffic.")
+
+    containerapp_patch_def = {}
+    containerapp_patch_def['properties'] = {}
+    containerapp_patch_def['properties']['configuration'] = {}
+    containerapp_patch_def['properties']['configuration']['ingress'] = {}
+
+    containerapp_patch_def['properties']['configuration']['ingress']['traffic'] = traffic_weight
+
+    try:
+        r = ContainerAppClient.update(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_patch_def, no_wait=no_wait)
+        return r['properties']['configuration']['ingress']['traffic']
+    except Exception as e:
+        handle_raw_exception(e)
+
+
 def remove_revision_label(cmd, resource_group_name, name, label, no_wait=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
