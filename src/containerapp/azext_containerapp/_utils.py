@@ -877,6 +877,7 @@ def _append_label_weights(containerapp_def, label_weights, revision_weights):
     if not label_weights:
         return
 
+    bad_labels = []
     revision_weight_names = [w.split('=', 1)[0].lower() for w in revision_weights]  # this is to check if we already have that revision weight passed
     for new_weight in label_weights:
         key_val = new_weight.split('=', 1)
@@ -898,7 +899,10 @@ def _append_label_weights(containerapp_def, label_weights, revision_weights):
                 break
 
         if not is_existing:
-            raise ValidationError(f"No label {label} assigned to any traffic weight.")
+            bad_labels.append(label)
+
+    if len(bad_labels) > 0:
+        raise ValidationError(f"No labels '{', '.join(bad_labels)}' assigned to any traffic weight.")
 
 
 def _update_weights(containerapp_def, revision_weights, old_weight_sum):
