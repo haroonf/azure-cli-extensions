@@ -64,6 +64,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      generate_randomized_cert_name, _get_name, load_cert_file, check_cert_name_availability,
                      validate_hostname, patch_new_custom_domain, get_custom_domains, _validate_revision_name)
 
+
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
                          SSH_BACKUP_ENCODING)
 from ._constants import (MAXIMUM_SECRET_LENGTH, MICROSOFT_SECRET_SETTING_NAME, FACEBOOK_SECRET_SETTING_NAME, GITHUB_SECRET_SETTING_NAME,
@@ -724,7 +725,7 @@ def show_containerapp(cmd, name, resource_group_name):
         handle_raw_exception(e)
 
 
-def list_containerapp(cmd, resource_group_name=None):
+def list_containerapp(cmd, resource_group_name=None, managed_env=None):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
@@ -733,6 +734,14 @@ def list_containerapp(cmd, resource_group_name=None):
             containerapps = ContainerAppClient.list_by_subscription(cmd=cmd)
         else:
             containerapps = ContainerAppClient.list_by_resource_group(cmd=cmd, resource_group_name=resource_group_name)
+
+        if managed_env:
+            env_name = parse_resource_id(managed_env)["name"].lower()
+            if "resource_group" in parse_resource_id(managed_env):
+                ManagedEnvironmentClient.show(cmd, parse_resource_id(managed_env)["resource_group"], parse_resource_id(managed_env)["name"])
+                containerapps = [c for c in containerapps if c["properties"]["managedEnvironmentId"].lower() == managed_env.lower()]
+            else:
+                containerapps = [c for c in containerapps if parse_resource_id(c["properties"]["managedEnvironmentId"])["name"].lower() == env_name]
 
         return containerapps
     except CLIError as e:
