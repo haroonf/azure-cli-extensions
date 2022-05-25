@@ -7,7 +7,8 @@ Release History
 ++++++
 * Added parameter --environment to 'az containerapp list'
 * Added 'az containerapp revision label swap' to swap traffic labels
-* Added parameter --all to 'az containerapp revision list' to show inactive revisions
+* BREAKING CHANGE: 'az containerapp revision list' now shows only active revisions by default, added flag --all to show all revisions
+
 
 0.3.5
 ++++++
