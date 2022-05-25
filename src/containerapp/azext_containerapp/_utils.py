@@ -795,13 +795,12 @@ def _remove_dapr_readonly_attributes(daprcomponent_def):
 def update_nested_dictionary(orig_dict, new_dict):
     # Recursively update a nested dictionary. If the value is a list, replace the old list with new list
     from collections.abc import Mapping
-
     for key, val in new_dict.items():
         if isinstance(val, Mapping):
             tmp = update_nested_dictionary(orig_dict.get(key, {}), val)
             orig_dict[key] = tmp
         elif isinstance(val, list):
-            if new_dict[key]:
+            if new_dict[key] and key != "secrets":
                 orig_dict[key] = new_dict[key]
         else:
             if new_dict[key] is not None:

@@ -94,7 +94,7 @@ def load_yaml_file(file_name):
 
     try:
         with open(file_name) as stream:  # pylint: disable=unspecified-encoding
-            return yaml.safe_load(stream)
+            return yaml.safe_load(stream.read().replace('\x00', ''))
     except (IOError, OSError) as ex:
         if getattr(ex, 'errno', 0) == errno.ENOENT:
             raise ValidationError('{} does not exist'.format(file_name)) from ex
@@ -176,11 +176,9 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
     _get_existing_secrets(cmd, resource_group_name, name, current_containerapp_def)
 
     update_nested_dictionary(current_containerapp_def, containerapp_def)
-
     # Remove "additionalProperties" and read-only attributes that are introduced in the deserialization. Need this since we're not using SDK
     _remove_additional_attributes(current_containerapp_def)
     _remove_readonly_attributes(current_containerapp_def)
-
     try:
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=current_containerapp_def, no_wait=no_wait)
