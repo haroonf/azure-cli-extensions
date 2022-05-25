@@ -1255,9 +1255,12 @@ def delete_github_action(cmd, name, resource_group_name, token=None, login_with_
         handle_raw_exception(e)
 
 
-def list_revisions(cmd, name, resource_group_name):
+def list_revisions(cmd, name, resource_group_name, all=False):
     try:
-        return ContainerAppClient.list_revisions(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        revision_list = ContainerAppClient.list_revisions(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        if all:
+            return revision_list
+        return [r for r in revision_list if r["properties"]["active"]]
     except CLIError as e:
         handle_raw_exception(e)
 

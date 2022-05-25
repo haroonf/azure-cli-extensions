@@ -200,6 +200,7 @@ def load_arguments(self, _):
 
     with self.argument_context('containerapp revision') as c:
         c.argument('revision_name', options_list=['--revision'], help='Name of the revision.')
+        c.argument('all', help='Boolean indicating whether to show inactive revisions.')
 
     with self.argument_context('containerapp revision copy') as c:
         c.argument('from_revision', help='Revision to copy from. Default: latest revision.')
