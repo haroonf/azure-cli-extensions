@@ -932,20 +932,6 @@ def _update_weights(containerapp_def, revision_weights, old_weight_sum):
         weight["weight"] += 1
 
 
-def _update_traffic_size(containerapp_def):
-    import sys
-    traffic_def = containerapp_def["properties"]["configuration"]["ingress"]["traffic"]
-    index = 0
-    while (sys.getsizeof(json.dumps(traffic_def)) - sys.getsizeof("")) > 4096 and index < len(traffic_def):
-        weight = traffic_def[index]
-        # need to check if latest revision?
-        if weight["weight"] == 0:
-            traffic_def.pop(index)
-        index += 1
-    if (sys.getsizeof(json.dumps(traffic_def)) - sys.getsizeof("")) > 4096:
-        raise ValidationError("Traffic size request cannot exceed 4096Bytes.")
-
-
 def _validate_traffic_sum(revision_weights):
     weight_sum = sum([int(w.split('=', 1)[1]) for w in revision_weights if len(w.split('=', 1)) == 2 and _validate_weight(w.split('=', 1)[1])])
     if weight_sum > 100:
