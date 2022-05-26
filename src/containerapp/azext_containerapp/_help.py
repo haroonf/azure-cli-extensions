@@ -291,7 +291,7 @@ helps['containerapp revision label remove'] = """
 
 helps['containerapp revision label swap'] = """
     type: command
-    short-summary: Swap a revision label between two revisions with a associated traffic weights.
+    short-summary: Swap a revision label between two revisions with associated traffic weights.
     examples:
     - name: Swap a revision label between two revisions..
       text: |
