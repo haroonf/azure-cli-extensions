@@ -1467,7 +1467,6 @@ def swap_revision_label(cmd, name, resource_group_name, labels, no_wait=False):
 
     traffic_weight = containerapp_def['properties']['configuration']['ingress']['traffic'] if 'traffic' in containerapp_def['properties']['configuration']['ingress'] else {}
 
-
     label1_found = False
     label2_found = False
     for weight in traffic_weight:
