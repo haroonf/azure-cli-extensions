@@ -6,7 +6,7 @@
 # pylint: disable=line-too-long, too-many-statements, bare-except
 # from azure.cli.core.commands import CliCommandType
 # from msrestazure.tools import is_valid_resource_id, parse_resource_id
-from azext_containerapp._client_factory import ex_handler_factory
+from azext_containerapp._client_factory import ex_handler_factory, cf_containerapps, cf_managedenvs
 from ._validators import validate_ssh
 
 
@@ -44,7 +44,7 @@ def transform_revision_list_output(revs):
 
 
 def load_command_table(self, _):
-    with self.command_group('containerapp') as g:
+    with self.command_group('containerapp', client_factory=cf_containerapps) as g:
         g.custom_show_command('show', 'show_containerapp', table_transformer=transform_containerapp_output)
         g.custom_command('list', 'list_containerapp', table_transformer=transform_containerapp_list_output)
         g.custom_command('create', 'create_containerapp', supports_no_wait=True, exception_handler=ex_handler_factory(), table_transformer=transform_containerapp_output)

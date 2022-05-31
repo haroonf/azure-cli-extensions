@@ -19,6 +19,7 @@ from azure.cli.core.azclierror import (
     InvalidArgumentValueError,
     ArgumentUsageError)
 from azure.cli.core.commands.client_factory import get_subscription_id
+from azure.cli.core.commands import LongRunningOperation
 from azure.cli.core.util import open_page_in_browser
 from azure.cli.command_modules.appservice.utils import _normalize_location
 from knack.log import get_logger
@@ -286,6 +287,7 @@ def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=
 
 
 def create_containerapp(cmd,
+                        client,
                         name,
                         resource_group_name,
                         yaml=None,
@@ -464,14 +466,11 @@ def create_containerapp(cmd,
     containerapp_def["tags"] = tags
 
     try:
-        r = ContainerAppClient.create_or_update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
+        r = LongRunningOperation(cmd.cli_ctx)(poller)
 
-        if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
-            not disable_warnings and logger.warning('Containerapp creation in progress. Please monitor the creation using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
-
-        if "configuration" in r["properties"] and "ingress" in r["properties"]["configuration"] and "fqdn" in r["properties"]["configuration"]["ingress"]:
-            not disable_warnings and logger.warning("\nContainer app created. Access your app at https://{}/\n".format(r["properties"]["configuration"]["ingress"]["fqdn"]))
+        if r.configuration.ingress and r.configuration.ingress.fqdn:
+            not disable_warnings and logger.warning("\nContainer app created. Access your app at https://{}/\n".format(r.configuration.ingress.fqdn))
         else:
             not disable_warnings and logger.warning("\nContainer app created. To access it over HTTPS, enable ingress: az containerapp ingress enable --help\n")
 
@@ -481,6 +480,7 @@ def create_containerapp(cmd,
 
 
 def update_containerapp_logic(cmd,
+                              client,
                               name,
                               resource_group_name,
                               yaml=None,
@@ -663,8 +663,8 @@ def update_containerapp_logic(cmd,
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
     try:
-        r = ContainerAppClient.create_or_update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
+        r = LongRunningOperation(cmd.cli_ctx)(poller)
 
         if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
             logger.warning('Containerapp update in progress. Please monitor the update using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
@@ -716,43 +716,44 @@ def update_containerapp(cmd,
                                      no_wait)
 
 
-def show_containerapp(cmd, name, resource_group_name):
+def show_containerapp(cmd, client, name, resource_group_name):
+    import json
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
-
     try:
-        return ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        return client.get(resource_group_name=resource_group_name, container_app_name=name)
     except CLIError as e:
         handle_raw_exception(e)
 
 
-def list_containerapp(cmd, resource_group_name=None, managed_env=None):
+def list_containerapp(cmd, client, resource_group_name=None, managed_env=None):
+    from ._client_factory import cf_managedenvs
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
         containerapps = []
         if resource_group_name is None:
-            containerapps = ContainerAppClient.list_by_subscription(cmd=cmd)
+            containerapps = client.list_by_subscription()
         else:
-            containerapps = ContainerAppClient.list_by_resource_group(cmd=cmd, resource_group_name=resource_group_name)
+            containerapps = client.list_by_resource_group(resource_group_name=resource_group_name)
 
         if managed_env:
             env_name = parse_resource_id(managed_env)["name"].lower()
             if "resource_group" in parse_resource_id(managed_env):
-                ManagedEnvironmentClient.show(cmd, parse_resource_id(managed_env)["resource_group"], parse_resource_id(managed_env)["name"])
-                containerapps = [c for c in containerapps if c["properties"]["managedEnvironmentId"].lower() == managed_env.lower()]
+                cf_managedenvs(cmd.cli_ctx, cmd).get(resource_group_name=parse_resource_id(managed_env)["resource_group"], environment_name=parse_resource_id(managed_env)["name"])
+                containerapps = [c for c in containerapps if c.managed_environment_id.lower() == managed_env.lower()]
             else:
-                containerapps = [c for c in containerapps if parse_resource_id(c["properties"]["managedEnvironmentId"])["name"].lower() == env_name]
+                containerapps = [c for c in containerapps if parse_resource_id(c.managed_environment_id)["name"].lower() == env_name]
 
         return containerapps
     except CLIError as e:
         handle_raw_exception(e)
 
 
-def delete_containerapp(cmd, name, resource_group_name, no_wait=False):
+def delete_containerapp(cmd, client, name, resource_group_name, no_wait=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
-        return ContainerAppClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name, no_wait=no_wait)
+        return client.begin_delete(resource_group_name=resource_group_name, container_app_name=name)
     except CLIError as e:
         handle_raw_exception(e)
 
@@ -2203,11 +2204,11 @@ def stream_containerapp_logs(cmd, resource_group_name, name, container=None, rev
             print(line.decode("utf-8").replace("\\u0022", "\u0022").replace("\\u001B", "\u001B").replace("\\u002B", "\u002B").replace("\\u0027", "\u0027"))
 
 
-def open_containerapp_in_browser(cmd, name, resource_group_name):
-    app = ContainerAppClient.show(cmd, resource_group_name, name)
-    url = safe_get(app, "properties", "configuration", "ingress", "fqdn")
-    if not url:
+def open_containerapp_in_browser(cmd, client, name, resource_group_name):
+    app = client.get(resource_group_name=resource_group_name, container_app_name=name)
+    if not app.configuration.ingress or not app.configuration.ingress.fqdn:
         raise ValidationError("Could not open in browser: no public URL for this app")
+    url = app.configuration.ingress.fqdn
     if not url.startswith("http"):
         url = f"http://{url}"
     open_page_in_browser(url)
