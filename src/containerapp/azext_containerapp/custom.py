@@ -74,29 +74,13 @@ from ._constants import (MAXIMUM_SECRET_LENGTH, MICROSOFT_SECRET_SETTING_NAME, F
 logger = get_logger(__name__)
 
 
-# These properties should be under the "properties" attribute. Move the properties under "properties" attribute
-def process_loaded_yaml(yaml_containerapp):
-    if not yaml_containerapp.get('properties'):
-        yaml_containerapp['properties'] = {}
-
-    nested_properties = ["provisioningState", "managedEnvironmentId", "latestRevisionName", "latestRevisionFqdn",
-                         "customDomainVerificationId", "configuration", "template", "outboundIPAddresses"]
-    for nested_property in nested_properties:
-        tmp = yaml_containerapp.get(nested_property)
-        if tmp:
-            yaml_containerapp['properties'][nested_property] = tmp
-            del yaml_containerapp[nested_property]
-
-    return yaml_containerapp
-
-
 def load_yaml_file(file_name):
     import yaml
     import errno
 
     try:
         with open(file_name) as stream:  # pylint: disable=unspecified-encoding
-            return yaml.safe_load(stream)
+            return yaml.safe_load(stream.read().replace('\x00',''))
     except (IOError, OSError) as ex:
         if getattr(ex, 'errno', 0) == errno.ENOENT:
             raise ValidationError('{} does not exist'.format(file_name)) from ex
@@ -117,173 +101,6 @@ def create_deserializer():
         deserializer[sdkClass[0]] = sdkClass[1]
 
     return Deserializer(deserializer)
-
-
-def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_revision=None, no_wait=False):
-    yaml_containerapp = process_loaded_yaml(load_yaml_file(file_name))
-    if type(yaml_containerapp) != dict:  # pylint: disable=unidiomatic-typecheck
-        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.')
-
-    if not yaml_containerapp.get('name'):
-        yaml_containerapp['name'] = name
-    elif yaml_containerapp.get('name').lower() != name.lower():
-        logger.warning('The app name provided in the --yaml file "{}" does not match the one provided in the --name flag "{}". The one provided in the --yaml file will be used.'.format(
-            yaml_containerapp.get('name'), name))
-    name = yaml_containerapp.get('name')
-
-    if not yaml_containerapp.get('type'):
-        yaml_containerapp['type'] = 'Microsoft.App/containerApps'
-    elif yaml_containerapp.get('type').lower() != "microsoft.app/containerapps":
-        raise ValidationError('Containerapp type must be \"Microsoft.App/ContainerApps\"')
-
-    current_containerapp_def = None
-    containerapp_def = None
-    try:
-        current_containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
-    except Exception:
-        pass
-
-    if not current_containerapp_def:
-        raise ValidationError("The containerapp '{}' does not exist".format(name))
-
-    # Change which revision we update from
-    if from_revision:
-        try:
-            r = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=from_revision)
-        except CLIError as e:
-            handle_raw_exception(e)
-        _update_revision_env_secretrefs(r["properties"]["template"]["containers"], name)
-        current_containerapp_def["properties"]["template"] = r["properties"]["template"]
-
-    # Deserialize the yaml into a ContainerApp object. Need this since we're not using SDK
-    try:
-        deserializer = create_deserializer()
-
-        containerapp_def = deserializer('ContainerApp', yaml_containerapp)
-    except DeserializationError as ex:
-        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.') from ex
-
-    # Remove tags before converting from snake case to camel case, then re-add tags. We don't want to change the case of the tags. Need this since we're not using SDK
-    tags = None
-    if yaml_containerapp.get('tags'):
-        tags = yaml_containerapp.get('tags')
-        del yaml_containerapp['tags']
-
-    containerapp_def = _convert_object_from_snake_to_camel_case(_object_to_dict(containerapp_def))
-    containerapp_def['tags'] = tags
-
-    # After deserializing, some properties may need to be moved under the "properties" attribute. Need this since we're not using SDK
-    containerapp_def = process_loaded_yaml(containerapp_def)
-
-    _get_existing_secrets(cmd, resource_group_name, name, current_containerapp_def)
-
-    update_nested_dictionary(current_containerapp_def, containerapp_def)
-
-    # Remove "additionalProperties" and read-only attributes that are introduced in the deserialization. Need this since we're not using SDK
-    _remove_additional_attributes(current_containerapp_def)
-    _remove_readonly_attributes(current_containerapp_def)
-
-    try:
-        r = ContainerAppClient.create_or_update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=current_containerapp_def, no_wait=no_wait)
-
-        if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
-            logger.warning('Containerapp creation in progress. Please monitor the creation using `az containerapp show -n {} -g {}`'.format(
-                name, resource_group_name
-            ))
-
-        return r
-    except Exception as e:
-        handle_raw_exception(e)
-
-
-def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=False):
-    yaml_containerapp = process_loaded_yaml(load_yaml_file(file_name))
-    if type(yaml_containerapp) != dict:  # pylint: disable=unidiomatic-typecheck
-        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.')
-
-    if not yaml_containerapp.get('name'):
-        yaml_containerapp['name'] = name
-    elif yaml_containerapp.get('name').lower() != name.lower():
-        logger.warning('The app name provided in the --yaml file "{}" does not match the one provided in the --name flag "{}". The one provided in the --yaml file will be used.'.format(
-            yaml_containerapp.get('name'), name))
-    name = yaml_containerapp.get('name')
-
-    if not yaml_containerapp.get('type'):
-        yaml_containerapp['type'] = 'Microsoft.App/containerApps'
-    elif yaml_containerapp.get('type').lower() != "microsoft.app/containerapps":
-        raise ValidationError('Containerapp type must be \"Microsoft.App/ContainerApps\"')
-
-    # Deserialize the yaml into a ContainerApp object. Need this since we're not using SDK
-    containerapp_def = None
-    try:
-        deserializer = create_deserializer()
-
-        containerapp_def = deserializer('ContainerApp', yaml_containerapp)
-    except DeserializationError as ex:
-        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.') from ex
-
-    # Remove tags before converting from snake case to camel case, then re-add tags. We don't want to change the case of the tags. Need this since we're not using SDK
-    tags = None
-    if yaml_containerapp.get('tags'):
-        tags = yaml_containerapp.get('tags')
-        del yaml_containerapp['tags']
-
-    containerapp_def = _convert_object_from_snake_to_camel_case(_object_to_dict(containerapp_def))
-    containerapp_def['tags'] = tags
-
-    # After deserializing, some properties may need to be moved under the "properties" attribute. Need this since we're not using SDK
-    containerapp_def = process_loaded_yaml(containerapp_def)
-
-    # Remove "additionalProperties" and read-only attributes that are introduced in the deserialization. Need this since we're not using SDK
-    _remove_additional_attributes(containerapp_def)
-    _remove_readonly_attributes(containerapp_def)
-
-    # Validate managed environment
-    if not containerapp_def["properties"].get('managedEnvironmentId'):
-        raise RequiredArgumentMissingError('managedEnvironmentId is required. This can be retrieved using the `az containerapp env show -g MyResourceGroup -n MyContainerappEnvironment --query id` command. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.')
-
-    env_id = containerapp_def["properties"]['managedEnvironmentId']
-    env_name = None
-    env_rg = None
-    env_info = None
-
-    if is_valid_resource_id(env_id):
-        parsed_managed_env = parse_resource_id(env_id)
-        env_name = parsed_managed_env['name']
-        env_rg = parsed_managed_env['resource_group']
-    else:
-        raise ValidationError('Invalid managedEnvironmentId specified. Environment not found')
-
-    try:
-        env_info = ManagedEnvironmentClient.show(cmd=cmd, resource_group_name=env_rg, name=env_name)
-    except:
-        pass
-
-    if not env_info:
-        raise ValidationError("The environment '{}' in resource group '{}' was not found".format(env_name, env_rg))
-
-    # Validate location
-    if not containerapp_def.get('location'):
-        containerapp_def['location'] = env_info['location']
-
-    try:
-        r = ContainerAppClient.create_or_update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
-
-        if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
-            logger.warning('Containerapp creation in progress. Please monitor the creation using `az containerapp show -n {} -g {}`'.format(
-                name, resource_group_name
-            ))
-
-        if "configuration" in r["properties"] and "ingress" in r["properties"]["configuration"] and "fqdn" in r["properties"]["configuration"]["ingress"]:
-            logger.warning("\nContainer app created. Access your app at https://{}/\n".format(r["properties"]["configuration"]["ingress"]["fqdn"]))
-        else:
-            logger.warning("\nContainer app created. To access it over HTTPS, enable ingress: az containerapp ingress enable --help\n")
-
-        return r
-    except Exception as e:
-        handle_raw_exception(e)
 
 
 def create_containerapp(cmd,
@@ -328,7 +145,9 @@ def create_containerapp(cmd,
             registry_user or registry_pass or dapr_enabled or dapr_app_port or dapr_app_id or\
                 startup_command or args or tags:
             not disable_warnings and logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
-        return create_containerapp_yaml(cmd=cmd, name=name, resource_group_name=resource_group_name, file_name=yaml, no_wait=no_wait)
+        poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=load_yaml_file(yaml))
+        r = LongRunningOperation(cmd.cli_ctx)(poller)
+        return r
 
     if not image:
         image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
@@ -507,7 +326,9 @@ def update_containerapp_logic(cmd,
            set_env_vars or remove_env_vars or replace_env_vars or remove_all_env_vars or cpu or memory or\
            startup_command or args or tags:
             logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
-        return update_containerapp_yaml(cmd=cmd, name=name, resource_group_name=resource_group_name, file_name=yaml, no_wait=no_wait, from_revision=from_revision)
+        poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=load_yaml_file(yaml))
+        r = LongRunningOperation(cmd.cli_ctx)(poller)
+        return r
 
     containerapp_def = None
     try:
@@ -665,16 +486,13 @@ def update_containerapp_logic(cmd,
     try:
         poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
         r = LongRunningOperation(cmd.cli_ctx)(poller)
-
-        if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
-            logger.warning('Containerapp update in progress. Please monitor the update using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
-
         return r
     except Exception as e:
         handle_raw_exception(e)
 
 
 def update_containerapp(cmd,
+                        client,
                         name,
                         resource_group_name,
                         yaml=None,
@@ -696,6 +514,7 @@ def update_containerapp(cmd,
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     return update_containerapp_logic(cmd,
+                                     client,
                                      name,
                                      resource_group_name,
                                      yaml,
@@ -739,7 +558,7 @@ def list_containerapp(cmd, client, resource_group_name=None, managed_env=None):
         if managed_env:
             env_name = parse_resource_id(managed_env)["name"].lower()
             if "resource_group" in parse_resource_id(managed_env):
-                cf_managedenvs(cmd.cli_ctx, cmd).get(resource_group_name=parse_resource_id(managed_env)["resource_group"], environment_name=parse_resource_id(managed_env)["name"])
+                cf_managedenvs(cmd.cli_ctx).get(resource_group_name=parse_resource_id(managed_env)["resource_group"], environment_name=parse_resource_id(managed_env)["name"])
                 containerapps = [c for c in containerapps if c.managed_environment_id.lower() == managed_env.lower()]
             else:
                 containerapps = [c for c in containerapps if parse_resource_id(c.managed_environment_id)["name"].lower() == env_name]
@@ -1307,6 +1126,7 @@ def deactivate_revision(cmd, resource_group_name, revision_name, name=None):
 
 
 def copy_revision(cmd,
+                  client,
                   resource_group_name,
                   from_revision=None,
                   # label=None,
@@ -1336,6 +1156,7 @@ def copy_revision(cmd,
         name = _get_app_from_revision(from_revision)
 
     return update_containerapp_logic(cmd,
+                                     client,
                                      name,
                                      resource_group_name,
                                      yaml,
