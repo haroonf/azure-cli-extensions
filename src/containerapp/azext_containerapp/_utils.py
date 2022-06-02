@@ -531,33 +531,37 @@ def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, loc
     if logs_customer_id is None and logs_key is None:
         logger.warning("No Log Analytics workspace provided.")
         _validate_subscription_registered(cmd, LOG_ANALYTICS_RP)
+
         try:
             log_analytics_client = log_analytics_client_factory(cmd.cli_ctx)
             log_analytics_shared_key_client = log_analytics_shared_key_client_factory(cmd.cli_ctx)
+        except Exception as ex:
+            handle_raw_exception(ex)
 
-            log_analytics_location = location
-            try:
-                _ensure_location_allowed(cmd, log_analytics_location, LOG_ANALYTICS_RP, "workspaces")
-            except Exception:  # pylint: disable=broad-except
-                log_analytics_location = _get_default_log_analytics_location(cmd)
+        log_analytics_location = location
+        try:
+            _ensure_location_allowed(cmd, log_analytics_location, LOG_ANALYTICS_RP, "workspaces")
+        except Exception:  # pylint: disable=broad-except
+            log_analytics_location = _get_default_log_analytics_location(cmd)
 
-            from azure.cli.core.commands import LongRunningOperation
-            from azure.mgmt.loganalytics.models import Workspace
+        from azure.cli.core.commands import LongRunningOperation
+        from azure.mgmt.loganalytics.models import Workspace
 
-            workspace_name = _generate_log_analytics_workspace_name(resource_group_name)
-            workspace_instance = Workspace(location=log_analytics_location)
-            logger.warning("Generating a Log Analytics workspace with name \"{}\"".format(workspace_name))  # pylint: disable=logging-format-interpolation
+        workspace_name = _generate_log_analytics_workspace_name(resource_group_name)
+        workspace_instance = Workspace(location=log_analytics_location)
+        logger.warning("Generating a Log Analytics workspace with name \"{}\"".format(workspace_name))  # pylint: disable=logging-format-interpolation
 
+        try:
             poller = log_analytics_client.begin_create_or_update(resource_group_name, workspace_name, workspace_instance)
             log_analytics_workspace = LongRunningOperation(cmd.cli_ctx)(poller)
-
-            logs_customer_id = log_analytics_workspace.customer_id
-            logs_key = log_analytics_shared_key_client.get_shared_keys(
-                workspace_name=workspace_name,
-                resource_group_name=resource_group_name).primary_shared_key
-
         except Exception as ex:
-            raise ValidationError("Unable to generate a Log Analytics workspace. You can use \"az monitor log-analytics workspace create\" to create one and supply --logs-customer-id and --logs-key") from ex
+            handle_raw_exception(ex)
+
+        logs_customer_id = log_analytics_workspace.customer_id
+        logs_key = log_analytics_shared_key_client.get_shared_keys(
+            workspace_name=workspace_name,
+            resource_group_name=resource_group_name).primary_shared_key
+
     elif logs_customer_id is None:
         raise ValidationError("Usage error: Supply the --logs-customer-id associated with the --logs-key")
     elif logs_key is None:  # Try finding the logs-key
