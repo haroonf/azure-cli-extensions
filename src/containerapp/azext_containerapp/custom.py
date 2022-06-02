@@ -162,7 +162,8 @@ def create_containerapp(cmd,
     managed_env_info = None
 
     try:
-        managed_env_info = ManagedEnvironmentClient.show(cmd=cmd, resource_group_name=managed_env_rg, name=managed_env_name)
+        from ._client_factory import cf_managedenvs
+        managed_env_info = cf_managedenvs(cmd.cli_ctx).get(resource_group_name=parse_resource_id(managed_env)["resource_group"], environment_name=parse_resource_id(managed_env)["name"]).serialize()
     except:
         pass
 
@@ -332,7 +333,7 @@ def update_containerapp_logic(cmd,
 
     containerapp_def = None
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
     except:
         pass
 
@@ -341,12 +342,14 @@ def update_containerapp_logic(cmd,
 
     if from_revision:
         try:
-            r = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=from_revision)
+            from ._client_factory import cf_revisions
+            r = cf_revisions(cmd.cli_ctx).get_revision(resource_group_name=resource_group_name, container_app_name=name, revision_name=from_revision)
+            print(r)
         except CLIError as e:
             # Error handle the case where revision not found?
             handle_raw_exception(e)
 
-        _update_revision_env_secretrefs(r["properties"]["template"]["containers"], name)
+        _update_revision_env_secretrefs(r["template"]["containers"], name)
         containerapp_def["properties"]["template"] = r["properties"]["template"]
 
     # Doing this while API has bug. If env var is an empty string, API doesn't return "value" even though the "value" should be an empty string

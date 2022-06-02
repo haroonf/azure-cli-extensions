@@ -87,3 +87,7 @@ def cf_containerapps(cli_ctx, *_):
 
 def cf_managedenvs(cli_ctx, *_):
     return app_client_factory(cli_ctx).managed_environments
+
+
+def cf_revisions(cli_ctx, *_):
+    return app_client_factory(cli_ctx).container_apps_revisions
