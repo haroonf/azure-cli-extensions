@@ -558,9 +558,12 @@ def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, loc
             handle_raw_exception(ex)
 
         logs_customer_id = log_analytics_workspace.customer_id
-        logs_key = log_analytics_shared_key_client.get_shared_keys(
-            workspace_name=workspace_name,
-            resource_group_name=resource_group_name).primary_shared_key
+        try:
+            logs_key = log_analytics_shared_key_client.get_shared_keys(
+                workspace_name=workspace_name,
+                resource_group_name=resource_group_name).primary_shared_key
+        except Exception as ex:
+            handle_raw_exception(ex)
 
     elif logs_customer_id is None:
         raise ValidationError("Usage error: Supply the --logs-customer-id associated with the --logs-key")
