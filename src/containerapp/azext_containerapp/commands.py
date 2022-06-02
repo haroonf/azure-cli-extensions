@@ -6,7 +6,7 @@
 # pylint: disable=line-too-long, too-many-statements, bare-except
 # from azure.cli.core.commands import CliCommandType
 # from msrestazure.tools import is_valid_resource_id, parse_resource_id
-from azext_containerapp._client_factory import ex_handler_factory, cf_containerapps, cf_managedenvs
+from azext_containerapp._client_factory import ex_handler_factory, cf_containerapps, cf_managedenvs, cf_revisions
 from ._validators import validate_ssh
 
 
@@ -94,7 +94,7 @@ def load_command_table(self, _):
         g.custom_show_command('show', 'show_github_action', exception_handler=ex_handler_factory())
         g.custom_command('delete', 'delete_github_action', exception_handler=ex_handler_factory())
 
-    with self.command_group('containerapp revision') as g:
+    with self.command_group('containerapp revision', client_factory=cf_revisions) as g:
         g.custom_command('activate', 'activate_revision')
         g.custom_command('deactivate', 'deactivate_revision')
         g.custom_command('list', 'list_revisions', table_transformer=transform_revision_list_output, exception_handler=ex_handler_factory())

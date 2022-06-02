@@ -1078,9 +1078,11 @@ def delete_github_action(cmd, name, resource_group_name, token=None, login_with_
         handle_raw_exception(e)
 
 
-def list_revisions(cmd, name, resource_group_name, all=False):
+def list_revisions(cmd, client, name, resource_group_name, all=False):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
     try:
-        revision_list = ContainerAppClient.list_revisions(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        revision_list = client.list_revisions(resource_group_name=resource_group_name, container_app_name=name)
         if all:
             return revision_list
         return [r for r in revision_list if r["properties"]["active"]]
@@ -1088,42 +1090,50 @@ def list_revisions(cmd, name, resource_group_name, all=False):
         handle_raw_exception(e)
 
 
-def show_revision(cmd, resource_group_name, revision_name, name=None):
+def show_revision(cmd, client, resource_group_name, revision_name, name=None):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
     if not name:
         name = _get_app_from_revision(revision_name)
 
     try:
-        return ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=revision_name)
+        return client.get_revision(resource_group_name=resource_group_name, container_app_name=name, revision_name=revision_name)
     except CLIError as e:
         handle_raw_exception(e)
 
 
-def restart_revision(cmd, resource_group_name, revision_name, name=None):
+def restart_revision(cmd, client, resource_group_name, revision_name, name=None):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
     if not name:
         name = _get_app_from_revision(revision_name)
 
     try:
-        return ContainerAppClient.restart_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=revision_name)
+        return client.restart_revision(resource_group_name=resource_group_name, container_app_name=name, revision_name=revision_name)
     except CLIError as e:
         handle_raw_exception(e)
 
 
-def activate_revision(cmd, resource_group_name, revision_name, name=None):
+def activate_revision(cmd, client, resource_group_name, revision_name, name=None):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
     if not name:
         name = _get_app_from_revision(revision_name)
 
     try:
-        return ContainerAppClient.activate_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=revision_name)
+        return client.activate_revision(resource_group_name=resource_group_name, container_app_name=name, revision_name=revision_name)
     except CLIError as e:
         handle_raw_exception(e)
 
 
-def deactivate_revision(cmd, resource_group_name, revision_name, name=None):
+def deactivate_revision(cmd, client, resource_group_name, revision_name, name=None):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
     if not name:
         name = _get_app_from_revision(revision_name)
 
     try:
-        return ContainerAppClient.deactivate_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=revision_name)
+        return client.deactivate_revision(resource_group_name=resource_group_name, container_app_name=name, revision_name=revision_name)
     except CLIError as e:
         handle_raw_exception(e)
 
