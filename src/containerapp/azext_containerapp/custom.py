@@ -343,18 +343,17 @@ def update_containerapp_logic(cmd,
     if from_revision:
         try:
             from ._client_factory import cf_revisions
-            r = cf_revisions(cmd.cli_ctx).get_revision(resource_group_name=resource_group_name, container_app_name=name, revision_name=from_revision)
-            print(r)
+            r = cf_revisions(cmd.cli_ctx).get_revision(resource_group_name=resource_group_name, container_app_name=name, revision_name=from_revision).as_dict()
         except CLIError as e:
             # Error handle the case where revision not found?
             handle_raw_exception(e)
 
         _update_revision_env_secretrefs(r["template"]["containers"], name)
-        containerapp_def["properties"]["template"] = r["properties"]["template"]
+        containerapp_def["template"] = r["template"]
 
     # Doing this while API has bug. If env var is an empty string, API doesn't return "value" even though the "value" should be an empty string
-    if "properties" in containerapp_def and "template" in containerapp_def["properties"] and "containers" in containerapp_def["properties"]["template"]:
-        for container in containerapp_def["properties"]["template"]["containers"]:
+    if "template" in containerapp_def and "containers" in containerapp_def["template"]:
+        for container in containerapp_def["template"]["containers"]:
             if "env" in container:
                 for e in container["env"]:
                     if "value" not in e:
@@ -368,19 +367,19 @@ def update_containerapp_logic(cmd,
         _add_or_update_tags(containerapp_def, tags)
 
     if revision_suffix is not None:
-        containerapp_def["properties"]["template"]["revisionSuffix"] = revision_suffix
+        containerapp_def["template"]["revisionSuffix"] = revision_suffix
 
     # Containers
     if update_map["container"]:
         if not container_name:
-            if len(containerapp_def["properties"]["template"]["containers"]) == 1:
-                container_name = containerapp_def["properties"]["template"]["containers"][0]["name"]
+            if len(containerapp_def["template"]["containers"]) == 1:
+                container_name = containerapp_def["template"]["containers"][0]["name"]
             else:
                 raise ValidationError("Usage error: --container-name is required when adding or updating a container")
 
         # Check if updating existing container
         updating_existing_container = False
-        for c in containerapp_def["properties"]["template"]["containers"]:
+        for c in containerapp_def["template"]["containers"]:
             if c["name"].lower() == container_name.lower():
                 updating_existing_container = True
 
@@ -473,16 +472,16 @@ def update_containerapp_logic(cmd,
             if resources_def is not None:
                 container_def["resources"] = resources_def
 
-            containerapp_def["properties"]["template"]["containers"].append(container_def)
+            containerapp_def["template"]["containers"].append(container_def)
 
     # Scale
     if update_map["scale"]:
-        if "scale" not in containerapp_def["properties"]["template"]:
-            containerapp_def["properties"]["template"]["scale"] = {}
+        if "scale" not in containerapp_def["template"]:
+            containerapp_def["template"]["scale"] = {}
         if min_replicas is not None:
-            containerapp_def["properties"]["template"]["scale"]["minReplicas"] = min_replicas
+            containerapp_def["template"]["scale"]["minReplicas"] = min_replicas
         if max_replicas is not None:
-            containerapp_def["properties"]["template"]["scale"]["maxReplicas"] = max_replicas
+            containerapp_def["template"]["scale"]["maxReplicas"] = max_replicas
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
@@ -713,7 +712,7 @@ def delete_managed_environment(cmd, name, resource_group_name, no_wait=False):
         handle_raw_exception(e)
 
 
-def assign_managed_identity(cmd, name, resource_group_name, system_assigned=False, user_assigned=None, no_wait=False):
+def assign_managed_identity(cmd, client, name, resource_group_name, system_assigned=False, user_assigned=None, no_wait=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     assign_system_identity = system_assigned
@@ -725,7 +724,7 @@ def assign_managed_identity(cmd, name, resource_group_name, system_assigned=Fals
 
     # Get containerapp properties of CA we are updating
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
     except:
         pass
 
@@ -785,7 +784,8 @@ def assign_managed_identity(cmd, name, resource_group_name, system_assigned=Fals
                 containerapp_def["identity"]["userAssignedIdentities"][r] = {}
 
     try:
-        r = ContainerAppClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
+        r = LongRunningOperation(cmd.cli_ctx)(poller).serialize()
         # If identity is not returned, do nothing
         return r["identity"]
 

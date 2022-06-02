@@ -84,7 +84,7 @@ def load_command_table(self, _):
         g.custom_command('set', 'create_or_update_storage', supports_no_wait=True, exception_handler=ex_handler_factory())
         g.custom_command('remove', 'remove_storage', supports_no_wait=True, confirmation=True, exception_handler=ex_handler_factory())
 
-    with self.command_group('containerapp identity') as g:
+    with self.command_group('containerapp identity', client_factory=cf_containerapps) as g:
         g.custom_command('assign', 'assign_managed_identity', supports_no_wait=True, exception_handler=ex_handler_factory())
         g.custom_command('remove', 'remove_managed_identity', supports_no_wait=True, exception_handler=ex_handler_factory())
         g.custom_show_command('show', 'show_managed_identity')
