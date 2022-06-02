@@ -786,14 +786,13 @@ def assign_managed_identity(cmd, client, name, resource_group_name, system_assig
     try:
         poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
         r = LongRunningOperation(cmd.cli_ctx)(poller).serialize()
-        # If identity is not returned, do nothing
         return r["identity"]
 
     except Exception as e:
         handle_raw_exception(e)
 
 
-def remove_managed_identity(cmd, name, resource_group_name, system_assigned=False, user_assigned=None, no_wait=False):
+def remove_managed_identity(cmd, client, name, resource_group_name, system_assigned=False, user_assigned=None, no_wait=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     remove_system_identity = system_assigned
@@ -810,7 +809,7 @@ def remove_managed_identity(cmd, name, resource_group_name, system_assigned=Fals
     containerapp_def = None
     # Get containerapp properties of CA we are updating
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
     except:
         pass
 
@@ -868,18 +867,19 @@ def remove_managed_identity(cmd, name, resource_group_name, system_assigned=Fals
             containerapp_def["identity"]["type"] = ("None" if containerapp_def["identity"]["type"] == "UserAssigned" else "SystemAssigned")
 
     try:
-        r = ContainerAppClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
+        r = LongRunningOperation(cmd.cli_ctx)(poller).serialize()
         return r["identity"]
     except Exception as e:
         handle_raw_exception(e)
 
 
-def show_managed_identity(cmd, name, resource_group_name):
+def show_managed_identity(cmd, client, name, resource_group_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
-        r = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
-    except CLIError as e:
+        r = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
+    except CLIInternalError as e:
         handle_raw_exception(e)
 
     try:
