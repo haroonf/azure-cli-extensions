@@ -33,6 +33,8 @@ def handle_raw_exception(e):
     import json
 
     stringErr = str(e)
+    if "response" in stringErr.lower():
+        stringErr = stringErr[stringErr.lower().rindex("response"):]
 
     if "{" in stringErr and "}" in stringErr:
         jsonError = stringErr[stringErr.index("{"):stringErr.rindex("}") + 1]

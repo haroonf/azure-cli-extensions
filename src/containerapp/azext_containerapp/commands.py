@@ -101,9 +101,9 @@ def load_command_table(self, _):
         g.custom_command('restart', 'restart_revision')
         g.custom_show_command('show', 'show_revision', table_transformer=transform_revision_output, exception_handler=ex_handler_factory())
         g.custom_command('copy', 'copy_revision', client_factory=cf_containerapps, exception_handler=ex_handler_factory())
-        g.custom_command('set-mode', 'set_revision_mode', exception_handler=ex_handler_factory())
+        g.custom_command('set-mode', 'set_revision_mode', client_factory=cf_containerapps, exception_handler=ex_handler_factory())
 
-    with self.command_group('containerapp revision label') as g:
+    with self.command_group('containerapp revision label', client_factory=cf_containerapps) as g:
         g.custom_command('add', 'add_revision_label')
         g.custom_command('remove', 'remove_revision_label')
         g.custom_command('swap', 'swap_revision_label')

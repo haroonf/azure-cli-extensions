@@ -163,15 +163,17 @@ def create_containerapp(cmd,
 
     try:
         from ._client_factory import cf_managedenvs
-        managed_env_info = cf_managedenvs(cmd.cli_ctx).get(resource_group_name=parse_resource_id(managed_env)["resource_group"], environment_name=parse_resource_id(managed_env)["name"]).serialize()
+        managed_env_info = cf_managedenvs(cmd.cli_ctx).get(resource_group_name=managed_env_rg, environment_name=managed_env_name)
     except:
         pass
 
     if not managed_env_info:
         raise ValidationError("The environment '{}' does not exist. Specify a valid environment".format(managed_env))
 
-    location = managed_env_info["location"]
+    location = managed_env_info.location
     _ensure_location_allowed(cmd, location, CONTAINER_APPS_RP, "containerApps")
+
+    from azure.mgmt.appcontainers.models import Ingress, RegistryCredentials, Dapr, Configuration, ManagedServiceIdentity, Scale, ContainerResources, Container, Template, ContainerApp, UserAssignedIdentity
 
     external_ingress = None
     if ingress is not None:
@@ -182,10 +184,7 @@ def create_containerapp(cmd,
 
     ingress_def = None
     if target_port is not None and ingress is not None:
-        ingress_def = IngressModel
-        ingress_def["external"] = external_ingress
-        ingress_def["targetPort"] = target_port
-        ingress_def["transport"] = transport
+        ingress_def = Ingress(external=external_ingress, target_port=target_port, transport=transport)
 
     secrets_def = None
     if secrets is not None:
@@ -193,37 +192,23 @@ def create_containerapp(cmd,
 
     registries_def = None
     if registry_server is not None:
-        registries_def = RegistryCredentialsModel
-
         # Infer credentials if not supplied and its azurecr
         if registry_user is None or registry_pass is None:
             registry_user, registry_pass = _infer_acr_credentials(cmd, registry_server, disable_warnings)
-
-        registries_def["server"] = registry_server
-        registries_def["username"] = registry_user
-
         if secrets_def is None:
             secrets_def = []
-        registries_def["passwordSecretRef"] = store_as_secret_and_return_secret_ref(secrets_def, registry_user, registry_server, registry_pass, disable_warnings=disable_warnings)
+        pass_ref = store_as_secret_and_return_secret_ref(secrets_def, registry_user, registry_server, registry_pass, disable_warnings=disable_warnings)
+
+        registries_def = RegistryCredentials(server=registry_server, username=registry_user, password_secret_ref=pass_ref)
 
     dapr_def = None
     if dapr_enabled:
-        dapr_def = DaprModel
-        dapr_def["enabled"] = True
-        dapr_def["appId"] = dapr_app_id
-        dapr_def["appPort"] = dapr_app_port
-        dapr_def["appProtocol"] = dapr_app_protocol
+        dapr_def = Dapr(enabled=True, app_id=dapr_app_id, app_port=dapr_app_port, app_protocol=dapr_app_protocol)
 
-    config_def = ConfigurationModel
-    config_def["secrets"] = secrets_def
-    config_def["activeRevisionsMode"] = revisions_mode
-    config_def["ingress"] = ingress_def
-    config_def["registries"] = [registries_def] if registries_def is not None else None
-    config_def["dapr"] = dapr_def
+    config_def = Configuration(secrets=secrets_def, activate_revisions_mode=revisions_mode, ingress=ingress_def, registries=[registries_def] if registries_def is not None else None, dapr=dapr_def)
 
     # Identity actions
-    identity_def = ManagedServiceIdentityModel
-    identity_def["type"] = "None"
+    identity_def = ManagedServiceIdentity(type="None")
 
     assign_system_identity = system_assigned
     if user_assigned:
@@ -232,58 +217,47 @@ def create_containerapp(cmd,
         assign_user_identities = []
 
     if assign_system_identity and assign_user_identities:
-        identity_def["type"] = "SystemAssigned, UserAssigned"
+        identity_def.type = "SystemAssigned, UserAssigned"
     elif assign_system_identity:
-        identity_def["type"] = "SystemAssigned"
+        identity_def.type = "SystemAssigned"
     elif assign_user_identities:
-        identity_def["type"] = "UserAssigned"
+        identity_def.type = "UserAssigned"
 
+    valid_user_ids = {}
     if assign_user_identities:
-        identity_def["userAssignedIdentities"] = {}
         subscription_id = get_subscription_id(cmd.cli_ctx)
 
         for r in assign_user_identities:
             r = _ensure_identity_resource_id(subscription_id, resource_group_name, r)
-            identity_def["userAssignedIdentities"][r] = {}  # pylint: disable=unsupported-assignment-operation
+            valid_user_ids[r] = UserAssignedIdentity()
+        
+        identity_def.user_assigned_identities = valid_user_ids
 
     scale_def = None
     if min_replicas is not None or max_replicas is not None:
-        scale_def = ScaleModel
-        scale_def["minReplicas"] = min_replicas
-        scale_def["maxReplicas"] = max_replicas
+        scale_def = Scale(min_replicas=min_replicas, max_replicas=max_replicas)
 
     resources_def = None
     if cpu is not None or memory is not None:
-        resources_def = ContainerResourcesModel
-        resources_def["cpu"] = cpu
-        resources_def["memory"] = memory
+        resources_def = ContainerResources(cpu=cpu, memory=memory)
 
-    container_def = ContainerModel
-    container_def["name"] = container_name if container_name else name
-    container_def["image"] = image
+    container_def = Container(name=container_name if container_name else name, image=image)
     if env_vars is not None:
-        container_def["env"] = parse_env_var_flags(env_vars)
+        container_def.env = parse_env_var_flags(env_vars)
     if startup_command is not None:
-        container_def["command"] = startup_command
+        container_def.command = startup_command
     if args is not None:
-        container_def["args"] = args
+        container_def.args = args
     if resources_def is not None:
-        container_def["resources"] = resources_def
+        container_def.resources = resources_def
 
-    template_def = TemplateModel
-    template_def["containers"] = [container_def]
-    template_def["scale"] = scale_def
+    template_def = Template(containers=[container_def], scale=scale_def)
 
     if revision_suffix is not None:
-        template_def["revisionSuffix"] = revision_suffix
+        template_def.revision_suffix = revision_suffix
 
-    containerapp_def = ContainerAppModel
-    containerapp_def["location"] = location
-    containerapp_def["identity"] = identity_def
-    containerapp_def["properties"]["managedEnvironmentId"] = managed_env
-    containerapp_def["properties"]["configuration"] = config_def
-    containerapp_def["properties"]["template"] = template_def
-    containerapp_def["tags"] = tags
+
+    containerapp_def = ContainerApp(location=location, identity=identity_def, managed_environment_id=managed_env, configuration=config_def, template=template_def, tags=tags)
 
     try:
         poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
@@ -349,11 +323,11 @@ def update_containerapp_logic(cmd,
             handle_raw_exception(e)
 
         _update_revision_env_secretrefs(r["template"]["containers"], name)
-        containerapp_def["template"] = r["template"]
+        containerapp_def["properties"]["template"] = r["template"]
 
     # Doing this while API has bug. If env var is an empty string, API doesn't return "value" even though the "value" should be an empty string
-    if "template" in containerapp_def and "containers" in containerapp_def["template"]:
-        for container in containerapp_def["template"]["containers"]:
+    if "properties" in containerapp_def and "template" in containerapp_def["properties"] and "containers" in containerapp_def["properties"]["template"]:
+        for container in containerapp_def["properties"]["template"]["containers"]:
             if "env" in container:
                 for e in container["env"]:
                     if "value" not in e:
@@ -367,19 +341,19 @@ def update_containerapp_logic(cmd,
         _add_or_update_tags(containerapp_def, tags)
 
     if revision_suffix is not None:
-        containerapp_def["template"]["revisionSuffix"] = revision_suffix
+        containerapp_def["properties"]["template"]["revisionSuffix"] = revision_suffix
 
     # Containers
     if update_map["container"]:
         if not container_name:
-            if len(containerapp_def["template"]["containers"]) == 1:
-                container_name = containerapp_def["template"]["containers"][0]["name"]
+            if len(containerapp_def["properties"]["template"]["containers"]) == 1:
+                container_name = containerapp_def["properties"]["template"]["containers"][0]["name"]
             else:
                 raise ValidationError("Usage error: --container-name is required when adding or updating a container")
 
         # Check if updating existing container
         updating_existing_container = False
-        for c in containerapp_def["template"]["containers"]:
+        for c in containerapp_def["properties"]["template"]["containers"]:
             if c["name"].lower() == container_name.lower():
                 updating_existing_container = True
 
@@ -472,16 +446,16 @@ def update_containerapp_logic(cmd,
             if resources_def is not None:
                 container_def["resources"] = resources_def
 
-            containerapp_def["template"]["containers"].append(container_def)
+            containerapp_def["properties"]["template"]["containers"].append(container_def)
 
     # Scale
     if update_map["scale"]:
         if "scale" not in containerapp_def["template"]:
-            containerapp_def["template"]["scale"] = {}
+            containerapp_def["properties"]["template"]["scale"] = {}
         if min_replicas is not None:
-            containerapp_def["template"]["scale"]["minReplicas"] = min_replicas
+            containerapp_def["properties"]["template"]["scale"]["minReplicas"] = min_replicas
         if max_replicas is not None:
-            containerapp_def["template"]["scale"]["maxReplicas"] = max_replicas
+            containerapp_def["properties"]["template"]["scale"]["maxReplicas"] = max_replicas
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
@@ -538,7 +512,6 @@ def update_containerapp(cmd,
 
 
 def show_containerapp(cmd, client, name, resource_group_name):
-    import json
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
     try:
         return client.get(resource_group_name=resource_group_name, container_app_name=name)
@@ -1085,7 +1058,7 @@ def list_revisions(cmd, client, name, resource_group_name, all=False):
         revision_list = client.list_revisions(resource_group_name=resource_group_name, container_app_name=name)
         if all:
             return revision_list
-        return [r for r in revision_list if r["properties"]["active"]]
+        return [r for r in revision_list if r.active]
     except CLIError as e:
         handle_raw_exception(e)
 
@@ -1191,12 +1164,12 @@ def copy_revision(cmd,
                                      from_revision)
 
 
-def set_revision_mode(cmd, resource_group_name, name, mode, no_wait=False):
+def set_revision_mode(cmd, client, resource_group_name, name, mode, no_wait=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     containerapp_def = None
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
     except:
         pass
 
@@ -1208,14 +1181,14 @@ def set_revision_mode(cmd, resource_group_name, name, mode, no_wait=False):
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
     try:
-        r = ContainerAppClient.create_or_update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
+        r = LongRunningOperation(cmd.cli_ctx)(poller).serialize()
         return r["properties"]["configuration"]["activeRevisionsMode"]
     except Exception as e:
         handle_raw_exception(e)
 
 
-def add_revision_label(cmd, resource_group_name, revision, label, name=None, no_wait=False, yes=False):
+def add_revision_label(cmd, client, resource_group_name, revision, label, name=None, no_wait=False, yes=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     if not name:
@@ -1223,7 +1196,7 @@ def add_revision_label(cmd, resource_group_name, revision, label, name=None, no_
 
     containerapp_def = None
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
     except:
         pass
 
@@ -1272,8 +1245,8 @@ def add_revision_label(cmd, resource_group_name, revision, label, name=None, no_
     containerapp_patch_def['properties']['configuration']['ingress']['traffic'] = traffic_weight
 
     try:
-        r = ContainerAppClient.update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_patch_def, no_wait=no_wait)
+        poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
+        r = LongRunningOperation(cmd.cli_ctx)(poller).serialize()
         return r['properties']['configuration']['ingress']['traffic']
     except Exception as e:
         handle_raw_exception(e)
