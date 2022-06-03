@@ -573,7 +573,11 @@ def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, loc
 
         log_analytics_name = None
         log_analytics_rg = None
-        log_analytics = log_analytics_client.list()
+
+        try:
+            log_analytics = log_analytics_client.list()
+        except Exception as ex:
+            handle_raw_exception(ex)
 
         for la in log_analytics:
             if la.customer_id and la.customer_id.lower() == logs_customer_id.lower():
@@ -584,7 +588,10 @@ def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, loc
         if log_analytics_name is None:
             raise ValidationError('Usage error: Supply the --logs-key associated with the --logs-customer-id')
 
-        shared_keys = log_analytics_shared_key_client.get_shared_keys(workspace_name=log_analytics_name, resource_group_name=log_analytics_rg)
+        try:
+            shared_keys = log_analytics_shared_key_client.get_shared_keys(workspace_name=log_analytics_name, resource_group_name=log_analytics_rg)
+        except Exception as ex:
+            handle_raw_exception(ex)
 
         if not shared_keys or not shared_keys.primary_shared_key:
             raise ValidationError('Usage error: Supply the --logs-key associated with the --logs-customer-id')
