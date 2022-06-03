@@ -289,27 +289,28 @@ def _validate_subscription_registered(cmd, resource_provider, subscription_id=No
 
 
 def _ensure_location_allowed(cmd, location, resource_provider, resource_type):
-    providers_client = None
     try:
         providers_client = providers_client_factory(cmd.cli_ctx, get_subscription_id(cmd.cli_ctx))
+    except Exception as ex:
+        handle_raw_exception(ex)
 
-        if providers_client is not None:
+    if providers_client is not None:
+        try:
             resource_types = getattr(providers_client.get(resource_provider), 'resource_types', [])
-            res_locations = []
-            for res in resource_types:
-                if res and getattr(res, 'resource_type', "") == resource_type:
-                    res_locations = getattr(res, 'locations', [])
+        except Exception as ex:
+            handle_raw_exception(ex)
 
-            res_locations = [res_loc.lower().replace(" ", "").replace("(", "").replace(")", "") for res_loc in res_locations if res_loc.strip()]
+        res_locations = []
+        for res in resource_types:
+            if res and getattr(res, 'resource_type', "") == resource_type:
+                res_locations = getattr(res, 'locations', [])
 
-            location_formatted = location.lower().replace(" ", "")
-            if location_formatted not in res_locations:
-                raise ValidationError("Location '{}' is not currently supported. To get list of supported locations, run `az provider show -n {} --query \"resourceTypes[?resourceType=='{}'].locations\"`".format(
-                    location, resource_provider, resource_type))
-    except ValidationError as ex:
-        raise ex
-    except Exception:  # pylint: disable=broad-except
-        pass
+        res_locations = [res_loc.lower().replace(" ", "").replace("(", "").replace(")", "") for res_loc in res_locations if res_loc.strip()]
+
+        location_formatted = location.lower().replace(" ", "")
+        if location_formatted not in res_locations:
+            raise ValidationError("Location '{}' is not currently supported. To get list of supported locations, run `az provider show -n {} --query \"resourceTypes[?resourceType=='{}'].locations\"`"
+                                 .format(location, resource_provider, resource_type))
 
 
 def parse_env_var_flags(env_list, is_update_containerapp=False):
@@ -541,7 +542,7 @@ def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, loc
         log_analytics_location = location
         try:
             _ensure_location_allowed(cmd, log_analytics_location, LOG_ANALYTICS_RP, "workspaces")
-        except Exception:  # pylint: disable=broad-except
+        except ValidationError:  # pylint: disable=broad-except
             log_analytics_location = _get_default_log_analytics_location(cmd)
 
         from azure.cli.core.commands import LongRunningOperation
