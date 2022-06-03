@@ -289,6 +289,7 @@ def _validate_subscription_registered(cmd, resource_provider, subscription_id=No
 
 
 def _ensure_location_allowed(cmd, location, resource_provider, resource_type):
+    providers_client = None
     try:
         providers_client = providers_client_factory(cmd.cli_ctx, get_subscription_id(cmd.cli_ctx))
     except Exception as ex:
