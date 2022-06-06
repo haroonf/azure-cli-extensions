@@ -295,7 +295,7 @@ helps['containerapp revision label swap'] = """
     examples:
     - name: Swap a revision label between two revisions.
       text: |
-          az containerapp revision label swap -n MyContainerapp -g MyResourceGroup --source-label myLabel1 --target-label myLabel2
+          az containerapp revision label swap -n MyContainerapp -g MyResourceGroup --source myLabel1 --target myLabel2
 """
 
 # Environment Commands
