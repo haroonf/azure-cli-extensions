@@ -676,13 +676,12 @@ def update_containerapp_logic(cmd,
     # Ingress
     if update_map["ingress"]:
         new_containerapp["properties"]["configuration"] = {} if "configuration" not in new_containerapp["properties"] else new_containerapp["properties"]["configuration"]
-        if target_port is not None and ingress is not None:
-            if "ingress" in containerapp_def["properties"]["configuration"] and containerapp_def["properties"]["configuration"]["ingress"]:
-                new_containerapp["properties"]["configuration"]["ingress"] = containerapp_def["properties"]["configuration"]["ingress"]
-            else:
-                new_containerapp["properties"]["configuration"]["ingress"] = {}
-            new_containerapp["properties"]["configuration"]["ingress"]["external"] = ingress.lower() == "external"
-            new_containerapp["properties"]["configuration"]["ingress"]["targetPort"] = target_port
+        if target_port is not None or ingress is not None:
+            new_containerapp["properties"]["configuration"]["ingress"] = {}
+            if ingress:
+                new_containerapp["properties"]["configuration"]["ingress"]["external"] = ingress.lower() == "external"
+            if target_port:
+                new_containerapp["properties"]["configuration"]["ingress"]["targetPort"] = target_port
 
     # Registry
     if update_map["registry"]:
@@ -696,7 +695,7 @@ def update_containerapp_logic(cmd,
 
         _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
         if "secrets" in containerapp_def["properties"]["configuration"] and containerapp_def["properties"]["configuration"]["secrets"]:
-            new_containerapp["properties"]["configuration"]["secrets"] = containerapp_def["properties"]["configuration"]["secret"]
+            new_containerapp["properties"]["configuration"]["secrets"] = containerapp_def["properties"]["configuration"]["secrets"]
         else:
             new_containerapp["properties"]["configuration"]["secrets"] = []
 
