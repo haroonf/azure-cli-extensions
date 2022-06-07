@@ -525,8 +525,6 @@ def update_containerapp_logic(cmd,
 
     new_containerapp = {}
     new_containerapp["properties"] = {}
-    new_containerapp["properties"]["configuration"] = {}
-    new_containerapp["properties"]["template"] = {}
     if from_revision:
         try:
             r = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=from_revision)
@@ -555,10 +553,12 @@ def update_containerapp_logic(cmd,
         _add_or_update_tags(new_containerapp, tags)
 
     if revision_suffix is not None:
+        new_containerapp["properties"]["template"] = {} if "template" not in new_containerapp["properties"] else new_containerapp["properties"]["template"]
         new_containerapp["properties"]["template"]["revisionSuffix"] = revision_suffix
 
     # Containers
     if update_map["container"]:
+        new_containerapp["properties"]["template"] = {} if "template" not in new_containerapp["properties"] else new_containerapp["properties"]["template"]
         new_containerapp["properties"]["template"]["containers"] = containerapp_def["properties"]["template"]["containers"]
         if not container_name:
             if len(new_containerapp["properties"]["template"]["containers"]) == 1:
@@ -665,6 +665,7 @@ def update_containerapp_logic(cmd,
 
     # Scale
     if update_map["scale"]:
+        new_containerapp["properties"]["template"] = {} if "template" not in new_containerapp["properties"] else new_containerapp["properties"]["template"]
         if "scale" not in new_containerapp["properties"]["template"]:
             new_containerapp["properties"]["template"]["scale"] = {}
         if min_replicas is not None:
@@ -674,6 +675,7 @@ def update_containerapp_logic(cmd,
 
     # Ingress
     if update_map["ingress"]:
+        new_containerapp["properties"]["configuration"] = {} if "configuration" not in new_containerapp["properties"] else new_containerapp["properties"]["configuration"]
         if target_port is not None and ingress is not None:
             if "ingress" in containerapp_def["properties"]["configuration"] and containerapp_def["properties"]["configuration"]["ingress"]:
                 new_containerapp["properties"]["configuration"]["ingress"] = containerapp_def["properties"]["configuration"]["ingress"]
@@ -684,12 +686,19 @@ def update_containerapp_logic(cmd,
 
     # Registry
     if update_map["registry"]:
+        new_containerapp["properties"]["configuration"] = {} if "configuration" not in new_containerapp["properties"] else new_containerapp["properties"]["configuration"]
         if "registries" in containerapp_def["properties"]["configuration"]:
             new_containerapp["properties"]["configuration"]["registries"] = containerapp_def["properties"]["configuration"]["registries"]
-        if "registries" not in new_containerapp["properties"]["configuration"] or new_containerapp["properties"]["configuration"]["registries"] is None:
+        if "registries" not in containerapp_def["properties"]["configuration"] or containerapp_def["properties"]["configuration"]["registries"] is None:
             new_containerapp["properties"]["configuration"]["registries"] = []
 
         registries_def = new_containerapp["properties"]["configuration"]["registries"]
+
+        _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
+        if "secrets" in containerapp_def["properties"]["configuration"] and containerapp_def["properties"]["configuration"]["secrets"]:
+            new_containerapp["properties"]["configuration"]["secrets"] = containerapp_def["properties"]["configuration"]["secret"]
+        else:
+            new_containerapp["properties"]["configuration"]["secrets"] = []
 
         if registry_server:
             if not registry_pass or not registry_user:
