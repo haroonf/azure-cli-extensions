@@ -501,8 +501,14 @@ def update_containerapp_logic(cmd,
                               args=None,
                               tags=None,
                               no_wait=False,
-                              from_revision=None):
+                              from_revision=None,
+                              ingress=None,
+                              target_port=None,
+                              registry_server=None,
+                              registry_user=None,
+                              registry_pass=None):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
 
     if yaml:
         if image or min_replicas or max_replicas or\
@@ -511,15 +517,20 @@ def update_containerapp_logic(cmd,
             logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
         return update_containerapp_yaml(cmd=cmd, name=name, resource_group_name=resource_group_name, file_name=yaml, no_wait=no_wait, from_revision=from_revision)
 
+
     containerapp_def = None
     try:
         containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
     except:
         pass
 
+
     if not containerapp_def:
         raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
+
+    new_containerapp = {}
+    new_containerapp["properties"] = {}
     if from_revision:
         try:
             r = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=from_revision)
@@ -527,8 +538,10 @@ def update_containerapp_logic(cmd,
             # Error handle the case where revision not found?
             handle_raw_exception(e)
 
+
         _update_revision_env_secretrefs(r["properties"]["template"]["containers"], name)
-        containerapp_def["properties"]["template"] = r["properties"]["template"]
+        new_containerapp["properties"]["template"] = r["properties"]["template"]
+
 
     # Doing this while API has bug. If env var is an empty string, API doesn't return "value" even though the "value" should be an empty string
     if "properties" in containerapp_def and "template" in containerapp_def["properties"] and "containers" in containerapp_def["properties"]["template"]:
@@ -538,32 +551,44 @@ def update_containerapp_logic(cmd,
                     if "value" not in e:
                         e["value"] = ""
 
+
     update_map = {}
     update_map['scale'] = min_replicas or max_replicas
     update_map['container'] = image or container_name or set_env_vars is not None or remove_env_vars is not None or replace_env_vars is not None or remove_all_env_vars or cpu or memory or startup_command is not None or args is not None
+    update_map['ingress'] = ingress or target_port
+    update_map['registry'] = registry_server or registry_user or registry_pass
+
 
     if tags:
-        _add_or_update_tags(containerapp_def, tags)
+        _add_or_update_tags(new_containerapp, tags)
+
 
     if revision_suffix is not None:
-        containerapp_def["properties"]["template"]["revisionSuffix"] = revision_suffix
+        new_containerapp["properties"]["template"] = {} if "template" not in new_containerapp["properties"] else new_containerapp["properties"]["template"]
+        new_containerapp["properties"]["template"]["revisionSuffix"] = revision_suffix
+
 
     # Containers
     if update_map["container"]:
+        new_containerapp["properties"]["template"] = {} if "template" not in new_containerapp["properties"] else new_containerapp["properties"]["template"]
+        new_containerapp["properties"]["template"]["containers"] = containerapp_def["properties"]["template"]["containers"]
         if not container_name:
-            if len(containerapp_def["properties"]["template"]["containers"]) == 1:
-                container_name = containerapp_def["properties"]["template"]["containers"][0]["name"]
+            if len(new_containerapp["properties"]["template"]["containers"]) == 1:
+                container_name = new_containerapp["properties"]["template"]["containers"][0]["name"]
             else:
                 raise ValidationError("Usage error: --container-name is required when adding or updating a container")
 
+
         # Check if updating existing container
         updating_existing_container = False
-        for c in containerapp_def["properties"]["template"]["containers"]:
+        for c in new_containerapp["properties"]["template"]["containers"]:
             if c["name"].lower() == container_name.lower():
                 updating_existing_container = True
 
+
                 if image is not None:
                     c["image"] = image
+
 
                 if set_env_vars is not None:
                     if "env" not in c or not c["env"]:
@@ -571,10 +596,12 @@ def update_containerapp_logic(cmd,
                     # env vars
                     _add_or_update_env_vars(c["env"], parse_env_var_flags(set_env_vars))
 
+
                 if replace_env_vars is not None:
                     # Remove other existing env_vars, then add them
                     c["env"] = []
                     _add_or_update_env_vars(c["env"], parse_env_var_flags(replace_env_vars))
+
 
                 if remove_env_vars is not None:
                     if "env" not in c or not c["env"]:
@@ -582,8 +609,10 @@ def update_containerapp_logic(cmd,
                     # env vars
                     _remove_env_vars(c["env"], remove_env_vars)
 
+
                 if remove_all_env_vars:
                     c["env"] = []
+
 
                 if startup_command is not None:
                     if isinstance(startup_command, list) and not startup_command:
@@ -607,10 +636,12 @@ def update_containerapp_logic(cmd,
                             "memory": memory
                         }
 
+
         # If not updating existing container, add as new container
         if not updating_existing_container:
             if image is None:
                 raise ValidationError("Usage error: --image is required when adding a new container")
+
 
             resources_def = None
             if cpu is not None or memory is not None:
@@ -618,25 +649,31 @@ def update_containerapp_logic(cmd,
                 resources_def["cpu"] = cpu
                 resources_def["memory"] = memory
 
+
             container_def = ContainerModel
             container_def["name"] = container_name
             container_def["image"] = image
             container_def["env"] = []
 
+
             if set_env_vars is not None:
                 # env vars
                 _add_or_update_env_vars(container_def["env"], parse_env_var_flags(set_env_vars))
+
 
             if replace_env_vars is not None:
                 # env vars
                 _add_or_update_env_vars(container_def["env"], parse_env_var_flags(replace_env_vars))
 
+
             if remove_env_vars is not None:
                 # env vars
                 _remove_env_vars(container_def["env"], remove_env_vars)
 
+
             if remove_all_env_vars:
                 container_def["env"] = []
+
 
             if startup_command is not None:
                 if isinstance(startup_command, list) and not startup_command:
@@ -651,25 +688,102 @@ def update_containerapp_logic(cmd,
             if resources_def is not None:
                 container_def["resources"] = resources_def
 
-            containerapp_def["properties"]["template"]["containers"].append(container_def)
+
+            new_containerapp["properties"]["template"]["containers"].append(container_def)
+
 
     # Scale
     if update_map["scale"]:
-        if "scale" not in containerapp_def["properties"]["template"]:
-            containerapp_def["properties"]["template"]["scale"] = {}
+        new_containerapp["properties"]["template"] = {} if "template" not in new_containerapp["properties"] else new_containerapp["properties"]["template"]
+        if "scale" not in new_containerapp["properties"]["template"]:
+            new_containerapp["properties"]["template"]["scale"] = {}
         if min_replicas is not None:
-            containerapp_def["properties"]["template"]["scale"]["minReplicas"] = min_replicas
+            new_containerapp["properties"]["template"]["scale"]["minReplicas"] = min_replicas
         if max_replicas is not None:
-            containerapp_def["properties"]["template"]["scale"]["maxReplicas"] = max_replicas
+            new_containerapp["properties"]["template"]["scale"]["maxReplicas"] = max_replicas
 
-    _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
+
+    # Ingress
+    if update_map["ingress"]:
+        new_containerapp["properties"]["configuration"] = {} if "configuration" not in new_containerapp["properties"] else new_containerapp["properties"]["configuration"]
+        if target_port is not None or ingress is not None:
+            new_containerapp["properties"]["configuration"]["ingress"] = {}
+            if ingress:
+                new_containerapp["properties"]["configuration"]["ingress"]["external"] = ingress.lower() == "external"
+            if target_port:
+                new_containerapp["properties"]["configuration"]["ingress"]["targetPort"] = target_port
+
+
+    # Registry
+    if update_map["registry"]:
+        new_containerapp["properties"]["configuration"] = {} if "configuration" not in new_containerapp["properties"] else new_containerapp["properties"]["configuration"]
+        if "registries" in containerapp_def["properties"]["configuration"]:
+            new_containerapp["properties"]["configuration"]["registries"] = containerapp_def["properties"]["configuration"]["registries"]
+        if "registries" not in containerapp_def["properties"]["configuration"] or containerapp_def["properties"]["configuration"]["registries"] is None:
+            new_containerapp["properties"]["configuration"]["registries"] = []
+
+
+        registries_def = new_containerapp["properties"]["configuration"]["registries"]
+
+
+        _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
+        if "secrets" in containerapp_def["properties"]["configuration"] and containerapp_def["properties"]["configuration"]["secrets"]:
+            new_containerapp["properties"]["configuration"]["secrets"] = containerapp_def["properties"]["configuration"]["secrets"]
+        else:
+            new_containerapp["properties"]["configuration"]["secrets"] = []
+
+
+        if registry_server:
+            if not registry_pass or not registry_user:
+                if '.azurecr.io' not in registry_server:
+                    raise RequiredArgumentMissingError('Registry url is required if using Azure Container Registry, otherwise Registry username and password are required if using Dockerhub')
+                logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
+                parsed = urlparse(registry_server)
+                registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
+                registry_user, registry_pass, _ = _get_acr_cred(cmd.cli_ctx, registry_name)
+            # Check if updating existing registry
+            updating_existing_registry = False
+            for r in registries_def:
+                if r['server'].lower() == registry_server.lower():
+                    updating_existing_registry = True
+                    if registry_user:
+                        r["username"] = registry_user
+                    if registry_pass:
+                        r["passwordSecretRef"] = store_as_secret_and_return_secret_ref(
+                            new_containerapp["properties"]["configuration"]["secrets"],
+                            r["username"],
+                            r["server"],
+                            registry_pass,
+                            update_existing_secret=True,
+                            disable_warnings=True)
+
+
+            # If not updating existing registry, add as new registry
+            if not updating_existing_registry:
+                registry = RegistryCredentialsModel
+                registry["server"] = registry_server
+                registry["username"] = registry_user
+                registry["passwordSecretRef"] = store_as_secret_and_return_secret_ref(
+                    new_containerapp["properties"]["configuration"]["secrets"],
+                    registry_user,
+                    registry_server,
+                    registry_pass,
+                    update_existing_secret=True,
+                    disable_warnings=True)
+
+
+                registries_def.append(registry)
+
 
     try:
-        r = ContainerAppClient.create_or_update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        # return new_containerapp
+        r = ContainerAppClient.update(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=new_containerapp, no_wait=no_wait)
+
 
         if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
             logger.warning('Containerapp update in progress. Please monitor the update using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
+
 
         return r
     except Exception as e:
@@ -2261,131 +2375,10 @@ def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, en
     except:
         pass
 
-    try:
-        location = ManagedEnvironmentClient.show(cmd, resource_group_name, managed_env.split('/')[-1])["location"]
-    except:
-        pass
 
-    ca_exists = False
     if containerapp_def:
-        ca_exists = True
-
-    # When using repo, image is not passed, so we have to assign it a value (will be overwritten with gh-action)
-    if image is None:
-        image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
-
-    if not ca_exists:
-        containerapp_def = None
-        containerapp_def = ContainerAppModel
-        containerapp_def["location"] = location
-        containerapp_def["properties"]["managedEnvironmentId"] = managed_env
-        containerapp_def["properties"]["configuration"] = ConfigurationModel
-    else:
-        # check provisioning state here instead of secrets so no error
-        _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
-
-    container = ContainerModel
-    container["image"] = image
-    container["name"] = name
-
-    if env_vars:
-        container["env"] = parse_env_var_flags(env_vars)
-
-    external_ingress = None
-    if ingress is not None:
-        if ingress.lower() == "internal":
-            external_ingress = False
-        elif ingress.lower() == "external":
-            external_ingress = True
-
-    ingress_def = None
-    if target_port is not None and ingress is not None:
-        if ca_exists:
-            ingress_def = containerapp_def["properties"]["configuration"]["ingress"]
-        else:
-            ingress_def = IngressModel
-        ingress_def["external"] = external_ingress
-        ingress_def["targetPort"] = target_port
-        containerapp_def["properties"]["configuration"]["ingress"] = ingress_def
-
-    # handle multi-container case
-    if ca_exists:
-        existing_containers = containerapp_def["properties"]["template"]["containers"]
-        if len(existing_containers) == 0:
-            # No idea how this would ever happen, failed provisioning maybe?
-            containerapp_def["properties"]["template"] = TemplateModel
-            containerapp_def["properties"]["template"]["containers"] = [container]
-        if len(existing_containers) == 1:
-            # Assume they want it updated
-            existing_containers[0] = container
-        if len(existing_containers) > 1:
-            # Assume they want to update, if not existing just add it
-            existing_containers = [x for x in existing_containers if x['name'].lower() == name.lower()]
-            if len(existing_containers) == 1:
-                existing_containers[0] = container
-            else:
-                existing_containers.append(container)
-        containerapp_def["properties"]["template"]["containers"] = existing_containers
-    else:
-        containerapp_def["properties"]["template"] = TemplateModel
-        containerapp_def["properties"]["template"]["containers"] = [container]
-
-    registries_def = None
-    registry = None
-
-    if "secrets" not in containerapp_def["properties"]["configuration"] or containerapp_def["properties"]["configuration"]["secrets"] is None:
-        containerapp_def["properties"]["configuration"]["secrets"] = []
-
-    if "registries" not in containerapp_def["properties"]["configuration"] or containerapp_def["properties"]["configuration"]["registries"] is None:
-        containerapp_def["properties"]["configuration"]["registries"] = []
-
-    registries_def = containerapp_def["properties"]["configuration"]["registries"]
-
-    if registry_server:
-        if not registry_pass or not registry_user:
-            if ACR_IMAGE_SUFFIX not in registry_server:
-                raise RequiredArgumentMissingError('Registry url is required if using Azure Container Registry, otherwise Registry username and password are required if using Dockerhub')
-            logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
-            parsed = urlparse(registry_server)
-            registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
-            registry_user, registry_pass, _ = _get_acr_cred(cmd.cli_ctx, registry_name)
-        # Check if updating existing registry
-        updating_existing_registry = False
-        for r in registries_def:
-            if r['server'].lower() == registry_server.lower():
-                updating_existing_registry = True
-                if registry_user:
-                    r["username"] = registry_user
-                if registry_pass:
-                    r["passwordSecretRef"] = store_as_secret_and_return_secret_ref(
-                        containerapp_def["properties"]["configuration"]["secrets"],
-                        r["username"],
-                        r["server"],
-                        registry_pass,
-                        update_existing_secret=True,
-                        disable_warnings=True)
-
-        # If not updating existing registry, add as new registry
-        if not updating_existing_registry:
-            registry = RegistryCredentialsModel
-            registry["server"] = registry_server
-            registry["username"] = registry_user
-            registry["passwordSecretRef"] = store_as_secret_and_return_secret_ref(
-                containerapp_def["properties"]["configuration"]["secrets"],
-                registry_user,
-                registry_server,
-                registry_pass,
-                update_existing_secret=True,
-                disable_warnings=True)
-
-            registries_def.append(registry)
-
-    try:
-        if ca_exists:
-            return ContainerAppClient.update(cmd, resource_group_name, name, containerapp_def)
-        return ContainerAppClient.create_or_update(cmd, resource_group_name, name, containerapp_def)
-    except Exception as e:
-        handle_raw_exception(e)
+        return update_containerapp_logic(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, replace_env_vars=env_vars, ingress=ingress, target_port=target_port, registry_server=registry_server, registry_user=registry_user, registry_pass=registry_pass) # need ingress, target port, registry stuff to work here
+    return create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, managed_env=managed_env, image=image, env_vars=env_vars, ingress=ingress, target_port=target_port, registry_server=registry_server, registry_user=registry_user, registry_pass=registry_pass)
 
 
 def list_certificates(cmd, name, resource_group_name, location=None, certificate=None, thumbprint=None):
