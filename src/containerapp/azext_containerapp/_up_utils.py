@@ -596,11 +596,11 @@ def _get_registry_from_app(app, source):
     containerapp_def = app.get()
     existing_registries = safe_get(containerapp_def, "properties", "configuration", "registries", default=[])
     if source:
-        existing_registries = [r for r in existing_registries if "azurecr.io" in r["server"]]
+        existing_registries = [r for r in existing_registries if ACR_IMAGE_SUFFIX in r["server"]]
     if containerapp_def:
         if len(existing_registries) == 1:
             app.registry_server = existing_registries[0]["server"]
-        elif len(existing_registries) > 1:  # default to one in image if possible, otherwise don't infer
+        elif len(existing_registries) > 1:  # default to registry in image if possible, otherwise don't infer
             containers = safe_get(containerapp_def, "properties", "template", "containers", default=[])
             image_server = next(c["image"] for c in containers if c["name"].lower() == app.name.lower()).split('/')[0]
             if image_server in [r["server"] for r in existing_registries]:
