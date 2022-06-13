@@ -5,6 +5,7 @@ Release History
 
 0.3.7
 ++++++
+* Fixed bug with 'az containerapp up' where --registry-server was ignored
 
 0.3.6
 ++++++
