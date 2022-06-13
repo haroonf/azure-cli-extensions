@@ -807,7 +807,6 @@ def create_managed_environment(cmd,
 
     managed_env_def = ManagedEnvironmentModel
     managed_env_def["location"] = location
-    managed_env_def["properties"]["internalLoadBalancerEnabled"] = False
     managed_env_def["properties"]["appLogsConfiguration"] = app_logs_config_def
     managed_env_def["tags"] = tags
     managed_env_def["properties"]["zoneRedundant"] = zone_redundant
@@ -835,7 +834,7 @@ def create_managed_environment(cmd,
     if internal_only:
         if not infrastructure_subnet_resource_id:
             raise ValidationError('Infrastructure subnet resource ID needs to be supplied for internal only environments.')
-        managed_env_def["properties"]["internalLoadBalancerEnabled"] = True
+        managed_env_def["properties"]["vnetConfiguration"]["internal"] = True
 
     try:
         r = ManagedEnvironmentClient.create(
@@ -1730,6 +1729,7 @@ def set_registry(cmd, name, resource_group_name, server, username=None, password
             updating_existing_registry = True
             if username:
                 r["username"] = username
+                r["identity"] = None
             if password:
                 r["passwordSecretRef"] = store_as_secret_and_return_secret_ref(
                     containerapp_def["properties"]["configuration"]["secrets"],
@@ -1737,8 +1737,11 @@ def set_registry(cmd, name, resource_group_name, server, username=None, password
                     r["server"],
                     password,
                     update_existing_secret=True)
+                r["identity"] = None
             if identity:
                 r["identity"] = identity
+                r["username"] = None
+                r["passwordSecretRef"] = None
 
     # If not updating existing registry, add as new registry
     if not updating_existing_registry:
