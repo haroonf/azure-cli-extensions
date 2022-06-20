@@ -745,13 +745,13 @@ def delete_managed_environment(cmd, client, name, resource_group_name):
         handle_raw_exception(e)
 
 
-def assign_managed_identity(cmd, name, resource_group_name, system_assigned=False, user_assigned=None, no_wait=False):
+def assign_managed_identity(cmd, client, name, resource_group_name, system_assigned=False, user_assigned=None, no_wait=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
     containerapp_def = None
 
     # Get containerapp properties of CA we are updating
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
     except:
         pass
 
@@ -762,15 +762,15 @@ def assign_managed_identity(cmd, name, resource_group_name, system_assigned=Fals
     set_managed_identity(cmd, resource_group_name, containerapp_def, system_assigned, user_assigned)
 
     try:
-        r = ContainerAppClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
-        # If identity is not returned, do nothing
+        poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
+        r = LongRunningOperation(cmd.cli_ctx)(poller).serialize()
         return r["identity"]
 
     except Exception as e:
         handle_raw_exception(e)
 
 
-def remove_managed_identity(cmd, name, resource_group_name, system_assigned=False, user_assigned=None, no_wait=False):
+def remove_managed_identity(cmd, client, name, resource_group_name, system_assigned=False, user_assigned=None, no_wait=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     remove_system_identity = system_assigned
@@ -787,7 +787,7 @@ def remove_managed_identity(cmd, name, resource_group_name, system_assigned=Fals
     containerapp_def = None
     # Get containerapp properties of CA we are updating
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
     except:
         pass
 
@@ -845,18 +845,19 @@ def remove_managed_identity(cmd, name, resource_group_name, system_assigned=Fals
             containerapp_def["identity"]["type"] = ("None" if containerapp_def["identity"]["type"] == "UserAssigned" else "SystemAssigned")
 
     try:
-        r = ContainerAppClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
+        r = LongRunningOperation(cmd.cli_ctx)(poller).serialize()
         return r["identity"]
     except Exception as e:
         handle_raw_exception(e)
 
 
-def show_managed_identity(cmd, name, resource_group_name):
+def show_managed_identity(cmd, client, name, resource_group_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
-        r = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
-    except CLIError as e:
+        r = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
+    except CLIInternalError as e:
         handle_raw_exception(e)
 
     try:
@@ -1055,52 +1056,62 @@ def delete_github_action(cmd, name, resource_group_name, token=None, login_with_
         handle_raw_exception(e)
 
 
-def list_revisions(cmd, name, resource_group_name, all=False):
+def list_revisions(cmd, client, name, resource_group_name, all=False):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
     try:
-        revision_list = ContainerAppClient.list_revisions(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        revision_list = client.list_revisions(resource_group_name=resource_group_name, container_app_name=name)
         if all:
             return revision_list
-        return [r for r in revision_list if r["properties"]["active"]]
+        return [r for r in revision_list if r.active]
     except CLIError as e:
         handle_raw_exception(e)
 
 
-def show_revision(cmd, resource_group_name, revision_name, name=None):
+def show_revision(cmd, client, resource_group_name, revision_name, name=None):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
     if not name:
         name = _get_app_from_revision(revision_name)
 
     try:
-        return ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=revision_name)
+        return client.get_revision(resource_group_name=resource_group_name, container_app_name=name, revision_name=revision_name)
     except CLIError as e:
         handle_raw_exception(e)
 
 
-def restart_revision(cmd, resource_group_name, revision_name, name=None):
+def restart_revision(cmd, client, resource_group_name, revision_name, name=None):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
     if not name:
         name = _get_app_from_revision(revision_name)
 
     try:
-        return ContainerAppClient.restart_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=revision_name)
+        return client.restart_revision(resource_group_name=resource_group_name, container_app_name=name, revision_name=revision_name)
     except CLIError as e:
         handle_raw_exception(e)
 
 
-def activate_revision(cmd, resource_group_name, revision_name, name=None):
+def activate_revision(cmd, client, resource_group_name, revision_name, name=None):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
     if not name:
         name = _get_app_from_revision(revision_name)
 
     try:
-        return ContainerAppClient.activate_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=revision_name)
+        return client.activate_revision(resource_group_name=resource_group_name, container_app_name=name, revision_name=revision_name)
     except CLIError as e:
         handle_raw_exception(e)
 
 
-def deactivate_revision(cmd, resource_group_name, revision_name, name=None):
+def deactivate_revision(cmd, client, resource_group_name, revision_name, name=None):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
     if not name:
         name = _get_app_from_revision(revision_name)
 
     try:
-        return ContainerAppClient.deactivate_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=revision_name)
+        return client.deactivate_revision(resource_group_name=resource_group_name, container_app_name=name, revision_name=revision_name)
     except CLIError as e:
         handle_raw_exception(e)
 
@@ -1156,12 +1167,12 @@ def copy_revision(cmd,
                                      from_revision)
 
 
-def set_revision_mode(cmd, resource_group_name, name, mode, no_wait=False):
+def set_revision_mode(cmd, client, resource_group_name, name, mode, no_wait=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     containerapp_def = None
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
     except:
         pass
 
@@ -1173,14 +1184,14 @@ def set_revision_mode(cmd, resource_group_name, name, mode, no_wait=False):
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
     try:
-        r = ContainerAppClient.create_or_update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
+        r = LongRunningOperation(cmd.cli_ctx)(poller).serialize()
         return r["properties"]["configuration"]["activeRevisionsMode"]
     except Exception as e:
         handle_raw_exception(e)
 
 
-def add_revision_label(cmd, resource_group_name, revision, label, name=None, no_wait=False, yes=False):
+def add_revision_label(cmd, client, resource_group_name, revision, label, name=None, no_wait=False, yes=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     if not name:
@@ -1188,7 +1199,7 @@ def add_revision_label(cmd, resource_group_name, revision, label, name=None, no_
 
     containerapp_def = None
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
     except:
         pass
 
@@ -1237,8 +1248,8 @@ def add_revision_label(cmd, resource_group_name, revision, label, name=None, no_
     containerapp_patch_def['properties']['configuration']['ingress']['traffic'] = traffic_weight
 
     try:
-        r = ContainerAppClient.update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_patch_def, no_wait=no_wait)
+        poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
+        r = LongRunningOperation(cmd.cli_ctx)(poller).serialize()
         return r['properties']['configuration']['ingress']['traffic']
     except Exception as e:
         handle_raw_exception(e)
@@ -1874,89 +1885,59 @@ def disable_dapr(cmd, name, resource_group_name, no_wait=False):
         handle_raw_exception(e)
 
 
-def list_dapr_components(cmd, resource_group_name, environment_name):
+def list_dapr_components(cmd, client, resource_group_name, environment_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
-    return DaprComponentClient.list(cmd, resource_group_name, environment_name)
+    return client.list(resource_group_name=resource_group_name, environment_name=environment_name)
 
 
-def show_dapr_component(cmd, resource_group_name, dapr_component_name, environment_name):
+def show_dapr_component(cmd, client, resource_group_name, dapr_component_name, environment_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
-    return DaprComponentClient.show(cmd, resource_group_name, environment_name, name=dapr_component_name)
+    return client.get(resource_group_name=resource_group_name, environment_name=environment_name, component_name=dapr_component_name)
 
 
-def create_or_update_dapr_component(cmd, resource_group_name, environment_name, dapr_component_name, yaml):
+def create_or_update_dapr_component(cmd, client, resource_group_name, environment_name, dapr_component_name, yaml):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
-    yaml_containerapp = load_yaml_file(yaml)
-    if type(yaml_containerapp) != dict:  # pylint: disable=unidiomatic-typecheck
+    yaml_component = load_yaml_file(yaml)
+    if type(yaml_component) != dict:  # pylint: disable=unidiomatic-typecheck
         raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.')
 
-    # Deserialize the yaml into a DaprComponent object. Need this since we're not using SDK
-    daprcomponent_def = None
     try:
-        deserializer = create_deserializer()
-
-        daprcomponent_def = deserializer('DaprComponent', yaml_containerapp)
-    except DeserializationError as ex:
-        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.') from ex
-
-    daprcomponent_def = _convert_object_from_snake_to_camel_case(_object_to_dict(daprcomponent_def))
-
-    # Remove "additionalProperties" and read-only attributes that are introduced in the deserialization. Need this since we're not using SDK
-    _remove_additional_attributes(daprcomponent_def)
-    _remove_dapr_readonly_attributes(daprcomponent_def)
-
-    if not daprcomponent_def["ignoreErrors"]:
-        daprcomponent_def["ignoreErrors"] = False
-
-    dapr_component_envelope = {}
-
-    dapr_component_envelope["properties"] = daprcomponent_def
-
-    try:
-        r = DaprComponentClient.create_or_update(cmd, resource_group_name=resource_group_name, environment_name=environment_name, dapr_component_envelope=dapr_component_envelope, name=dapr_component_name)
-        return r
+        return client.create_or_update(resource_group_name=resource_group_name, environment_name=environment_name, dapr_component_envelope=yaml_component, component_name=dapr_component_name)
     except Exception as e:
         handle_raw_exception(e)
 
 
-def remove_dapr_component(cmd, resource_group_name, dapr_component_name, environment_name):
+def remove_dapr_component(cmd, client, resource_group_name, dapr_component_name, environment_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
-        DaprComponentClient.show(cmd, resource_group_name, environment_name, name=dapr_component_name)
+        client.get(resource_group_name=resource_group_name, environment_name=environment_name, component_name=dapr_component_name)
     except Exception as e:
         raise ResourceNotFoundError("Dapr component not found.") from e
 
     try:
-        r = DaprComponentClient.delete(cmd, resource_group_name, environment_name, name=dapr_component_name)
-        logger.warning("Dapr componenet successfully deleted.")
-        return r
+        return client.delete(resource_group_name=resource_group_name, environment_name=environment_name, component_name=dapr_component_name)
     except Exception as e:
         handle_raw_exception(e)
 
 
-def list_replicas(cmd, resource_group_name, name, revision=None):
-    app = ContainerAppClient.show(cmd, resource_group_name, name)
+def list_replicas(cmd, client, resource_group_name, name, revision=None):
+    from ._client_factory import cf_containerapps
+    app = cf_containerapps(cmd.cli_ctx).get(container_app_name=name, resource_group_name=resource_group_name)
     if not revision:
-        revision = app["properties"]["latestRevisionName"]
-    return ContainerAppClient.list_replicas(cmd=cmd,
-                                            resource_group_name=resource_group_name,
-                                            container_app_name=name,
-                                            revision_name=revision)
+        revision = app.latest_revision_name
+    return client.list_replicas(resource_group_name=resource_group_name, container_app_name=name, revision_name=revision)
 
 
-def get_replica(cmd, resource_group_name, name, replica, revision=None):
-    app = ContainerAppClient.show(cmd, resource_group_name, name)
+def get_replica(cmd, client, resource_group_name, name, replica, revision=None):
+    from ._client_factory import cf_containerapps
+    app = cf_containerapps(cmd.cli_ctx).get(container_app_name=name, resource_group_name=resource_group_name)
     if not revision:
-        revision = app["properties"]["latestRevisionName"]
-    return ContainerAppClient.get_replica(cmd=cmd,
-                                          resource_group_name=resource_group_name,
-                                          container_app_name=name,
-                                          revision_name=revision,
-                                          replica_name=replica)
+        revision = app.latest_revision_name
+    return client.get_replica(container_app_name=name, resource_group_name=resource_group_name, revision_name=revision, replica_name=replica)
 
 
 def containerapp_ssh(cmd, resource_group_name, name, container=None, revision=None, replica=None, startup_command="sh"):
@@ -2016,11 +1997,11 @@ def stream_containerapp_logs(cmd, resource_group_name, name, container=None, rev
             print(line.decode("utf-8").replace("\\u0022", "\u0022").replace("\\u001B", "\u001B").replace("\\u002B", "\u002B").replace("\\u0027", "\u0027"))
 
 
-def open_containerapp_in_browser(cmd, name, resource_group_name):
-    app = ContainerAppClient.show(cmd, resource_group_name, name)
-    url = safe_get(app, "properties", "configuration", "ingress", "fqdn")
-    if not url:
+def open_containerapp_in_browser(cmd, client, name, resource_group_name):
+    app = client.get(resource_group_name=resource_group_name, container_app_name=name)
+    if not app.configuration.ingress or not app.configuration.ingress.fqdn:
         raise ValidationError("Could not open in browser: no public URL for this app")
+    url = app.configuration.ingress.fqdn
     if not url.startswith("http"):
         url = f"http://{url}"
     open_page_in_browser(url)
@@ -2119,141 +2100,19 @@ def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, en
     except:
         pass
 
-    try:
-        location = ManagedEnvironmentClient.show(cmd, resource_group_name, managed_env.split('/')[-1])["location"]
-    except:
-        pass
-
-    ca_exists = False
     if containerapp_def:
-        ca_exists = True
-
-    # When using repo, image is not passed, so we have to assign it a value (will be overwritten with gh-action)
-    if image is None:
-        image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
-
-    if not ca_exists:
-        containerapp_def = None
-        containerapp_def = ContainerAppModel
-        containerapp_def["location"] = location
-        containerapp_def["properties"]["managedEnvironmentId"] = managed_env
-        containerapp_def["properties"]["configuration"] = ConfigurationModel
-    else:
-        # check provisioning state here instead of secrets so no error
-        _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
-
-    container = ContainerModel
-    container["image"] = image
-    container["name"] = name
-
-    if env_vars:
-        container["env"] = parse_env_var_flags(env_vars)
-
-    external_ingress = None
-    if ingress is not None:
-        if ingress.lower() == "internal":
-            external_ingress = False
-        elif ingress.lower() == "external":
-            external_ingress = True
-
-    ingress_def = None
-    if target_port is not None and ingress is not None:
-        if ca_exists:
-            ingress_def = containerapp_def["properties"]["configuration"]["ingress"]
-        else:
-            ingress_def = IngressModel
-        ingress_def["external"] = external_ingress
-        ingress_def["targetPort"] = target_port
-        containerapp_def["properties"]["configuration"]["ingress"] = ingress_def
-
-    # handle multi-container case
-    if ca_exists:
-        existing_containers = containerapp_def["properties"]["template"]["containers"]
-        if len(existing_containers) == 0:
-            # No idea how this would ever happen, failed provisioning maybe?
-            containerapp_def["properties"]["template"] = TemplateModel
-            containerapp_def["properties"]["template"]["containers"] = [container]
-        if len(existing_containers) == 1:
-            # Assume they want it updated
-            existing_containers[0] = container
-        if len(existing_containers) > 1:
-            # Assume they want to update, if not existing just add it
-            existing_containers = [x for x in existing_containers if x['name'].lower() == name.lower()]
-            if len(existing_containers) == 1:
-                existing_containers[0] = container
-            else:
-                existing_containers.append(container)
-        containerapp_def["properties"]["template"]["containers"] = existing_containers
-    else:
-        containerapp_def["properties"]["template"] = TemplateModel
-        containerapp_def["properties"]["template"]["containers"] = [container]
-
-    registries_def = None
-    registry = None
-
-    if "secrets" not in containerapp_def["properties"]["configuration"] or containerapp_def["properties"]["configuration"]["secrets"] is None:
-        containerapp_def["properties"]["configuration"]["secrets"] = []
-
-    if "registries" not in containerapp_def["properties"]["configuration"] or containerapp_def["properties"]["configuration"]["registries"] is None:
-        containerapp_def["properties"]["configuration"]["registries"] = []
-
-    registries_def = containerapp_def["properties"]["configuration"]["registries"]
-
-    if registry_server:
-        if not registry_pass or not registry_user:
-            if ACR_IMAGE_SUFFIX not in registry_server:
-                raise RequiredArgumentMissingError('Registry url is required if using Azure Container Registry, otherwise Registry username and password are required if using Dockerhub')
-            logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
-            parsed = urlparse(registry_server)
-            registry_name = (parsed.netloc if parsed.scheme else parsed.path).split('.')[0]
-            registry_user, registry_pass, _ = _get_acr_cred(cmd.cli_ctx, registry_name)
-        # Check if updating existing registry
-        updating_existing_registry = False
-        for r in registries_def:
-            if r['server'].lower() == registry_server.lower():
-                updating_existing_registry = True
-                if registry_user:
-                    r["username"] = registry_user
-                if registry_pass:
-                    r["passwordSecretRef"] = store_as_secret_and_return_secret_ref(
-                        containerapp_def["properties"]["configuration"]["secrets"],
-                        r["username"],
-                        r["server"],
-                        registry_pass,
-                        update_existing_secret=True,
-                        disable_warnings=True)
-
-        # If not updating existing registry, add as new registry
-        if not updating_existing_registry:
-            registry = RegistryCredentialsModel
-            registry["server"] = registry_server
-            registry["username"] = registry_user
-            registry["passwordSecretRef"] = store_as_secret_and_return_secret_ref(
-                containerapp_def["properties"]["configuration"]["secrets"],
-                registry_user,
-                registry_server,
-                registry_pass,
-                update_existing_secret=True,
-                disable_warnings=True)
-
-            registries_def.append(registry)
-
-    try:
-        if ca_exists:
-            return ContainerAppClient.update(cmd, resource_group_name, name, containerapp_def)
-        return ContainerAppClient.create_or_update(cmd, resource_group_name, name, containerapp_def)
-    except Exception as e:
-        handle_raw_exception(e)
+        return update_containerapp_logic(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, replace_env_vars=env_vars, ingress=ingress, target_port=target_port, registry_server=registry_server, registry_user=registry_user, registry_pass=registry_pass, container_name=name) # need ingress, target port, registry stuff to work here
+    return create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, managed_env=managed_env, image=image, env_vars=env_vars, ingress=ingress, target_port=target_port, registry_server=registry_server, registry_user=registry_user, registry_pass=registry_pass)
 
 
-def list_certificates(cmd, name, resource_group_name, location=None, certificate=None, thumbprint=None):
+def list_certificates(cmd, client, name, resource_group_name, location=None, certificate=None, thumbprint=None):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     def location_match(c):
-        return c["location"] == location or not location
+        return c.location == location or not location
 
     def thumbprint_match(c):
-        return c["properties"]["thumbprint"] == thumbprint or not thumbprint
+        return c.thumbprint == thumbprint or not thumbprint
 
     def both_match(c):
         return location_match(c) and thumbprint_match(c)
@@ -2264,19 +2123,20 @@ def list_certificates(cmd, name, resource_group_name, location=None, certificate
         else:
             certificate_name = certificate
         try:
-            r = ManagedEnvironmentClient.show_certificate(cmd, resource_group_name, name, certificate_name)
+            
+            r = client.get(resource_group_name=resource_group_name, environment_name=name, certificate_name=certificate_name)
             return [r] if both_match(r) else []
         except Exception as e:
             handle_raw_exception(e)
     else:
         try:
-            r = ManagedEnvironmentClient.list_certificates(cmd, resource_group_name, name)
+            r = client.list(resource_group_name=resource_group_name, environment_name=name)
             return list(filter(both_match, r))
         except Exception as e:
             handle_raw_exception(e)
 
 
-def upload_certificate(cmd, name, resource_group_name, certificate_file, certificate_name=None, certificate_password=None, location=None, prompt=False):
+def upload_certificate(cmd, client, name, resource_group_name, certificate_file, certificate_name=None, certificate_password=None, location=None, prompt=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     blob, thumbprint = load_cert_file(certificate_file, certificate_password)
@@ -2302,30 +2162,30 @@ def upload_certificate(cmd, name, resource_group_name, certificate_file, certifi
     while not cert_name:
         random_name = generate_randomized_cert_name(thumbprint, name, resource_group_name)
         check_result = check_cert_name_availability(cmd, resource_group_name, name, random_name)
-        if check_result["nameAvailable"]:
+        if check_result.name_available:
             cert_name = random_name
-        elif not check_result["nameAvailable"] and (check_result["reason"] == NAME_INVALID):
-            raise ValidationError(check_result["message"])
+        elif not check_result.name_available and (check_result.reason == NAME_INVALID):
+            raise ValidationError(check_result.message)
 
-    certificate = ContainerAppCertificateEnvelopeModel
-    certificate["properties"]["password"] = certificate_password
-    certificate["properties"]["value"] = blob
-    certificate["location"] = location
-    if not certificate["location"]:
+    from azure.mgmt.appcontainers.models import ContainerAppCertificateEnvelope
+
+    if not location:
         try:
-            managed_env = ManagedEnvironmentClient.show(cmd, resource_group_name, name)
-            certificate["location"] = managed_env["location"]
+            from ._client_factory import cf_managedenvs
+            managed_env = cf_managedenvs(cmd.cli_ctx).get(resource_group_name=resource_group_name, environment_name=name)
+            location = managed_env.location
         except Exception as e:
             handle_raw_exception(e)
 
+    certificate_def = ContainerAppCertificateEnvelope(password=certificate_password, value=blob, location=location)
+
     try:
-        r = ManagedEnvironmentClient.create_or_update_certificate(cmd, resource_group_name, name, cert_name, certificate)
-        return r
+        return client.create_or_update(resource_group_name=resource_group_name, environment_name=name, certificate_name=cert_name, certificate_envelope=certificate_def)
     except Exception as e:
         handle_raw_exception(e)
 
 
-def delete_certificate(cmd, resource_group_name, name, location=None, certificate=None, thumbprint=None):
+def delete_certificate(cmd, client, resource_group_name, name, location=None, certificate=None, thumbprint=None):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     if not certificate and not thumbprint:
@@ -2333,8 +2193,8 @@ def delete_certificate(cmd, resource_group_name, name, location=None, certificat
     certs = list_certificates(cmd, name, resource_group_name, location, certificate, thumbprint)
     for cert in certs:
         try:
-            ManagedEnvironmentClient.delete_certificate(cmd, resource_group_name, name, cert["name"])
-            logger.warning('Successfully deleted certificate: {}'.format(cert["name"]))
+            client.delete_certificate(resource_group_name=resource_group_name, environment_name=name, certificate_name=cert.name)
+            logger.warning('Successfully deleted certificate: {}'.format(cert.name))
         except Exception as e:
             handle_raw_exception(e)
 
