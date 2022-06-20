@@ -6,7 +6,7 @@
 # pylint: disable=line-too-long, too-many-statements, bare-except
 # from azure.cli.core.commands import CliCommandType
 # from msrestazure.tools import is_valid_resource_id, parse_resource_id
-from azext_containerapp._client_factory import ex_handler_factory, cf_containerapps, cf_managedenvs, cf_revisions, cf_replicas
+from azext_containerapp._client_factory import ex_handler_factory, cf_containerapps, cf_managedenvs, cf_revisions, cf_replicas, cf_dapr_components
 from ._validators import validate_ssh
 
 
@@ -61,22 +61,22 @@ def load_command_table(self, _):
     with self.command_group('containerapp logs') as g:
         g.custom_show_command('show', 'stream_containerapp_logs', validator=validate_ssh)  # TODO
 
-    with self.command_group('containerapp env') as g:
+    with self.command_group('containerapp env', client_factory=cf_managedenvs) as g:
         g.custom_show_command('show', 'show_managed_environment')
         g.custom_command('list', 'list_managed_environments')
         g.custom_command('create', 'create_managed_environment', supports_no_wait=True, exception_handler=ex_handler_factory())
         g.custom_command('delete', 'delete_managed_environment', supports_no_wait=True, confirmation=True, exception_handler=ex_handler_factory())
 
-    with self.command_group('containerapp env dapr-component') as g:
+    with self.command_group('containerapp env dapr-component', client_factory=cf_dapr_components) as g:
         g.custom_command('list', 'list_dapr_components')
         g.custom_show_command('show', 'show_dapr_component')
         g.custom_command('set', 'create_or_update_dapr_component')
         g.custom_command('remove', 'remove_dapr_component')
 
     with self.command_group('containerapp env certificate') as g:
-        g.custom_command('list', 'list_certificates')
-        g.custom_command('upload', 'upload_certificate')
-        g.custom_command('delete', 'delete_certificate', confirmation=True, exception_handler=ex_handler_factory())
+        g.custom_command('list', 'list_certificates')  # TODO: Testing
+        g.custom_command('upload', 'upload_certificate')  # TODO: Testing
+        g.custom_command('delete', 'delete_certificate', confirmation=True, exception_handler=ex_handler_factory())  # TODO: Testing
 
     with self.command_group('containerapp env storage', is_preview=True) as g:
         g.custom_show_command('show', 'show_storage')

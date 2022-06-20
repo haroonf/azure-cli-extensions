@@ -638,6 +638,7 @@ def delete_containerapp(cmd, client, name, resource_group_name):
 
 
 def create_managed_environment(cmd,
+                               client,
                                name,
                                resource_group_name,
                                logs_customer_id=None,
@@ -675,52 +676,26 @@ def create_managed_environment(cmd,
     if logs_customer_id is None or logs_key is None:
         logs_customer_id, logs_key = _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, location, resource_group_name)
 
-    log_analytics_config_def = LogAnalyticsConfigurationModel
-    log_analytics_config_def["customerId"] = logs_customer_id
-    log_analytics_config_def["sharedKey"] = logs_key
+    from azure.mgmt.appcontainers.models import LogAnalyticsConfiguration, AppLogsConfiguration, ManagedEnvironment, VnetConfiguration
 
-    app_logs_config_def = AppLogsConfigurationModel
-    app_logs_config_def["destination"] = "log-analytics"
-    app_logs_config_def["logAnalyticsConfiguration"] = log_analytics_config_def
+    log_analytics_config_def = LogAnalyticsConfiguration(customer_id=logs_customer_id, shared_key=logs_key)
 
-    managed_env_def = ManagedEnvironmentModel
-    managed_env_def["location"] = location
-    managed_env_def["properties"]["internalLoadBalancerEnabled"] = False
-    managed_env_def["properties"]["appLogsConfiguration"] = app_logs_config_def
-    managed_env_def["tags"] = tags
-    managed_env_def["properties"]["zoneRedundant"] = zone_redundant
+    app_logs_config_def = AppLogsConfiguration(destination="log-analytics", log_analytics_configuration=log_analytics_config_def)
 
-    if instrumentation_key is not None:
-        managed_env_def["properties"]["daprAIInstrumentationKey"] = instrumentation_key
-
-    if infrastructure_subnet_resource_id or docker_bridge_cidr or platform_reserved_cidr or platform_reserved_dns_ip:
-        vnet_config_def = VnetConfigurationModel
-
-        if infrastructure_subnet_resource_id is not None:
-            vnet_config_def["infrastructureSubnetId"] = infrastructure_subnet_resource_id
-
-        if docker_bridge_cidr is not None:
-            vnet_config_def["dockerBridgeCidr"] = docker_bridge_cidr
-
-        if platform_reserved_cidr is not None:
-            vnet_config_def["platformReservedCidr"] = platform_reserved_cidr
-
-        if platform_reserved_dns_ip is not None:
-            vnet_config_def["platformReservedDnsIP"] = platform_reserved_dns_ip
-
-        managed_env_def["properties"]["vnetConfiguration"] = vnet_config_def
+    vnet_config_def = VnetConfiguration(internal = internal_only, infrastructure_subnet_id = infrastructure_subnet_resource_id, docker_bridge_cidr=docker_bridge_cidr, platform_reserved_cidr=platform_reserved_cidr, platform_reserved_dns_ip=platform_reserved_dns_ip)
 
     if internal_only:
         if not infrastructure_subnet_resource_id:
             raise ValidationError('Infrastructure subnet resource ID needs to be supplied for internal only environments.')
-        managed_env_def["properties"]["internalLoadBalancerEnabled"] = True
+
+    managed_env_def = ManagedEnvironment(location=location, app_logs_configuration=app_logs_config_def, tags=tags, zone_redundant=zone_redundant, dapr_ai_instrumentation_key=instrumentation_key, vnet_configuration=vnet_config_def)
 
     try:
-        r = ManagedEnvironmentClient.create(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, managed_environment_envelope=managed_env_def, no_wait=no_wait)
-
-        if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
-            not disable_warnings and logger.warning('Containerapp environment creation in progress. Please monitor the creation using `az containerapp env show -n {} -g {}`'.format(name, resource_group_name))
+        poller = client.begin_create_or_update(resource_group_name=resource_group_name, environment_name=name, environment_envelope=managed_env_def)
+        if not no_wait:
+            r = LongRunningOperation(cmd.cli_ctx)(poller)
+        else:
+            r = client.get(resource_group_name=resource_group_name, environment_name=name)
 
         not disable_warnings and logger.warning("\nContainer Apps environment created. To deploy a container app, use: az containerapp create --help\n")
 
@@ -730,6 +705,7 @@ def create_managed_environment(cmd,
 
 
 def update_managed_environment(cmd,
+                               client,
                                name,
                                resource_group_name,
                                tags=None,
@@ -737,35 +713,35 @@ def update_managed_environment(cmd,
     raise CLIInternalError('Containerapp env update is not yet supported.')
 
 
-def show_managed_environment(cmd, name, resource_group_name):
+def show_managed_environment(cmd, client, name, resource_group_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
-        return ManagedEnvironmentClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        return client.get(resource_group_name=resource_group_name, environment_name=name)
     except CLIError as e:
         handle_raw_exception(e)
 
 
-def list_managed_environments(cmd, resource_group_name=None):
+def list_managed_environments(cmd, client, resource_group_name=None):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
         managed_envs = []
         if resource_group_name is None:
-            managed_envs = ManagedEnvironmentClient.list_by_subscription(cmd=cmd)
+            managed_envs = client.list_by_subscription()
         else:
-            managed_envs = ManagedEnvironmentClient.list_by_resource_group(cmd=cmd, resource_group_name=resource_group_name)
+            managed_envs = client.list_by_resource_group(resource_group_name=resource_group_name)
 
         return managed_envs
     except CLIError as e:
         handle_raw_exception(e)
 
 
-def delete_managed_environment(cmd, name, resource_group_name, no_wait=False):
+def delete_managed_environment(cmd, client, name, resource_group_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
-        return ManagedEnvironmentClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name, no_wait=no_wait)
+        return client.begin_delete(environment_name=name, resource_group_name=resource_group_name)
     except CLIError as e:
         handle_raw_exception(e)
 
@@ -1913,66 +1889,41 @@ def disable_dapr(cmd, name, resource_group_name, no_wait=False):
         handle_raw_exception(e)
 
 
-def list_dapr_components(cmd, resource_group_name, environment_name):
+def list_dapr_components(cmd, client, resource_group_name, environment_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
-    return DaprComponentClient.list(cmd, resource_group_name, environment_name)
+    return client.list(resource_group_name=resource_group_name, environment_name=environment_name)
 
 
-def show_dapr_component(cmd, resource_group_name, dapr_component_name, environment_name):
+def show_dapr_component(cmd, client, resource_group_name, dapr_component_name, environment_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
-    return DaprComponentClient.show(cmd, resource_group_name, environment_name, name=dapr_component_name)
+    return client.get(resource_group_name=resource_group_name, environment_name=environment_name, component_name=dapr_component_name)
 
 
-def create_or_update_dapr_component(cmd, resource_group_name, environment_name, dapr_component_name, yaml):
+def create_or_update_dapr_component(cmd, client, resource_group_name, environment_name, dapr_component_name, yaml):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
-    yaml_containerapp = load_yaml_file(yaml)
-    if type(yaml_containerapp) != dict:  # pylint: disable=unidiomatic-typecheck
+    yaml_component = load_yaml_file(yaml)
+    if type(yaml_component) != dict:  # pylint: disable=unidiomatic-typecheck
         raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.')
 
-    # Deserialize the yaml into a DaprComponent object. Need this since we're not using SDK
-    daprcomponent_def = None
     try:
-        deserializer = create_deserializer()
-
-        daprcomponent_def = deserializer('DaprComponent', yaml_containerapp)
-    except DeserializationError as ex:
-        raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.') from ex
-
-    daprcomponent_def = _convert_object_from_snake_to_camel_case(_object_to_dict(daprcomponent_def))
-
-    # Remove "additionalProperties" and read-only attributes that are introduced in the deserialization. Need this since we're not using SDK
-    _remove_additional_attributes(daprcomponent_def)
-    _remove_dapr_readonly_attributes(daprcomponent_def)
-
-    if not daprcomponent_def["ignoreErrors"]:
-        daprcomponent_def["ignoreErrors"] = False
-
-    dapr_component_envelope = {}
-
-    dapr_component_envelope["properties"] = daprcomponent_def
-
-    try:
-        r = DaprComponentClient.create_or_update(cmd, resource_group_name=resource_group_name, environment_name=environment_name, dapr_component_envelope=dapr_component_envelope, name=dapr_component_name)
-        return r
+        return client.create_or_update(resource_group_name=resource_group_name, environment_name=environment_name, dapr_component_envelope=yaml_component, component_name=dapr_component_name)
     except Exception as e:
         handle_raw_exception(e)
 
 
-def remove_dapr_component(cmd, resource_group_name, dapr_component_name, environment_name):
+def remove_dapr_component(cmd, client, resource_group_name, dapr_component_name, environment_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
-        DaprComponentClient.show(cmd, resource_group_name, environment_name, name=dapr_component_name)
+        client.get(resource_group_name=resource_group_name, environment_name=environment_name, component_name=dapr_component_name)
     except Exception as e:
         raise ResourceNotFoundError("Dapr component not found.") from e
 
     try:
-        r = DaprComponentClient.delete(cmd, resource_group_name, environment_name, name=dapr_component_name)
-        logger.warning("Dapr componenet successfully deleted.")
-        return r
+        return client.delete(resource_group_name=resource_group_name, environment_name=environment_name, component_name=dapr_component_name)
     except Exception as e:
         handle_raw_exception(e)
 

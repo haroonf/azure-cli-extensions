@@ -96,3 +96,6 @@ def cf_revisions(cli_ctx, *_):
 
 def cf_replicas(cli_ctx, *_):
     return app_client_factory(cli_ctx).container_apps_revision_replicas
+
+def cf_dapr_components(cli_ctx, *_):
+    return app_client_factory(cli_ctx).dapr_components

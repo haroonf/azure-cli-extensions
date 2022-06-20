@@ -82,7 +82,7 @@ class ContainerappEnvScenarioTest(ScenarioTest):
 
         containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
-        while containerapp_env["properties"]["provisioningState"].lower() == "waiting":
+        while containerapp_env["provisioningState"].lower() == "waiting":
             time.sleep(5)
             containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
@@ -99,10 +99,10 @@ class ContainerappEnvScenarioTest(ScenarioTest):
 
         self.cmd('containerapp env dapr-component show -n {} -g {} --dapr-component-name {}'.format(env_name, resource_group, dapr_comp_name), checks=[
             JMESPathCheck('name', dapr_comp_name),
-            JMESPathCheck('properties.version', 'v1'),
-            JMESPathCheck('properties.secrets[0].name', 'storage-account-name'),
-            JMESPathCheck('properties.metadata[0].name', 'accountName'),
-            JMESPathCheck('properties.metadata[0].secretRef', 'storage-account-name'),
+            JMESPathCheck('version', 'v1'),
+            JMESPathCheck('secrets[0].name', 'storage-account-name'),
+            JMESPathCheck('metadata[0].name', 'accountName'),
+            JMESPathCheck('metadata[0].secretRef', 'storage-account-name'),
         ])
 
         self.cmd('containerapp env dapr-component remove -n {} -g {} --dapr-component-name {}'.format(env_name, resource_group, dapr_comp_name))
