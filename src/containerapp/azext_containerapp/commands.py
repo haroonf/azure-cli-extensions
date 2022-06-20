@@ -6,7 +6,7 @@
 # pylint: disable=line-too-long, too-many-statements, bare-except
 # from azure.cli.core.commands import CliCommandType
 # from msrestazure.tools import is_valid_resource_id, parse_resource_id
-from azext_containerapp._client_factory import ex_handler_factory, cf_containerapps, cf_managedenvs, cf_revisions
+from azext_containerapp._client_factory import ex_handler_factory, cf_containerapps, cf_managedenvs, cf_revisions, cf_replicas
 from ._validators import validate_ssh
 
 
@@ -50,16 +50,16 @@ def load_command_table(self, _):
         g.custom_command('create', 'create_containerapp', supports_no_wait=True, exception_handler=ex_handler_factory(), table_transformer=transform_containerapp_output)
         g.custom_command('update', 'update_containerapp', supports_no_wait=True, exception_handler=ex_handler_factory(), table_transformer=transform_containerapp_output)
         g.custom_command('delete', 'delete_containerapp', supports_no_wait=True, confirmation=True, exception_handler=ex_handler_factory())
-        g.custom_command('exec', 'containerapp_ssh', validator=validate_ssh)
-        g.custom_command('up', 'containerapp_up', supports_no_wait=False, exception_handler=ex_handler_factory())
+        g.custom_command('exec', 'containerapp_ssh', validator=validate_ssh)  # TODO
+        g.custom_command('up', 'containerapp_up', supports_no_wait=False, exception_handler=ex_handler_factory())  # TODO
         g.custom_command('browse', 'open_containerapp_in_browser')
 
-    with self.command_group('containerapp replica') as g:
+    with self.command_group('containerapp replica', client_factory=cf_replicas) as g:
         g.custom_show_command('show', 'get_replica')  # TODO implement the table transformer
         g.custom_command('list', 'list_replicas')
 
     with self.command_group('containerapp logs') as g:
-        g.custom_show_command('show', 'stream_containerapp_logs', validator=validate_ssh)
+        g.custom_show_command('show', 'stream_containerapp_logs', validator=validate_ssh)  # TODO
 
     with self.command_group('containerapp env') as g:
         g.custom_show_command('show', 'show_managed_environment')

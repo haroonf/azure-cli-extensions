@@ -1977,25 +1977,20 @@ def remove_dapr_component(cmd, resource_group_name, dapr_component_name, environ
         handle_raw_exception(e)
 
 
-def list_replicas(cmd, resource_group_name, name, revision=None):
-    app = ContainerAppClient.show(cmd, resource_group_name, name)
+def list_replicas(cmd, client, resource_group_name, name, revision=None):
+    from ._client_factory import cf_containerapps
+    app = cf_containerapps(cmd.cli_ctx).get(container_app_name=name, resource_group_name=resource_group_name)
     if not revision:
-        revision = app["properties"]["latestRevisionName"]
-    return ContainerAppClient.list_replicas(cmd=cmd,
-                                            resource_group_name=resource_group_name,
-                                            container_app_name=name,
-                                            revision_name=revision)
+        revision = app.latest_revision_name
+    return client.list_replicas(resource_group_name=resource_group_name, container_app_name=name, revision_name=revision)
 
 
-def get_replica(cmd, resource_group_name, name, replica, revision=None):
-    app = ContainerAppClient.show(cmd, resource_group_name, name)
+def get_replica(cmd, client, resource_group_name, name, replica, revision=None):
+    from ._client_factory import cf_containerapps
+    app = cf_containerapps(cmd.cli_ctx).get(container_app_name=name, resource_group_name=resource_group_name)
     if not revision:
-        revision = app["properties"]["latestRevisionName"]
-    return ContainerAppClient.get_replica(cmd=cmd,
-                                          resource_group_name=resource_group_name,
-                                          container_app_name=name,
-                                          revision_name=revision,
-                                          replica_name=replica)
+        revision = app.latest_revision_name
+    return client.get_replica(container_app_name=name, resource_group_name=resource_group_name, revision_name=revision, replica_name=replica)
 
 
 def containerapp_ssh(cmd, resource_group_name, name, container=None, revision=None, replica=None, startup_command="sh"):
