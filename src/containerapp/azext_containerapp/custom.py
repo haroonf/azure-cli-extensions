@@ -64,14 +64,13 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      _update_revision_env_secretrefs, _get_acr_cred, safe_get, await_github_action, repo_url_to_name,
                      validate_container_app_name, _update_weights, get_vnet_location, register_provider_if_needed,
                      generate_randomized_cert_name, _get_name, load_cert_file, check_cert_name_availability,
-                     validate_hostname, patch_new_custom_domain, get_custom_domains, _validate_revision_name, set_managed_identity)
+                     validate_hostname, patch_new_custom_domain, get_custom_domains, _validate_revision_name)
 
 
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
                          SSH_BACKUP_ENCODING)
 from ._constants import (MAXIMUM_SECRET_LENGTH, MICROSOFT_SECRET_SETTING_NAME, FACEBOOK_SECRET_SETTING_NAME, GITHUB_SECRET_SETTING_NAME,
-                         GOOGLE_SECRET_SETTING_NAME, TWITTER_SECRET_SETTING_NAME, APPLE_SECRET_SETTING_NAME, CONTAINER_APPS_RP,
-                         NAME_INVALID, NAME_ALREADY_EXISTS, ACR_IMAGE_SUFFIX)
+                         GOOGLE_SECRET_SETTING_NAME, TWITTER_SECRET_SETTING_NAME, APPLE_SECRET_SETTING_NAME, CONTAINER_APPS_RP)
 
 logger = get_logger(__name__)
 
@@ -263,7 +262,10 @@ def create_containerapp(cmd,
 
     try:
         poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
-        r = LongRunningOperation(cmd.cli_ctx)(poller)
+        if not no_wait:
+            r = LongRunningOperation(cmd.cli_ctx)(poller)
+        else:
+            r = client.get(resource_group_name=resource_group_name, container_app_name=name)
 
         if r.configuration.ingress and r.configuration.ingress.fqdn:
             not disable_warnings and logger.warning("\nContainer app created. Access your app at https://{}/\n".format(r.configuration.ingress.fqdn))
@@ -539,12 +541,11 @@ def update_containerapp_logic(cmd,
                 registries_def.append(registry)
 
     try:
-        poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=new_containerapp)
-        r = LongRunningOperation(cmd.cli_ctx)(poller)
+        poller = client.begin_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=new_containerapp)
+        if not no_wait:
+            LongRunningOperation(cmd.cli_ctx)(poller)  # doesn't return object, only status code since it uses patch api
 
-        # return new_containerapp
-        # if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
-        #     logger.warning('Containerapp update in progress. Please monitor the update using `az containerapp show -n {} -g {}`'.format(name, resource_group_name))
+        r = client.get(resource_group_name=resource_group_name, container_app_name=name)
 
         return r
     except Exception as e:
@@ -622,20 +623,12 @@ def list_containerapp(cmd, client, resource_group_name=None, managed_env=None):
             else:
                 containerapps = [c for c in containerapps if parse_resource_id(c.managed_environment_id)["name"].lower() == env_name]
 
-        if managed_env:
-            env_name = parse_resource_id(managed_env)["name"].lower()
-            if "resource_group" in parse_resource_id(managed_env):
-                ManagedEnvironmentClient.show(cmd, parse_resource_id(managed_env)["resource_group"], parse_resource_id(managed_env)["name"])
-                containerapps = [c for c in containerapps if c["properties"]["managedEnvironmentId"].lower() == managed_env.lower()]
-            else:
-                containerapps = [c for c in containerapps if parse_resource_id(c["properties"]["managedEnvironmentId"])["name"].lower() == env_name]
-
         return containerapps
     except CLIError as e:
         handle_raw_exception(e)
 
 
-def delete_containerapp(cmd, client, name, resource_group_name, no_wait=False):
+def delete_containerapp(cmd, client, name, resource_group_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
