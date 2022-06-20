@@ -33,6 +33,8 @@ def handle_raw_exception(e):
     import json
 
     stringErr = str(e)
+    if "response" in stringErr.lower():
+        stringErr = stringErr[stringErr.lower().rindex("response"):]
 
     if "{" in stringErr and "}" in stringErr:
         jsonError = stringErr[stringErr.index("{"):stringErr.rindex("}") + 1]
@@ -65,11 +67,43 @@ def cf_resource_groups(cli_ctx, subscription_id=None):
 
 def log_analytics_client_factory(cli_ctx):
     from azure.mgmt.loganalytics import LogAnalyticsManagementClient
-
     return get_mgmt_service_client(cli_ctx, LogAnalyticsManagementClient).workspaces
 
 
 def log_analytics_shared_key_client_factory(cli_ctx):
     from azure.mgmt.loganalytics import LogAnalyticsManagementClient
-
     return get_mgmt_service_client(cli_ctx, LogAnalyticsManagementClient).shared_keys
+
+
+def app_client_factory(cli_ctx, *_):
+    from azure.mgmt.appcontainers import ContainerAppsAPIClient
+    from azure.cli.core.commands.client_factory import get_mgmt_service_client
+    return get_mgmt_service_client(cli_ctx, ContainerAppsAPIClient)
+
+
+def cf_containerapps(cli_ctx, *_):
+    return app_client_factory(cli_ctx).container_apps
+
+
+def cf_managedenvs(cli_ctx, *_):
+    return app_client_factory(cli_ctx).managed_environments
+
+
+def cf_revisions(cli_ctx, *_):
+    return app_client_factory(cli_ctx).container_apps_revisions
+
+
+def cf_replicas(cli_ctx, *_):
+    return app_client_factory(cli_ctx).container_apps_revision_replicas
+
+
+def cf_dapr_components(cli_ctx, *_):
+    return app_client_factory(cli_ctx).dapr_components
+
+
+def cf_certificates(cli_ctx, *_):
+    return app_client_factory(cli_ctx).certificates
+
+
+def cf_namespaces(cli_ctx, *_):
+    return app_client_factory(cli_ctx).namespaces
