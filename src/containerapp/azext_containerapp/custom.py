@@ -704,7 +704,7 @@ def update_containerapp_logic(cmd,
 
         if registry_server:
             if not registry_pass or not registry_user:
-                if '.azurecr.io' not in registry_server:
+                if ACR_IMAGE_SUFFIX not in registry_server:
                     raise RequiredArgumentMissingError('Registry url is required if using Azure Container Registry, otherwise Registry username and password are required if using Dockerhub')
                 logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
                 parsed = urlparse(registry_server)
