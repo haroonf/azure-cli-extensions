@@ -1270,14 +1270,16 @@ def load_cert_file(file_path, cert_password=None):
 
 
 def check_cert_name_availability(cmd, resource_group_name, name, cert_name):
-    name_availability_request = {}
-    name_availability_request["name"] = cert_name
-    name_availability_request["type"] = CHECK_CERTIFICATE_NAME_AVAILABILITY_TYPE
+    from ._client_factory import cf_namespaces
+    from azure.mgmt.appcontainers.models import CheckNameAvailabilityRequest
+    client = cf_namespaces(cmd.cli_ctx)
+    
+    name_availability_request = CheckNameAvailabilityRequest(name=cert_name, type=CHECK_CERTIFICATE_NAME_AVAILABILITY_TYPE)
     try:
-        r = ManagedEnvironmentClient.check_name_availability(cmd, resource_group_name, name, name_availability_request)
+        r = client.check_name_availability(resource_group_name=resource_group_name, environment_name=name, check_name_availability_request=name_availability_request)
     except CLIError as e:
         handle_raw_exception(e)
-    return r["nameAvailable"]
+    return r
 
 
 def validate_hostname(cmd, resource_group_name, name, hostname):

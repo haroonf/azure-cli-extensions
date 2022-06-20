@@ -70,7 +70,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
                          SSH_BACKUP_ENCODING)
 from ._constants import (MAXIMUM_SECRET_LENGTH, MICROSOFT_SECRET_SETTING_NAME, FACEBOOK_SECRET_SETTING_NAME, GITHUB_SECRET_SETTING_NAME,
-                         GOOGLE_SECRET_SETTING_NAME, TWITTER_SECRET_SETTING_NAME, APPLE_SECRET_SETTING_NAME, CONTAINER_APPS_RP)
+                         GOOGLE_SECRET_SETTING_NAME, TWITTER_SECRET_SETTING_NAME, APPLE_SECRET_SETTING_NAME, CONTAINER_APPS_RP, NAME_ALREADY_EXISTS, NAME_INVALID, ACR_IMAGE_SUFFIX)
 
 logger = get_logger(__name__)
 
@@ -2109,14 +2109,14 @@ def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, en
     return create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, managed_env=managed_env, image=image, env_vars=env_vars, ingress=ingress, target_port=target_port, registry_server=registry_server, registry_user=registry_user, registry_pass=registry_pass)
 
 
-def list_certificates(cmd, name, resource_group_name, location=None, certificate=None, thumbprint=None):
+def list_certificates(cmd, client, name, resource_group_name, location=None, certificate=None, thumbprint=None):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     def location_match(c):
-        return c["location"] == location or not location
+        return c.location == location or not location
 
     def thumbprint_match(c):
-        return c["properties"]["thumbprint"] == thumbprint or not thumbprint
+        return c.thumbprint == thumbprint or not thumbprint
 
     def both_match(c):
         return location_match(c) and thumbprint_match(c)
@@ -2127,19 +2127,20 @@ def list_certificates(cmd, name, resource_group_name, location=None, certificate
         else:
             certificate_name = certificate
         try:
-            r = ManagedEnvironmentClient.show_certificate(cmd, resource_group_name, name, certificate_name)
+            
+            r = client.get(resource_group_name=resource_group_name, environment_name=name, certificate_name=certificate_name)
             return [r] if both_match(r) else []
         except Exception as e:
             handle_raw_exception(e)
     else:
         try:
-            r = ManagedEnvironmentClient.list_certificates(cmd, resource_group_name, name)
+            r = client.list(resource_group_name=resource_group_name, environment_name=name)
             return list(filter(both_match, r))
         except Exception as e:
             handle_raw_exception(e)
 
 
-def upload_certificate(cmd, name, resource_group_name, certificate_file, certificate_name=None, certificate_password=None, location=None, prompt=False):
+def upload_certificate(cmd, client, name, resource_group_name, certificate_file, certificate_name=None, certificate_password=None, location=None, prompt=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     blob, thumbprint = load_cert_file(certificate_file, certificate_password)
@@ -2165,30 +2166,30 @@ def upload_certificate(cmd, name, resource_group_name, certificate_file, certifi
     while not cert_name:
         random_name = generate_randomized_cert_name(thumbprint, name, resource_group_name)
         check_result = check_cert_name_availability(cmd, resource_group_name, name, random_name)
-        if check_result["nameAvailable"]:
+        if check_result.name_available:
             cert_name = random_name
-        elif not check_result["nameAvailable"] and (check_result["reason"] == NAME_INVALID):
-            raise ValidationError(check_result["message"])
+        elif not check_result.name_available and (check_result.reason == NAME_INVALID):
+            raise ValidationError(check_result.message)
 
-    certificate = ContainerAppCertificateEnvelopeModel
-    certificate["properties"]["password"] = certificate_password
-    certificate["properties"]["value"] = blob
-    certificate["location"] = location
-    if not certificate["location"]:
+    from azure.mgmt.appcontainers.models import ContainerAppCertificateEnvelope
+
+    if not location:
         try:
-            managed_env = ManagedEnvironmentClient.show(cmd, resource_group_name, name)
-            certificate["location"] = managed_env["location"]
+            from ._client_factory import cf_managedenvs
+            managed_env = cf_managedenvs(cmd.cli_ctx).get(resource_group_name=resource_group_name, environment_name=name)
+            location = managed_env.location
         except Exception as e:
             handle_raw_exception(e)
 
+    certificate_def = ContainerAppCertificateEnvelope(password=certificate_password, value=blob, location=location)
+
     try:
-        r = ManagedEnvironmentClient.create_or_update_certificate(cmd, resource_group_name, name, cert_name, certificate)
-        return r
+        return client.create_or_update(resource_group_name=resource_group_name, environment_name=name, certificate_name=cert_name, certificate_envelope=certificate_def)
     except Exception as e:
         handle_raw_exception(e)
 
 
-def delete_certificate(cmd, resource_group_name, name, location=None, certificate=None, thumbprint=None):
+def delete_certificate(cmd, client, resource_group_name, name, location=None, certificate=None, thumbprint=None):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     if not certificate and not thumbprint:
@@ -2196,8 +2197,8 @@ def delete_certificate(cmd, resource_group_name, name, location=None, certificat
     certs = list_certificates(cmd, name, resource_group_name, location, certificate, thumbprint)
     for cert in certs:
         try:
-            ManagedEnvironmentClient.delete_certificate(cmd, resource_group_name, name, cert["name"])
-            logger.warning('Successfully deleted certificate: {}'.format(cert["name"]))
+            client.delete_certificate(resource_group_name=resource_group_name, environment_name=name, certificate_name=cert.name)
+            logger.warning('Successfully deleted certificate: {}'.format(cert.name))
         except Exception as e:
             handle_raw_exception(e)
 

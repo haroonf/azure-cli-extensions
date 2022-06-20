@@ -99,3 +99,9 @@ def cf_replicas(cli_ctx, *_):
 
 def cf_dapr_components(cli_ctx, *_):
     return app_client_factory(cli_ctx).dapr_components
+
+def cf_certificates(cli_ctx, *_):
+    return app_client_factory(cli_ctx).certificates
+
+def cf_namespaces(cli_ctx, *_):
+    return app_client_factory(cli_ctx).namespaces

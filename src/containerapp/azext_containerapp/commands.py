@@ -6,7 +6,7 @@
 # pylint: disable=line-too-long, too-many-statements, bare-except
 # from azure.cli.core.commands import CliCommandType
 # from msrestazure.tools import is_valid_resource_id, parse_resource_id
-from azext_containerapp._client_factory import ex_handler_factory, cf_containerapps, cf_managedenvs, cf_revisions, cf_replicas, cf_dapr_components
+from azext_containerapp._client_factory import ex_handler_factory, cf_containerapps, cf_managedenvs, cf_revisions, cf_replicas, cf_dapr_components, cf_certificates
 from ._validators import validate_ssh
 
 
@@ -73,7 +73,7 @@ def load_command_table(self, _):
         g.custom_command('set', 'create_or_update_dapr_component')
         g.custom_command('remove', 'remove_dapr_component')
 
-    with self.command_group('containerapp env certificate') as g:
+    with self.command_group('containerapp env certificate', client_factory=cf_certificates) as g:
         g.custom_command('list', 'list_certificates')  # TODO: Testing
         g.custom_command('upload', 'upload_certificate')  # TODO: Testing
         g.custom_command('delete', 'delete_certificate', confirmation=True, exception_handler=ex_handler_factory())  # TODO: Testing

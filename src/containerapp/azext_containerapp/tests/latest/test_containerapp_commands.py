@@ -279,7 +279,7 @@ class ContainerappIngressTests(ScenarioTest):
 
         containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
-        while containerapp_env["properties"]["provisioningState"].lower() == "waiting":
+        while containerapp_env["provisioningState"].lower() == "waiting":
             time.sleep(5)
             containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
@@ -303,7 +303,7 @@ class ContainerappIngressTests(ScenarioTest):
         txt_name_2 = "asuid.{}".format(subdomain_2)
         hostname_1 = "{}.{}".format(subdomain_1, zone_name)
         hostname_2 = "{}.{}".format(subdomain_2, zone_name)
-        verification_id = app["properties"]["customDomainVerificationId"]
+        verification_id = app["customDomainVerificationId"]
         self.cmd("appservice domain create -g {} --hostname {} --contact-info=@'{}' --accept-terms".format(resource_group, zone_name, contacts)).get_output_in_json()
         self.cmd('network dns record-set txt add-record -g {} -z {} -n {} -v {}'.format(resource_group, zone_name, txt_name_1, verification_id)).get_output_in_json()
         self.cmd('network dns record-set txt add-record -g {} -z {} -n {} -v {}'.format(resource_group, zone_name, txt_name_2, verification_id)).get_output_in_json()
@@ -326,7 +326,7 @@ class ContainerappIngressTests(ScenarioTest):
         cert_thumbprint = self.cmd('containerapp env certificate list -n {} -g {} -c {}'.format(env_name, resource_group, cert_id), checks=[
             JMESPathCheck('length(@)', 1),
             JMESPathCheck('[0].id', cert_id),
-        ]).get_output_in_json()[0]["properties"]["thumbprint"]
+        ]).get_output_in_json()[0]["thumbprint"]
 
         # add binding by cert thumbprint
         self.cmd('containerapp hostname bind -g {} -n {} --hostname {} --thumbprint {}'.format(resource_group, ca_name, hostname_2, cert_thumbprint), expect_failure=True)
