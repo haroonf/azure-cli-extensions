@@ -107,3 +107,6 @@ def cf_certificates(cli_ctx, *_):
 
 def cf_namespaces(cli_ctx, *_):
     return app_client_factory(cli_ctx).namespaces
+
+def cf_storages(cli_ctx, *_):
+    return app_client_factory(cli_ctx).managed_environments_storages

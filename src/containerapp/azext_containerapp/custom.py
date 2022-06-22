@@ -760,12 +760,13 @@ def assign_managed_identity(cmd, client, name, resource_group_name, system_assig
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
     set_managed_identity(cmd, resource_group_name, containerapp_def, system_assigned, user_assigned)
-
     try:
         poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
-        r = LongRunningOperation(cmd.cli_ctx)(poller).serialize()
-        return r["identity"]
-
+        if not no_wait:
+            r = LongRunningOperation(cmd.cli_ctx)(poller)
+        else:
+            r = client.get(resource_group_name=resource_group_name, container_app_name=name)
+        return r.identity
     except Exception as e:
         handle_raw_exception(e)
 
@@ -846,8 +847,11 @@ def remove_managed_identity(cmd, client, name, resource_group_name, system_assig
 
     try:
         poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
-        r = LongRunningOperation(cmd.cli_ctx)(poller).serialize()
-        return r["identity"]
+        if not no_wait:
+            r = LongRunningOperation(cmd.cli_ctx)(poller)
+        else:
+            r = client.get(resource_group_name=resource_group_name, container_app_name=name)
+        return r.identity
     except Exception as e:
         handle_raw_exception(e)
 
@@ -856,16 +860,10 @@ def show_managed_identity(cmd, client, name, resource_group_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
-        r = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
+        r = client.get(resource_group_name=resource_group_name, container_app_name=name)
+        return r.identity
     except CLIInternalError as e:
         handle_raw_exception(e)
-
-    try:
-        return r["identity"]
-    except:
-        r["identity"] = {}
-        r["identity"]["type"] = "None"
-        return r["identity"]
 
 
 def _validate_github(repo, branch, token):
@@ -1185,13 +1183,16 @@ def set_revision_mode(cmd, client, resource_group_name, name, mode, no_wait=Fals
 
     try:
         poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
-        r = LongRunningOperation(cmd.cli_ctx)(poller).serialize()
-        return r["properties"]["configuration"]["activeRevisionsMode"]
+        if not no_wait:
+            r = LongRunningOperation(cmd.cli_ctx)(poller)
+        else:
+            r = client.get(resource_group_name=resource_group_name, container_app_name=name)
+        return r.configuration.active_revisions_mode
     except Exception as e:
         handle_raw_exception(e)
 
 
-def add_revision_label(cmd, client, resource_group_name, revision, label, name=None, no_wait=False, yes=False):
+def add_revision_label(cmd, client, resource_group_name, revision, label, name=None, yes=False, no_wait=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     if not name:
@@ -1248,14 +1249,16 @@ def add_revision_label(cmd, client, resource_group_name, revision, label, name=N
     containerapp_patch_def['properties']['configuration']['ingress']['traffic'] = traffic_weight
 
     try:
-        poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
-        r = LongRunningOperation(cmd.cli_ctx)(poller).serialize()
-        return r['properties']['configuration']['ingress']['traffic']
+        poller = client.begin_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_patch_def)
+        if not no_wait:
+            LongRunningOperation(cmd.cli_ctx)(poller)
+        r = client.get(resource_group_name=resource_group_name, container_app_name=name)
+        return r.configuration.ingress.traffic
     except Exception as e:
         handle_raw_exception(e)
 
 
-def swap_revision_label(cmd, name, resource_group_name, source_label, target_label, no_wait=False):
+def swap_revision_label(cmd, client, name, resource_group_name, source_label, target_label, no_wait=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     if source_label == target_label:
@@ -1263,7 +1266,7 @@ def swap_revision_label(cmd, name, resource_group_name, source_label, target_lab
 
     containerapp_def = None
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
     except:
         pass
 
@@ -1302,19 +1305,21 @@ def swap_revision_label(cmd, name, resource_group_name, source_label, target_lab
     containerapp_patch_def['properties']['configuration']['ingress']['traffic'] = traffic_weight
 
     try:
-        r = ContainerAppClient.update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_patch_def, no_wait=no_wait)
-        return r['properties']['configuration']['ingress']['traffic']
+        poller = client.begin_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_patch_def)
+        if not no_wait:
+            LongRunningOperation(cmd.cli_ctx)(poller)
+        r = client.get(resource_group_name=resource_group_name, container_app_name=name)
+        return r.configuration.ingress.traffic
     except Exception as e:
         handle_raw_exception(e)
 
 
-def remove_revision_label(cmd, resource_group_name, name, label, no_wait=False):
+def remove_revision_label(cmd, client, resource_group_name, name, label, no_wait=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     containerapp_def = None
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
     except:
         pass
 
@@ -1343,19 +1348,21 @@ def remove_revision_label(cmd, resource_group_name, name, label, no_wait=False):
     containerapp_patch_def['properties']['configuration']['ingress']['traffic'] = traffic_weight
 
     try:
-        r = ContainerAppClient.update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_patch_def, no_wait=no_wait)
-        return r['properties']['configuration']['ingress']['traffic']
+        poller = client.begin_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_patch_def)
+        if not no_wait:
+            LongRunningOperation(cmd.cli_ctx)(poller)
+        r = client.get(resource_group_name=resource_group_name, container_app_name=name)
+        return r.configuration.ingress.traffic
     except Exception as e:
         handle_raw_exception(e)
 
 
-def show_ingress(cmd, name, resource_group_name):
+def show_ingress(cmd, client, name, resource_group_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     containerapp_def = None
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = client.get(resource_group_name=resource_group_name, container_app_name=name)
     except:
         pass
 
@@ -1363,17 +1370,17 @@ def show_ingress(cmd, name, resource_group_name):
         raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     try:
-        return containerapp_def["properties"]["configuration"]["ingress"]
+        return containerapp_def.configuration.ingress
     except Exception as e:
         raise ValidationError("The containerapp '{}' does not have ingress enabled.".format(name)) from e
 
 
-def enable_ingress(cmd, name, resource_group_name, type, target_port, transport="auto", allow_insecure=False, disable_warnings=False, no_wait=False):  # pylint: disable=redefined-builtin
+def enable_ingress(cmd, client, name, resource_group_name, type, target_port, transport="auto", allow_insecure=False, disable_warnings=False, no_wait=False):  # pylint: disable=redefined-builtin
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     containerapp_def = None
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
     except:
         pass
 
@@ -1387,33 +1394,34 @@ def enable_ingress(cmd, name, resource_group_name, type, target_port, transport=
         elif type.lower() == "external":
             external_ingress = True
 
+    from azure.mgmt.appcontainers.models import Ingress
+
     ingress_def = None
     if target_port is not None and type is not None:
-        ingress_def = IngressModel
-        ingress_def["external"] = external_ingress
-        ingress_def["targetPort"] = target_port
-        ingress_def["transport"] = transport
-        ingress_def["allowInsecure"] = allow_insecure
+        ingress_def = Ingress(external=external_ingress, target_port=target_port, transport=transport, allow_insecure=allow_insecure)
 
     containerapp_def["properties"]["configuration"]["ingress"] = ingress_def
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
     try:
-        r = ContainerAppClient.create_or_update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
-        not disable_warnings and logger.warning("\nIngress enabled. Access your app at https://{}/\n".format(r["properties"]["configuration"]["ingress"]["fqdn"]))
-        return r["properties"]["configuration"]["ingress"]
+        poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
+        if not no_wait:
+            r = LongRunningOperation(cmd.cli_ctx)(poller)
+        else:
+            r = client.get(resource_group_name=resource_group_name, container_app_name=name)
+        not disable_warnings and logger.warning("\nIngress enabled. Access your app at https://{}/\n".format(r.configuration.ingress.fqdn))
+        return r
     except Exception as e:
         handle_raw_exception(e)
 
 
-def disable_ingress(cmd, name, resource_group_name, no_wait=False):
+def disable_ingress(cmd, client, name, resource_group_name, no_wait=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     containerapp_def = None
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
     except:
         pass
 
@@ -1425,22 +1433,23 @@ def disable_ingress(cmd, name, resource_group_name, no_wait=False):
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
 
     try:
-        ContainerAppClient.create_or_update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
+        poller = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_def)
+        if not no_wait:
+            LongRunningOperation(cmd.cli_ctx)(poller)
         logger.warning("Ingress has been disabled successfully.")
         return
     except Exception as e:
         handle_raw_exception(e)
 
 
-def set_ingress_traffic(cmd, name, resource_group_name, label_weights=None, revision_weights=None, no_wait=False):
+def set_ingress_traffic(cmd, client, name, resource_group_name, label_weights=None, revision_weights=None, no_wait=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
     if not label_weights and not revision_weights:
         raise ValidationError("Must specify either --label-weight or --revision-weight.")
 
     containerapp_def = None
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = client.get(resource_group_name=resource_group_name, container_app_name=name).serialize()
     except:
         pass
 
@@ -1481,19 +1490,23 @@ def set_ingress_traffic(cmd, name, resource_group_name, label_weights=None, revi
     containerapp_patch_def['properties']['configuration']['ingress']['traffic'] = containerapp_def["properties"]["configuration"]["ingress"]["traffic"]
 
     try:
-        r = ContainerAppClient.update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_patch_def, no_wait=no_wait)
-        return r['properties']['configuration']['ingress']['traffic']
+        poller = client.begin_update(resource_group_name=resource_group_name, container_app_name=name, container_app_envelope=containerapp_patch_def)
+        if not no_wait:
+            LongRunningOperation(cmd.cli_ctx)(poller)  # doesn't return object, only status code since it uses patch api
+
+        r = client.get(resource_group_name=resource_group_name, container_app_name=name)
+
+        return r.configuration.ingress.traffic
     except Exception as e:
         handle_raw_exception(e)
 
 
-def show_ingress_traffic(cmd, name, resource_group_name):
+def show_ingress_traffic(cmd, client, name, resource_group_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     containerapp_def = None
     try:
-        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = client.get(resource_group_name=resource_group_name, container_app_name=name)
     except:
         pass
 
@@ -1501,7 +1514,7 @@ def show_ingress_traffic(cmd, name, resource_group_name):
         raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     try:
-        return containerapp_def["properties"]["configuration"]["ingress"]["traffic"]
+        return containerapp_def.configuration.ingress.traffic
     except Exception as e:
         raise ValidationError("Ingress must be enabled to show ingress traffic. Try running `az containerapp ingress -h` for more info.") from e
 
@@ -2281,25 +2294,25 @@ def delete_hostname(cmd, resource_group_name, name, hostname, location=None):
     return r
 
 
-def show_storage(cmd, name, storage_name, resource_group_name):
+def show_storage(cmd, client, name, storage_name, resource_group_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
-        return StorageClient.show(cmd, resource_group_name, name, storage_name)
+        return client.get(resource_group_name=resource_group_name, environment_name=name, storage_name=storage_name)
     except CLIError as e:
         handle_raw_exception(e)
 
 
-def list_storage(cmd, name, resource_group_name):
+def list_storage(cmd, client, name, resource_group_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
-        return StorageClient.list(cmd, resource_group_name, name)
+        return client.list(resource_group_name=resource_group_name, environment_name=name)
     except CLIError as e:
         handle_raw_exception(e)
 
 
-def create_or_update_storage(cmd, storage_name, resource_group_name, name, azure_file_account_name, azure_file_share_name, azure_file_account_key, access_mode, no_wait=False):  # pylint: disable=redefined-builtin
+def create_or_update_storage(cmd, client, storage_name, resource_group_name, name, azure_file_account_name, azure_file_share_name, azure_file_account_key, access_mode):  # pylint: disable=redefined-builtin
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     if len(azure_file_share_name) < 3:
@@ -2311,33 +2324,29 @@ def create_or_update_storage(cmd, storage_name, resource_group_name, name, azure
     r = None
 
     try:
-        r = StorageClient.show(cmd, resource_group_name, name, storage_name)
+        r = client.get(resource_group_name=resource_group_name, environment_name=name, storage_name=storage_name)
     except:
         pass
 
     if r:
         logger.warning("Only AzureFile account keys can be updated. In order to change the AzureFile share name or account name, please delete this storage and create a new one.")
 
-    storage_def = AzureFilePropertiesModel
-    storage_def["accountKey"] = azure_file_account_key
-    storage_def["accountName"] = azure_file_account_name
-    storage_def["shareName"] = azure_file_share_name
-    storage_def["accessMode"] = access_mode
-    storage_envelope = {}
-    storage_envelope["properties"] = {}
-    storage_envelope["properties"]["azureFile"] = storage_def
+    from azure.mgmt.appcontainers.models import AzureFileProperties, ManagedEnvironmentStorageProperties, ManagedEnvironmentStorage
+
+    storage_def = AzureFileProperties(account_key=azure_file_account_key, account_name=azure_file_account_name, share_name=azure_file_share_name, access_mode=access_mode)
+    storage_envelope = ManagedEnvironmentStorage(properties=ManagedEnvironmentStorageProperties(azure_file=storage_def))
 
     try:
-        return StorageClient.create_or_update(cmd, resource_group_name, name, storage_name, storage_envelope, no_wait)
+        return client.create_or_update(resource_group_name=resource_group_name, environment_name=name, storage_name=storage_name, storage_envelope=storage_envelope)
     except CLIError as e:
         handle_raw_exception(e)
 
 
-def remove_storage(cmd, storage_name, name, resource_group_name, no_wait=False):
+def remove_storage(cmd, client, storage_name, name, resource_group_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
-        return StorageClient.delete(cmd, resource_group_name, name, storage_name, no_wait)
+        return client.delete(resource_group_name=resource_group_name, environment_name=name, storage_name=storage_name)
     except CLIError as e:
         handle_raw_exception(e)
 

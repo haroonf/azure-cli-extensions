@@ -30,7 +30,7 @@ class ContainerappIdentityTests(ScenarioTest):
 
         containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
-        while containerapp_env["properties"]["provisioningState"].lower() == "waiting":
+        while containerapp_env["provisioningState"].lower() == "waiting":
             time.sleep(5)
             containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
@@ -80,7 +80,7 @@ class ContainerappIdentityTests(ScenarioTest):
 
         containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
-        while containerapp_env["properties"]["provisioningState"].lower() == "waiting":
+        while containerapp_env["provisioningState"].lower() == "waiting":
             time.sleep(5)
             containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
@@ -119,7 +119,7 @@ class ContainerappIdentityTests(ScenarioTest):
 
         containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
-        while containerapp_env["properties"]["provisioningState"].lower() == "waiting":
+        while containerapp_env["provisioningState"].lower() == "waiting":
             time.sleep(5)
             containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
@@ -177,7 +177,7 @@ class ContainerappIngressTests(ScenarioTest):
 
         containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
-        while containerapp_env["properties"]["provisioningState"].lower() == "waiting":
+        while containerapp_env["provisioningState"].lower() == "waiting":
             time.sleep(5)
             containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
@@ -192,7 +192,7 @@ class ContainerappIngressTests(ScenarioTest):
 
         containerapp_def = self.cmd('containerapp show -g {} -n {}'.format(resource_group, ca_name)).get_output_in_json()
 
-        self.assertEqual("fqdn" in containerapp_def["properties"]["configuration"], False)
+        self.assertEqual("fqdn" in containerapp_def["configuration"], False)
 
         self.cmd('containerapp ingress enable -g {} -n {} --type internal --target-port 81 --allow-insecure --transport http2'.format(resource_group, ca_name, env_name))
 
@@ -224,7 +224,7 @@ class ContainerappIngressTests(ScenarioTest):
 
         containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
-        while containerapp_env["properties"]["provisioningState"].lower() == "waiting":
+        while containerapp_env["provisioningState"].lower() == "waiting":
             time.sleep(5)
             containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
@@ -261,7 +261,7 @@ class ContainerappIngressTests(ScenarioTest):
         revisions_list = self.cmd('containerapp revision list -g {} -n {}'.format(resource_group, ca_name)).get_output_in_json()
 
         for revision in revisions_list:
-            self.assertEqual(revision["properties"]["trafficWeight"], 50)
+            self.assertEqual(revision["trafficWeight"], 50)
 
     @AllowLargeResponse(8192)
     @live_only()  # encounters 'CannotOverwriteExistingCassetteException' only when run from recording (passes when run live)
@@ -278,7 +278,7 @@ class ContainerappIngressTests(ScenarioTest):
 
         containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
-        while containerapp_env["properties"]["provisioningState"].lower() == "waiting":
+        while containerapp_env["provisioningState"].lower() == "waiting":
             time.sleep(5)
             containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
@@ -302,7 +302,7 @@ class ContainerappIngressTests(ScenarioTest):
         txt_name_2 = "asuid.{}".format(subdomain_2)
         hostname_1 = "{}.{}".format(subdomain_1, zone_name)
         hostname_2 = "{}.{}".format(subdomain_2, zone_name)
-        verification_id = app["properties"]["customDomainVerificationId"]
+        verification_id = app["customDomainVerificationId"]
         self.cmd("appservice domain create -g {} --hostname {} --contact-info=@'{}' --accept-terms".format(resource_group, zone_name, contacts)).get_output_in_json()
         self.cmd('network dns record-set txt add-record -g {} -z {} -n {} -v {}'.format(resource_group, zone_name, txt_name_1, verification_id)).get_output_in_json()
         self.cmd('network dns record-set txt add-record -g {} -z {} -n {} -v {}'.format(resource_group, zone_name, txt_name_2, verification_id)).get_output_in_json()
@@ -325,7 +325,7 @@ class ContainerappIngressTests(ScenarioTest):
         cert_thumbprint = self.cmd('containerapp env certificate list -n {} -g {} -c {}'.format(env_name, resource_group, cert_id), checks=[
             JMESPathCheck('length(@)', 1),
             JMESPathCheck('[0].id', cert_id),
-        ]).get_output_in_json()[0]["properties"]["thumbprint"]
+        ]).get_output_in_json()[0]["thumbprint"]
 
         # add binding by cert thumbprint
         self.cmd('containerapp hostname bind -g {} -n {} --hostname {} --thumbprint {}'.format(resource_group, ca_name, hostname_2, cert_thumbprint), expect_failure=True)
@@ -407,7 +407,7 @@ class ContainerappDaprTests(ScenarioTest):
 
         containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
-        while containerapp_env["properties"]["provisioningState"].lower() == "waiting":
+        while containerapp_env["provisioningState"].lower() == "waiting":
             time.sleep(5)
             containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
@@ -421,10 +421,10 @@ class ContainerappDaprTests(ScenarioTest):
         ])
 
         self.cmd('containerapp show -g {} -n {}'.format(resource_group, ca_name), checks=[
-            JMESPathCheck('properties.configuration.dapr.appId', "containerapp1"),
-            JMESPathCheck('properties.configuration.dapr.appPort', 80),
-            JMESPathCheck('properties.configuration.dapr.appProtocol', "http"),
-            JMESPathCheck('properties.configuration.dapr.enabled', True),
+            JMESPathCheck('configuration.dapr.appId', "containerapp1"),
+            JMESPathCheck('configuration.dapr.appPort', 80),
+            JMESPathCheck('configuration.dapr.appProtocol', "http"),
+            JMESPathCheck('configuration.dapr.enabled', True),
         ])
 
         self.cmd('containerapp dapr disable -g {} -n {}'.format(resource_group, ca_name, env_name), checks=[
@@ -435,10 +435,10 @@ class ContainerappDaprTests(ScenarioTest):
         ])
 
         self.cmd('containerapp show -g {} -n {}'.format(resource_group, ca_name), checks=[
-            JMESPathCheck('properties.configuration.dapr.appId', "containerapp1"),
-            JMESPathCheck('properties.configuration.dapr.appPort', 80),
-            JMESPathCheck('properties.configuration.dapr.appProtocol', "http"),
-            JMESPathCheck('properties.configuration.dapr.enabled', False),
+            JMESPathCheck('configuration.dapr.appId', "containerapp1"),
+            JMESPathCheck('configuration.dapr.appPort', 80),
+            JMESPathCheck('configuration.dapr.appProtocol', "http"),
+            JMESPathCheck('configuration.dapr.enabled', False),
         ])
 
 
@@ -458,7 +458,7 @@ class ContainerappEnvStorageTests(ScenarioTest):
 
         containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
-        while containerapp_env["properties"]["provisioningState"].lower() == "waiting":
+        while containerapp_env["provisioningState"].lower() == "waiting":
             time.sleep(5)
             containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
@@ -476,13 +476,13 @@ class ContainerappEnvStorageTests(ScenarioTest):
         ])
 
         self.cmd('containerapp env storage list -g {} -n {}'.format(resource_group, env_name), checks=[
-            JMESPathCheck('[0].name', storage_name),
+            JMESPathCheck('value[0].name', storage_name),
         ])
 
         self.cmd('containerapp env storage remove -g {} -n {} --storage-name {} --yes'.format(resource_group, env_name, storage_name))
 
         self.cmd('containerapp env storage list -g {} -n {}'.format(resource_group, env_name), checks=[
-            JMESPathCheck('length(@)', 0),
+            JMESPathCheck('length(@.value)', 0),
         ])
 
 
@@ -501,7 +501,7 @@ class ContainerappRevisionTests(ScenarioTest):
 
         containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
-        while containerapp_env["properties"]["provisioningState"].lower() == "waiting":
+        while containerapp_env["provisioningState"].lower() == "waiting":
             time.sleep(5)
             containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
 
@@ -525,6 +525,7 @@ class ContainerappRevisionTests(ScenarioTest):
             label = self.create_random_name(prefix='label', length=12)
             labels.append(label)
             self.cmd(f"containerapp revision label add -g {resource_group} -n {ca_name} --revision {revision} --label {label}")
+            time.sleep(1)
 
         traffic_weight = self.cmd(f"containerapp ingress traffic show -g {resource_group} -n {ca_name} --query '[].name'").get_output_in_json()
 
@@ -558,4 +559,4 @@ class ContainerappRevisionTests(ScenarioTest):
 
         traffic_weight = self.cmd(f"containerapp ingress traffic show -g {resource_group} -n {ca_name}").get_output_in_json()
 
-        self.assertEqual(len([w for w in traffic_weight if "label" in w]), 0)
+        self.assertEqual(len([w for w in traffic_weight if "label" in w and w["label"]]), 0)
