@@ -1495,7 +1495,6 @@ def set_ingress_traffic(cmd, client, name, resource_group_name, label_weights=No
             LongRunningOperation(cmd.cli_ctx)(poller)  # doesn't return object, only status code since it uses patch api
 
         r = client.get(resource_group_name=resource_group_name, container_app_name=name)
-
         return r.configuration.ingress.traffic
     except Exception as e:
         handle_raw_exception(e)

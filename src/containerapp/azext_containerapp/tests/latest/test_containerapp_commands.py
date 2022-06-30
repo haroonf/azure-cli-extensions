@@ -235,6 +235,8 @@ class ContainerappIngressTests(ScenarioTest):
             JMESPathCheck('targetPort', 80),
         ])
 
+        self.cmd('containerapp revision set-mode -g {} -n {} --mode multiple'.format(resource_group, ca_name, env_name))
+
         self.cmd('containerapp ingress traffic set -g {} -n {} --revision-weight latest=100'.format(resource_group, ca_name), checks=[
             JMESPathCheck('[0].latestRevision', True),
             JMESPathCheck('[0].weight', 100),
@@ -525,7 +527,6 @@ class ContainerappRevisionTests(ScenarioTest):
             label = self.create_random_name(prefix='label', length=12)
             labels.append(label)
             self.cmd(f"containerapp revision label add -g {resource_group} -n {ca_name} --revision {revision} --label {label}")
-            time.sleep(1)
 
         traffic_weight = self.cmd(f"containerapp ingress traffic show -g {resource_group} -n {ca_name} --query '[].name'").get_output_in_json()
 
