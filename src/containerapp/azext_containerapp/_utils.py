@@ -163,7 +163,7 @@ def trigger_workflow(token, repo, name, branch):
 
 
 # pylint:disable=unused-argument
-def await_github_action(cmd, token, repo, branch, name, resource_group_name, timeout_secs=1200):
+def await_github_action(cmd, client, token, repo, branch, name, resource_group_name, timeout_secs=1200):
     from .custom import show_github_action
     from ._clients import PollingAnimation
 
@@ -177,7 +177,7 @@ def await_github_action(cmd, token, repo, branch, name, resource_group_name, tim
     while gh_action_status == "InProgress":
         time.sleep(SHORT_POLLING_INTERVAL_SECS)
         animation.tick()
-        gh_action_status = safe_get(show_github_action(cmd, name, resource_group_name), "properties", "operationState")
+        gh_action_status = show_github_action(cmd, client, name, resource_group_name).operation_state
         if (datetime.utcnow() - start).seconds >= timeout_secs:
             raise CLIInternalError("Timed out while waiting for the Github action to be created.")
         animation.flush()
