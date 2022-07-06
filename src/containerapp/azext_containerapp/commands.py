@@ -6,7 +6,15 @@
 # pylint: disable=line-too-long, too-many-statements, bare-except
 # from azure.cli.core.commands import CliCommandType
 # from msrestazure.tools import is_valid_resource_id, parse_resource_id
-from azext_containerapp._client_factory import ex_handler_factory, cf_containerapps, cf_managedenvs, cf_revisions, cf_replicas, cf_dapr_components, cf_certificates, cf_storages
+from azext_containerapp._client_factory import (ex_handler_factory,
+                                                cf_containerapps,
+                                                cf_managedenvs,
+                                                cf_revisions,
+                                                cf_replicas,
+                                                cf_dapr_components,
+                                                cf_certificates,
+                                                cf_storages,
+                                                cf_source_controls)
 from ._validators import validate_ssh
 
 
@@ -89,7 +97,7 @@ def load_command_table(self, _):
         g.custom_command('remove', 'remove_managed_identity', supports_no_wait=True, exception_handler=ex_handler_factory())
         g.custom_show_command('show', 'show_managed_identity')
 
-    with self.command_group('containerapp github-action') as g:  # TODO: Silas
+    with self.command_group('containerapp github-action', client_factory=cf_source_controls) as g:
         g.custom_command('add', 'create_or_update_github_action', exception_handler=ex_handler_factory())
         g.custom_show_command('show', 'show_github_action', exception_handler=ex_handler_factory())
         g.custom_command('delete', 'delete_github_action', exception_handler=ex_handler_factory())
@@ -103,7 +111,7 @@ def load_command_table(self, _):
         g.custom_command('copy', 'copy_revision', client_factory=cf_containerapps, supports_no_wait=True, exception_handler=ex_handler_factory())
         g.custom_command('set-mode', 'set_revision_mode', client_factory=cf_containerapps, supports_no_wait=True, exception_handler=ex_handler_factory())
 
-    with self.command_group('containerapp revision label', client_factory=cf_containerapps) as g:  # Tests 
+    with self.command_group('containerapp revision label', client_factory=cf_containerapps) as g:  # Tests
         g.custom_command('add', 'add_revision_label', supports_no_wait=True)
         g.custom_command('remove', 'remove_revision_label')
         g.custom_command('swap', 'swap_revision_label')

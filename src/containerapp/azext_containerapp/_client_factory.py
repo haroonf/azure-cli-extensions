@@ -29,6 +29,7 @@ def ex_handler_factory(no_throw=False):
     return _polish_bad_errors
 
 
+# TODO update for SDK
 def handle_raw_exception(e):
     import json
 
@@ -110,3 +111,7 @@ def cf_namespaces(cli_ctx, *_):
 
 def cf_storages(cli_ctx, *_):
     return app_client_factory(cli_ctx).managed_environments_storages
+
+
+def cf_source_controls(cli_ctx, *_):
+    return app_client_factory(cli_ctx).container_apps_source_controls

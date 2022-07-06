@@ -21,7 +21,7 @@ from azure.cli.core.azclierror import (
     MutuallyExclusiveArgumentError)
 from azure.cli.core.commands.client_factory import get_subscription_id
 from azure.cli.core.commands import LongRunningOperation
-from azure.cli.core.util import open_page_in_browser
+from azure.cli.core.util import open_page_in_browser, sdk_no_wait
 from azure.cli.command_modules.appservice.utils import _normalize_location
 from knack.log import get_logger
 from knack.prompting import prompt_y_n
@@ -232,7 +232,7 @@ def create_containerapp(cmd,
         for r in assign_user_identities:
             r = _ensure_identity_resource_id(subscription_id, resource_group_name, r)
             valid_user_ids[r] = UserAssignedIdentity()
-        
+
         identity_def.user_assigned_identities = valid_user_ids
 
     scale_def = None
@@ -899,7 +899,9 @@ def _validate_github(repo, branch, token):
     return branch
 
 
+# TODO test
 def create_or_update_github_action(cmd,
+                                   client,
                                    name,
                                    resource_group_name,
                                    repo_url,
@@ -915,6 +917,8 @@ def create_or_update_github_action(cmd,
                                    service_principal_client_secret=None,
                                    service_principal_tenant_id=None,
                                    no_wait=False):
+    from azure.mgmt.appcontainers.models import SourceControl, GithubActionConfiguration, AzureCredentials, RegistryInfo
+
     if not token and not login_with_github:
         raise_missing_token_suggestion()
     elif not token:
@@ -928,27 +932,26 @@ def create_or_update_github_action(cmd,
 
     branch = _validate_github(repo, branch, token)
 
-    source_control_info = None
+    source_control_info = SourceControl()
 
     try:
-        source_control_info = GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
-
+        source_control_info = show_github_action(cmd, client, name, resource_group_name)
     except Exception as ex:
         if not service_principal_client_id or not service_principal_client_secret or not service_principal_tenant_id:
             raise RequiredArgumentMissingError('Service principal client ID, secret and tenant ID are required to add github actions for the first time. Please create one using the command \"az ad sp create-for-rbac --name {{name}} --role contributor --scopes /subscriptions/{{subscription}}/resourceGroups/{{resourceGroup}} --sdk-auth\"') from ex
-        source_control_info = SourceControlModel
+        source_control_info = SourceControl()
 
-    source_control_info["properties"]["repoUrl"] = repo_url
-    source_control_info["properties"]["branch"] = branch
+    source_control_info.repo_url = repo_url
+    source_control_info.branch = branch
 
     azure_credentials = None
 
     if service_principal_client_id or service_principal_client_secret or service_principal_tenant_id:
-        azure_credentials = AzureCredentialsModel
-        azure_credentials["clientId"] = service_principal_client_id
-        azure_credentials["clientSecret"] = service_principal_client_secret
-        azure_credentials["tenantId"] = service_principal_tenant_id
-        azure_credentials["subscriptionId"] = get_subscription_id(cmd.cli_ctx)
+        azure_credentials = AzureCredentials()
+        azure_credentials.client_id = service_principal_client_id
+        azure_credentials.client_secret = service_principal_client_secret
+        azure_credentials.tenant_id = service_principal_tenant_id
+        azure_credentials.subscription_id = get_subscription_id(cmd.cli_ctx)
 
     # Registry
     if registry_username is None or registry_password is None:
@@ -964,46 +967,50 @@ def create_or_update_github_action(cmd,
         except Exception as ex:
             raise RequiredArgumentMissingError('Failed to retrieve credentials for container registry. Please provide the registry username and password') from ex
 
-    registry_info = RegistryInfoModel
-    registry_info["registryUrl"] = registry_url
-    registry_info["registryUserName"] = registry_username
-    registry_info["registryPassword"] = registry_password
+    registry_info = RegistryInfo()
+    registry_info.registry_url = registry_url
+    registry_info.registry_user_name = registry_username
+    registry_info.registry_password = registry_password
 
-    github_action_configuration = GitHubActionConfiguration
-    github_action_configuration["registryInfo"] = registry_info
-    github_action_configuration["azureCredentials"] = azure_credentials
-    github_action_configuration["contextPath"] = context_path
-    github_action_configuration["image"] = image
+    github_action_configuration = GithubActionConfiguration()
+    github_action_configuration.registry_info = registry_info
+    github_action_configuration.azure_credentials = azure_credentials
+    github_action_configuration.context_path = context_path
+    github_action_configuration.image = image
 
-    source_control_info["properties"]["githubActionConfiguration"] = github_action_configuration
+    source_control_info.github_action_configuration = github_action_configuration
 
-    headers = ["x-ms-github-auxiliary={}".format(token)]
+    headers = {"x-ms-github-auxiliary": token}
 
     try:
         logger.warning("Creating Github action...")
-        r = GitHubActionClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, github_action_envelope=source_control_info, headers=headers, no_wait=no_wait)
+        r = client.begin_create_or_update(resource_group_name=resource_group_name, container_app_name=name,
+                                          source_control_envelope=source_control_info, source_control_name="current", headers=headers)
         if not no_wait:
-            await_github_action(cmd, token, repo, branch, name, resource_group_name)
+            await_github_action(cmd, client, token, repo, branch, name, resource_group_name)
         return r
     except Exception as e:
         handle_raw_exception(e)
 
 
-def show_github_action(cmd, name, resource_group_name):
+# TODO this output is slightly different. We should label this a breaking change
+def show_github_action(cmd, client, name, resource_group_name):
     try:
-        return GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        return client.get(resource_group_name=resource_group_name,
+                          container_app_name=name,
+                          source_control_name="current")
     except Exception as e:
         handle_raw_exception(e)
 
 
-def delete_github_action(cmd, name, resource_group_name, token=None, login_with_github=False):
+def delete_github_action(cmd, client, name, resource_group_name, token=None, login_with_github=False):
     # Check if there is an existing source control to delete
     try:
-        github_action_config = GitHubActionClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        github_action_config = show_github_action(cmd, client, name, resource_group_name)
     except Exception as e:
         handle_raw_exception(e)
 
-    repo_url = github_action_config["properties"]["repoUrl"]
+    repo_url = github_action_config.repo_url
 
     if not token and not login_with_github:
         raise_missing_token_suggestion()
@@ -1011,7 +1018,7 @@ def delete_github_action(cmd, name, resource_group_name, token=None, login_with_
         scopes = ["admin:repo_hook", "repo", "workflow"]
         token = get_github_access_token(cmd, scopes)
     elif token and login_with_github:
-        logger.warning("Both token and --login-with-github flag are provided. Will use provided token")
+        logger.warning("Both --token and --login-with-github flag are provided. Will use provided token")
 
     # Check if PAT can access repo
     try:
@@ -1046,10 +1053,11 @@ def delete_github_action(cmd, name, resource_group_name, token=None, login_with_
         # If exception due to github package missing, etc just continue without validating the repo and rely on api validation
         pass
 
-    headers = ["x-ms-github-auxiliary={}".format(token)]
+    headers = {"x-ms-github-auxiliary": token}
 
     try:
-        return GitHubActionClient.delete(cmd=cmd, resource_group_name=resource_group_name, name=name, headers=headers)
+        return client.begin_delete(resource_group_name=resource_group_name,
+                                   container_app_name=name, source_control_name="current", headers=headers)
     except Exception as e:
         handle_raw_exception(e)
 
@@ -1952,6 +1960,7 @@ def get_replica(cmd, client, resource_group_name, name, replica, revision=None):
     return client.get_replica(container_app_name=name, resource_group_name=resource_group_name, revision_name=revision, replica_name=replica)
 
 
+# TODO use SDK when authtoken support is added
 def containerapp_ssh(cmd, resource_group_name, name, container=None, revision=None, replica=None, startup_command="sh"):
     if isinstance(startup_command, list):
         startup_command = startup_command[0]  # CLI seems a little buggy when calling a param "--command"
@@ -1985,6 +1994,7 @@ def stream_containerapp_logs(cmd, resource_group_name, name, container=None, rev
             raise ValidationError("--tail must be between 0 and 300.")
 
     sub = get_subscription_id(cmd.cli_ctx)
+    # TODO use SDK when authtoken support is added
     token_response = ContainerAppClient.get_auth_token(cmd, resource_group_name, name)
     token = token_response["properties"]["token"]
     logstream_endpoint = token_response["properties"]["logStreamEndpoint"]
@@ -2135,7 +2145,7 @@ def list_certificates(cmd, client, name, resource_group_name, location=None, cer
         else:
             certificate_name = certificate
         try:
-            
+
             r = client.get(resource_group_name=resource_group_name, environment_name=name, certificate_name=certificate_name)
             return [r] if both_match(r) else []
         except Exception as e:
