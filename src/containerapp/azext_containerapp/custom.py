@@ -742,7 +742,6 @@ def update_containerapp_logic(cmd,
                 registries_def.append(registry)
 
     try:
-        # return new_containerapp
         r = ContainerAppClient.update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=new_containerapp, no_wait=no_wait)
 
