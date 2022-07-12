@@ -64,7 +64,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      validate_container_app_name, _update_weights, get_vnet_location, register_provider_if_needed,
                      generate_randomized_cert_name, _get_name, load_cert_file, check_cert_name_availability,
                      validate_hostname, patch_new_custom_domain, get_custom_domains, _validate_revision_name, set_managed_identity,
-                     clean_null_values)
+                     clean_null_values, _populate_secret_values)
 
 
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
@@ -177,6 +177,9 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
     # Remove "additionalProperties" and read-only attributes that are introduced in the deserialization. Need this since we're not using SDK
     _remove_additional_attributes(containerapp_def)
     _remove_readonly_attributes(containerapp_def)
+
+    secret_values = list_secrets(cmd=cmd, name=name, resource_group_name=resource_group_name, show_values=True)
+    _populate_secret_values(containerapp_def, secret_values)
 
     # Clean null values since this is an update
     containerapp_def = clean_null_values(containerapp_def)
