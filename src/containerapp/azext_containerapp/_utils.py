@@ -788,6 +788,18 @@ def _remove_readonly_attributes(containerapp_def):
             del containerapp_def['properties'][unneeded_property]
 
 
+def clean_null_values(d):
+    if isinstance(d, dict):
+        return {
+            k: v
+            for k, v in ((k, clean_null_values(v)) for k, v in d.items())
+            if v
+        }
+    if isinstance(d, list):
+        return [v for v in map(clean_null_values, d) if v]
+    return d
+
+
 def _remove_dapr_readonly_attributes(daprcomponent_def):
     unneeded_properties = [
         "id",

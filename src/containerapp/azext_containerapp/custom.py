@@ -63,7 +63,8 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      _update_revision_env_secretrefs, _get_acr_cred, safe_get, await_github_action, repo_url_to_name,
                      validate_container_app_name, _update_weights, get_vnet_location, register_provider_if_needed,
                      generate_randomized_cert_name, _get_name, load_cert_file, check_cert_name_availability,
-                     validate_hostname, patch_new_custom_domain, get_custom_domains, _validate_revision_name, set_managed_identity)
+                     validate_hostname, patch_new_custom_domain, get_custom_domains, _validate_revision_name, set_managed_identity,
+                     clean_null_values)
 
 
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
@@ -97,7 +98,7 @@ def load_yaml_file(file_name):
 
     try:
         with open(file_name) as stream:  # pylint: disable=unspecified-encoding
-            return yaml.safe_load(stream)
+            return yaml.safe_load(stream.read().replace(u'\x00', ''))
     except (IOError, OSError) as ex:
         if getattr(ex, 'errno', 0) == errno.ENOENT:
             raise ValidationError('{} does not exist'.format(file_name)) from ex
@@ -137,29 +138,26 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
     elif yaml_containerapp.get('type').lower() != "microsoft.app/containerapps":
         raise ValidationError('Containerapp type must be \"Microsoft.App/ContainerApps\"')
 
-    current_containerapp_def = None
     containerapp_def = None
+
+    # Check if containerapp exists
     try:
-        current_containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
     except Exception:
         pass
 
-    if not current_containerapp_def:
+    if not containerapp_def:
         raise ValidationError("The containerapp '{}' does not exist".format(name))
+
+    containerapp_def = None
 
     # Change which revision we update from
     if from_revision:
-        try:
-            r = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=from_revision)
-        except CLIError as e:
-            handle_raw_exception(e)
-        _update_revision_env_secretrefs(r["properties"]["template"]["containers"], name)
-        current_containerapp_def["properties"]["template"] = r["properties"]["template"]
+        logger.warning('Flag --from-revision was passed along with --yaml. This flag will be ignored, and the configuration defined in the yaml will be used instead')
 
     # Deserialize the yaml into a ContainerApp object. Need this since we're not using SDK
     try:
         deserializer = create_deserializer()
-
         containerapp_def = deserializer('ContainerApp', yaml_containerapp)
     except DeserializationError as ex:
         raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.') from ex
@@ -176,17 +174,16 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
     # After deserializing, some properties may need to be moved under the "properties" attribute. Need this since we're not using SDK
     containerapp_def = process_loaded_yaml(containerapp_def)
 
-    _get_existing_secrets(cmd, resource_group_name, name, current_containerapp_def)
-
-    update_nested_dictionary(current_containerapp_def, containerapp_def)
-
     # Remove "additionalProperties" and read-only attributes that are introduced in the deserialization. Need this since we're not using SDK
-    _remove_additional_attributes(current_containerapp_def)
-    _remove_readonly_attributes(current_containerapp_def)
+    _remove_additional_attributes(containerapp_def)
+    _remove_readonly_attributes(containerapp_def)
+
+    # Clean null values since this is an update
+    containerapp_def = clean_null_values(containerapp_def)
 
     try:
-        r = ContainerAppClient.create_or_update(
-            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=current_containerapp_def, no_wait=no_wait)
+        r = ContainerAppClient.update(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
 
         if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
             logger.warning('Containerapp creation in progress. Please monitor the creation using `az containerapp show -n {} -g {}`'.format(
@@ -533,7 +530,6 @@ def update_containerapp_logic(cmd,
         except CLIError as e:
             # Error handle the case where revision not found?
             handle_raw_exception(e)
-
 
         _update_revision_env_secretrefs(r["properties"]["template"]["containers"], name)
         new_containerapp["properties"]["template"] = r["properties"]["template"]
@@ -2342,9 +2338,8 @@ def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, en
     except:
         pass
 
-
     if containerapp_def:
-        return update_containerapp_logic(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, replace_env_vars=env_vars, ingress=ingress, target_port=target_port, registry_server=registry_server, registry_user=registry_user, registry_pass=registry_pass, container_name=name) # need ingress, target port, registry stuff to work here
+        return update_containerapp_logic(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, replace_env_vars=env_vars, ingress=ingress, target_port=target_port, registry_server=registry_server, registry_user=registry_user, registry_pass=registry_pass, container_name=name)
     return create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, managed_env=managed_env, image=image, env_vars=env_vars, ingress=ingress, target_port=target_port, registry_server=registry_server, registry_user=registry_user, registry_pass=registry_pass)
 
 
