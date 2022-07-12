@@ -5,7 +5,7 @@ Release History
 
 0.3.8
 ++++++
-* TODO
+* Fixed bug with 'az containerapp update' where secrets where set to null when using --yaml
 
 0.3.7
 ++++++
