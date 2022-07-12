@@ -801,7 +801,11 @@ def clean_null_values(d):
 
 
 def _populate_secret_values(containerapp_def, secret_values):
-    secrets = safe_get(containerapp_def, "properties", "configuration", "secrets", default=[])
+    secrets = safe_get(containerapp_def, "properties", "configuration", "secrets", default=None)
+    if not secrets:
+        secrets = []
+    if not secret_values:
+        secret_values = []
     index = 0
     while index < len(secrets):
         value = secrets[index]
