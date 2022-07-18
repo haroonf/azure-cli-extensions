@@ -151,16 +151,20 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
 
     containerapp_def = None
 
-    # Change which revision we update from
-    if from_revision:
-        logger.warning('Flag --from-revision was passed along with --yaml. This flag will be ignored, and the configuration defined in the yaml will be used instead')
-
     # Deserialize the yaml into a ContainerApp object. Need this since we're not using SDK
     try:
         deserializer = create_deserializer()
         containerapp_def = deserializer('ContainerApp', yaml_containerapp)
     except DeserializationError as ex:
         raise ValidationError('Invalid YAML provided. Please see https://aka.ms/azure-container-apps-yaml for a valid containerapps YAML spec.') from ex
+
+    # Change which revision we update from
+    if from_revision:
+        r = ContainerAppClient.show_revision(cmd=cmd, resource_group_name=resource_group_name, container_app_name=name, name=from_revision)
+        _update_revision_env_secretrefs(r["properties"]["template"]["containers"], name)
+        if "properties" not in containerapp_def:
+            containerapp_def["properties"] = {}
+        containerapp_def["properties"]["template"] = r["properties"]["template"]
 
     # Remove tags before converting from snake case to camel case, then re-add tags. We don't want to change the case of the tags. Need this since we're not using SDK
     tags = None
@@ -183,6 +187,10 @@ def update_containerapp_yaml(cmd, name, resource_group_name, file_name, from_rev
 
     # Clean null values since this is an update
     containerapp_def = clean_null_values(containerapp_def)
+
+    if not revision_suffix:
+        new_containerapp["properties"]["template"] = {} if "template" not in new_containerapp["properties"] else new_containerapp["properties"]["template"]
+        new_containerapp["properties"]["template"]["revisionSuffix"] = None
 
     try:
         r = ContainerAppClient.update(
