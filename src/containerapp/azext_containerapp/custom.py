@@ -29,7 +29,7 @@ from msrestazure.tools import parse_resource_id, is_valid_resource_id
 from msrest.exceptions import DeserializationError
 
 from ._client_factory import handle_raw_exception
-from ._clients import ManagedEnvironmentClient, ContainerAppClient, GitHubActionClient, DaprComponentClient, StorageClient, AuthClient
+from ._clients import ManagedEnvironmentClient, ContainerAppClient, GitHubActionClient, DaprComponentClient, StorageClient, AuthClient, ConnectedEnvironmentClient
 from ._github_oauth import get_github_access_token
 from ._models import (
     ManagedEnvironment as ManagedEnvironmentModel,
@@ -982,6 +982,86 @@ def delete_managed_environment(cmd, name, resource_group_name, no_wait=False):
 
     try:
         return ManagedEnvironmentClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name, no_wait=no_wait)
+    except CLIError as e:
+        handle_raw_exception(e)
+
+
+def create_connected_environment(cmd,
+                               name,
+                               resource_group_name,
+                               custom_location,
+                               location=None,
+                               dapr_ai_connection_string=None,
+                               static_ip=None,
+                               tags=None,
+                               no_wait=False):
+    from ._models import ConnectedEnvironment as ConnectedEnvironmentModel, ExtendedLocation as ExtendedLocationModel
+    location = location or _get_location_from_resource_group(cmd.cli_ctx, resource_group_name)
+
+    register_provider_if_needed(cmd, CONTAINER_APPS_RP)
+    _ensure_location_allowed(cmd, location, CONTAINER_APPS_RP, "connectedEnvironments")
+
+    connected_env_def = ConnectedEnvironmentModel
+    connected_env_def["location"] = location
+    connected_env_def["properties"]["daprAIConnectionString"] = dapr_ai_connection_string
+    connected_env_def["properties"]["staticIp"] = static_ip
+    connected_env_def["tags"] = tags
+    extended_location_def = ExtendedLocationModel
+    extended_location_def["name"] = custom_location
+    extended_location_def["type"] = "CustomLocation"
+    connected_env_def["extendedLocation"] = extended_location_def
+
+    try:
+        r = ConnectedEnvironmentClient.create(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, connected_environment_envelope=connected_env_def, no_wait=no_wait)
+
+        # if "properties" in r and "provisioningState" in r["properties"] and r["properties"]["provisioningState"].lower() == "waiting" and not no_wait:
+        #     not disable_warnings and logger.warning('Containerapp environment creation in progress. Please monitor the creation using `az containerapp env show -n {} -g {}`'.format(name, resource_group_name))
+
+        # not disable_warnings and logger.warning("\nContainer Apps environment created. To deploy a container app, use: az containerapp create --help\n")
+
+        return r
+    except Exception as e:
+        handle_raw_exception(e)
+
+
+def update_connected_environment(cmd,
+                               name,
+                               resource_group_name,
+                               tags=None,
+                               no_wait=False):
+    raise CLIInternalError('Containerapp connected-env update is not yet supported.')
+
+
+def show_connected_environment(cmd, name, resource_group_name):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
+    try:
+        return ConnectedEnvironmentClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except CLIError as e:
+        handle_raw_exception(e)
+
+
+def list_connected_environments(cmd, resource_group_name=None):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
+    try:
+        connected_envs = []
+        if resource_group_name is None:
+            connected_envs = ConnectedEnvironmentClient.list_by_subscription(cmd=cmd)
+        else:
+            connected_envs = ConnectedEnvironmentClient.list_by_resource_group(cmd=cmd, resource_group_name=resource_group_name)
+
+        return connected_envs
+    except CLIError as e:
+        handle_raw_exception(e)
+
+
+def delete_connected_environment(cmd, name, resource_group_name, no_wait=False):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
+    try:
+        return ConnectedEnvironmentClient.delete(cmd=cmd, name=name, resource_group_name=resource_group_name, no_wait=no_wait)
     except CLIError as e:
         handle_raw_exception(e)
 
@@ -2599,6 +2679,71 @@ def remove_storage(cmd, storage_name, name, resource_group_name, no_wait=False):
 
     try:
         return StorageClient.delete(cmd, resource_group_name, name, storage_name, no_wait)
+    except CLIError as e:
+        handle_raw_exception(e)
+
+
+def connected_env_storage(cmd, name, storage_name, resource_group_name):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
+    try:
+        return ConnectedEnvironmentClient.show_storage(cmd, resource_group_name, name, storage_name)
+    except CLIError as e:
+        handle_raw_exception(e)
+
+
+def connected_env_list_storages(cmd, name, resource_group_name):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
+    try:
+        return ConnectedEnvironmentClient.list_storages(cmd, resource_group_name, name)
+    except CLIError as e:
+        handle_raw_exception(e)
+
+
+def connected_env_create_or_update_storage(cmd, storage_name, resource_group_name, name, azure_file_account_name, azure_file_share_name, azure_file_account_key, access_mode, no_wait=False):  # pylint: disable=redefined-builtin
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
+    if len(azure_file_share_name) < 3:
+        raise ValidationError("File share name must be longer than 2 characters.")
+
+    if len(azure_file_account_name) < 3:
+        raise ValidationError("Account name must be longer than 2 characters.")
+
+    r = None
+
+    try:
+        r = ConnectedEnvironmentClient.show_storage(cmd, resource_group_name, name, storage_name)
+    except:
+        pass
+
+    if r:
+        logger.warning("Only AzureFile account keys can be updated. In order to change the AzureFile share name or account name, please delete this storage and create a new one.")
+
+    storage_def = AzureFilePropertiesModel
+    storage_def["accountKey"] = azure_file_account_key
+    storage_def["accountName"] = azure_file_account_name
+    storage_def["shareName"] = azure_file_share_name
+    storage_def["accessMode"] = access_mode
+    storage_envelope = {}
+    storage_envelope["properties"] = {}
+    storage_envelope["properties"]["azureFile"] = storage_def
+    storage_envelope["type"] = None
+    #     :ivar type: The type of the resource. E.g.
+    #  "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+
+
+    try:
+        return ConnectedEnvironmentClient.create_or_update_storage(cmd, resource_group_name, name, storage_name, storage_envelope, no_wait)
+    except CLIError as e:
+        handle_raw_exception(e)
+
+
+def remove_storage(cmd, storage_name, name, resource_group_name, no_wait=False):
+    _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+
+    try:
+        return ConnectedEnvironmentClient.delete_storage(cmd, resource_group_name, name, storage_name, no_wait)
     except CLIError as e:
         handle_raw_exception(e)
 

@@ -24,6 +24,22 @@ ManagedEnvironment = {
     }
 }
 
+ConnectedEnvironment = {
+    "extendedLocation": None,
+    "tags": None,
+    "location": None,
+    "properties": {
+        "staticIp": None,
+        "daprAIConnectionString": None
+    }
+}
+
+
+ExtendedLocation = {
+    "name": None,
+    "type": None
+}
+
 AppLogsConfiguration = {
     "destination": None,
     "logAnalyticsConfiguration": None
