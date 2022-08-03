@@ -313,7 +313,7 @@ def load_arguments(self, _):
         c.argument('resource_group_name', configured_default='resource_group_name', id_part=None)
         c.argument('location', configured_default='location')
         c.argument('name', configured_default='name', id_part=None)
-        c.argument('managed_env', configured_default='managed_env')
+        c.argument('env', configured_default='env')
         c.argument('registry_server', configured_default='registry_server')
         c.argument('source', help='Local directory path to upload to Azure container registry.')
         c.argument('image', options_list=['--image', '-i'], help="Container image, e.g. publisher/image-name:tag.")

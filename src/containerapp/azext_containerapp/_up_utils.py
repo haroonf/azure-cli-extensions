@@ -277,7 +277,7 @@ class ContainerApp(Resource):  # pylint: disable=too-many-instance-attributes
             name=self.name,
             resource_group_name=self.resource_group.name,
             image=self.image,
-            managed_env=self.env.get_rid(),
+            env=self.env.get_rid(),
             target_port=self.target_port,
             registry_server=None if no_registry else self.registry_server,
             registry_pass=None if no_registry else self.registry_pass,
@@ -862,18 +862,18 @@ def list_environment_locations(cmd):
     return res_locations
 
 
-def check_env_name_on_rg(cmd, managed_env, resource_group_name, location):
+def check_env_name_on_rg(cmd, env, resource_group_name, location):
     if location:
         _ensure_location_allowed(cmd, location, CONTAINER_APPS_RP, "managedEnvironments")
-    if managed_env and resource_group_name and location:
+    if env and resource_group_name and location:
         env_def = None
         try:
-            env_def = ManagedEnvironmentClient.show(cmd, resource_group_name, parse_resource_id(managed_env)["name"])
+            env_def = ManagedEnvironmentClient.show(cmd, resource_group_name, parse_resource_id(env)["name"])
         except:  # pylint: disable=bare-except
             pass
         if env_def:
             if location != env_def["location"]:
-                raise ValidationError("Environment {} already exists in resource group {} on location {}, cannot change location of existing environment to {}.".format(parse_resource_id(managed_env)["name"], resource_group_name, env_def["location"], location))
+                raise ValidationError("Environment {} already exists in resource group {} on location {}, cannot change location of existing environment to {}.".format(parse_resource_id(env)["name"], resource_group_name, env_def["location"], location))
 
 
 def get_token(cmd, repo, token):

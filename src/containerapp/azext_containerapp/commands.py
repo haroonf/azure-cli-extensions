@@ -67,29 +67,6 @@ def load_command_table(self, _):
         g.custom_command('create', 'create_managed_environment', supports_no_wait=True, exception_handler=ex_handler_factory())
         g.custom_command('delete', 'delete_managed_environment', supports_no_wait=True, confirmation=True, exception_handler=ex_handler_factory())
 
-    with self.command_group('containerapp connected-env') as g:
-        g.custom_show_command('show', 'show_connected_environment')
-        g.custom_command('list', 'list_connected_environments')
-        g.custom_command('create', 'create_connected_environment', supports_no_wait=True, exception_handler=ex_handler_factory())
-        g.custom_command('delete', 'delete_connected_environment', supports_no_wait=True, confirmation=True, exception_handler=ex_handler_factory())
-
-    with self.command_group('containerapp connected-env storage', is_preview=True) as g:
-        g.custom_show_command('show', 'connected_env_show_storage')
-        g.custom_command('list', 'connected_env_list_storages')
-        g.custom_command('set', 'connected_env_create_or_update_storage', supports_no_wait=True, exception_handler=ex_handler_factory())
-        g.custom_command('remove', 'connected_env_remove_storage', supports_no_wait=True, confirmation=True, exception_handler=ex_handler_factory())
-    
-    with self.command_group('containerapp connected-env dapr-component') as g:
-        g.custom_command('list', 'connected_env_list_dapr_components')
-        g.custom_show_command('show', 'connected_env_show_dapr_component')
-        g.custom_command('set', 'connected_env_create_or_update_dapr_component')
-        g.custom_command('remove', 'connected_env_remove_dapr_component')
-
-    with self.command_group('containerapp connected-env certificate') as g:
-        g.custom_command('list', 'connected_env_list_certificates')
-        g.custom_command('upload', 'connected_env_upload_certificate')
-        g.custom_command('delete', 'connected_env_delete_certificate', confirmation=True, exception_handler=ex_handler_factory())
-
     with self.command_group('containerapp env dapr-component') as g:
         g.custom_command('list', 'list_dapr_components')
         g.custom_show_command('show', 'show_dapr_component')
@@ -107,6 +84,29 @@ def load_command_table(self, _):
         g.custom_command('set', 'create_or_update_storage', supports_no_wait=True, exception_handler=ex_handler_factory())
         g.custom_command('remove', 'remove_storage', supports_no_wait=True, confirmation=True, exception_handler=ex_handler_factory())
 
+    with self.command_group('containerapp connected-env', is_preview=True) as g:
+        g.custom_show_command('show', 'show_connected_environment')
+        g.custom_command('list', 'list_connected_environments')
+        g.custom_command('create', 'create_connected_environment', supports_no_wait=True, exception_handler=ex_handler_factory())
+        g.custom_command('delete', 'delete_connected_environment', supports_no_wait=True, confirmation=True, exception_handler=ex_handler_factory())
+
+    with self.command_group('containerapp connected-env dapr-component') as g:
+        g.custom_command('list', 'connected_env_list_dapr_components')
+        g.custom_show_command('show', 'connected_env_show_dapr_component')
+        g.custom_command('set', 'connected_env_create_or_update_dapr_component')
+        g.custom_command('remove', 'connected_env_remove_dapr_component')
+
+    with self.command_group('containerapp connected-env certificate') as g:
+        g.custom_command('list', 'connected_env_list_certificates')
+        g.custom_command('upload', 'connected_env_upload_certificate')
+        g.custom_command('delete', 'connected_env_delete_certificate', confirmation=True, exception_handler=ex_handler_factory())
+
+    with self.command_group('containerapp connected-env storage') as g:
+        g.custom_show_command('show', 'connected_env_show_storage')
+        g.custom_command('list', 'connected_env_list_storages')
+        g.custom_command('set', 'connected_env_create_or_update_storage', supports_no_wait=True, exception_handler=ex_handler_factory())
+        g.custom_command('remove', 'connected_env_remove_storage', supports_no_wait=True, confirmation=True, exception_handler=ex_handler_factory())
+    
     with self.command_group('containerapp identity') as g:
         g.custom_command('assign', 'assign_managed_identity', supports_no_wait=True, exception_handler=ex_handler_factory())
         g.custom_command('remove', 'remove_managed_identity', supports_no_wait=True, exception_handler=ex_handler_factory())

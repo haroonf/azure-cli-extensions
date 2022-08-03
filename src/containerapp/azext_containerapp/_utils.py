@@ -1066,9 +1066,6 @@ def _set_webapp_up_default_args(cmd, resource_group_name, location, name, regist
         cmd.cli_ctx.config.set_value('defaults', 'name', name)
         logger.warning("--name/-n default: %s", name)
 
-        # cmd.cli_ctx.config.set_value('defaults', 'managed_env', managed_env)
-        # logger.warning("--environment default: %s", managed_env)
-
         cmd.cli_ctx.config.set_value('defaults', 'registry_server', registry_server)
         logger.warning("--registry-server default: %s", registry_server)
 
