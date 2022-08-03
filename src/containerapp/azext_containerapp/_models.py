@@ -187,10 +187,11 @@ ManagedServiceIdentity = {
 }
 
 ContainerApp = {
+    "extendedLocation": None,
     "location": None,
     "identity": None,  # ManagedServiceIdentity
     "properties": {
-        "managedEnvironmentId": None,
+        "environmentId": None,
         "configuration": None,  # Configuration
         "template": None  # Template
     },

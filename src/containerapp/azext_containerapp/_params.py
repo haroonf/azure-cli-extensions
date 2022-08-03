@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------------------------
 # pylint: disable=line-too-long, too-many-statements, consider-using-f-string
 
+from tokenize import group
 from knack.arguments import CLIArgumentType
 
 from azure.cli.core.commands.validators import get_default_location_from_resource_group
@@ -12,7 +13,7 @@ from azure.cli.core.commands.parameters import (resource_group_name_type, get_lo
                                                 get_three_state_flag, get_enum_type, tags_type)
 # from azure.cli.core.commands.validators import get_default_location_from_resource_group
 
-from ._validators import (validate_memory, validate_cpu, validate_managed_env_name_or_id, validate_registry_server,
+from ._validators import (validate_memory, validate_cpu, validate_env_name_or_id, validate_registry_server,
                           validate_registry_user, validate_registry_pass, validate_target_port, validate_ingress)
 from ._constants import UNAUTHENTICATED_CLIENT_ACTION, FORWARD_PROXY_CONVENTION, MAXIMUM_CONTAINER_APP_NAME_LENGTH
 
@@ -30,7 +31,8 @@ def load_arguments(self, _):
 
     with self.argument_context('containerapp') as c:
         c.argument('tags', arg_type=tags_type)
-        c.argument('managed_env', validator=validate_managed_env_name_or_id, options_list=['--environment'], help="Name or resource ID of the container app's environment.")
+        c.argument('env', validator=validate_env_name_or_id, options_list=['--environment'], help="Name or resource ID of the container app's environment.")
+        c.argument('environment_type', arg_type=get_enum_type(["managed", "connected"]), help="Type of environment.")
         c.argument('yaml', type=file_type, help='Path to a .yaml file with the configuration of a container app. All other parameters will be ignored. For an example, see  https://docs.microsoft.com/azure/container-apps/azure-resource-manager-api-spec#examples')
 
     with self.argument_context('containerapp exec') as c:
@@ -124,6 +126,19 @@ def load_arguments(self, _):
         c.argument('location', arg_type=get_location_type(self.cli_ctx), help='Location of resource. Examples: eastus2, northeurope')
         c.argument('tags', arg_type=tags_type)
 
+    with self.argument_context('containerapp connected-env') as c:
+        c.argument('name', name_type, help='Name of the Container Apps environment.')
+        c.argument('resource_group_name', arg_type=resource_group_name_type)
+        c.argument('location', arg_type=get_location_type(self.cli_ctx), help='Location of resource. Examples: eastus2, northeurope')
+        c.argument('tags', arg_type=tags_type)
+        c.argument('custom_location', help='Resource ID of custom location.')
+
+    with self.argument_context('containerapp connected-env', arg_group='Dapr') as c:
+        c.argument('dapr_ai_connection_string', options_list=['--dapr-ai-connection-string', '--dapr-connection'], help='Dapr AI connection string.')
+
+    with self.argument_context('containerapp connected-env', arg_group='Network') as c:
+        c.argument('static_ip', help='Static IP value.')
+
     with self.argument_context('containerapp env', arg_group='Log Analytics') as c:
         c.argument('logs_customer_id', options_list=['--logs-workspace-id'], help='Workspace ID of the Log Analytics workspace to send diagnostics logs to. You can use \"az monitor log-analytics workspace create\" to create one. Extra billing may apply.')
         c.argument('logs_key', options_list=['--logs-workspace-key'], help='Log Analytics workspace key to configure your Log Analytics workspace. You can use \"az monitor log-analytics workspace get-shared-keys\" to retrieve the key.')
@@ -166,9 +181,34 @@ def load_arguments(self, _):
         c.argument('certificate', options_list=['--certificate', '-c'], help='Name or resource id of the certificate.')
         c.argument('thumbprint', options_list=['--thumbprint', '-t'], help='Thumbprint of the certificate.')
 
+    with self.argument_context('containerapp connected-env certificate upload') as c:
+        c.argument('certificate_file', options_list=['--certificate-file', '-f'], help='The filepath of the .pfx or .pem file')
+        c.argument('certificate_name', options_list=['--certificate-name', '-c'], help='Name of the certificate which should be unique within the Container Apps environment.')
+        c.argument('certificate_password', options_list=['--password', '-p'], help='The certificate file password')
+        c.argument('prompt', options_list=['--show-prompt'], action='store_true', help='Show prompt to upload an existing certificate.')
+
+    with self.argument_context('containerapp connected-env certificate list') as c:
+        c.argument('name', id_part=None)
+        c.argument('certificate', options_list=['--certificate', '-c'], help='Name or resource id of the certificate.')
+        c.argument('thumbprint', options_list=['--thumbprint', '-t'], help='Thumbprint of the certificate.')
+
+    with self.argument_context('containerapp connected-env certificate delete') as c:
+        c.argument('certificate', options_list=['--certificate', '-c'], help='Name or resource id of the certificate.')
+        c.argument('thumbprint', options_list=['--thumbprint', '-t'], help='Thumbprint of the certificate.')
+
     with self.argument_context('containerapp env storage') as c:
         c.argument('name', id_part=None)
         c.argument('storage_name', help="Name of the storage.")
+        c.argument('access_mode', id_part=None, arg_type=get_enum_type(["ReadWrite", "ReadOnly"]), help="Access mode for the AzureFile storage.")
+        c.argument('azure_file_account_key', options_list=["--azure-file-account-key", "--storage-account-key", "-k"], help="Key of the AzureFile storage account.")
+        c.argument('azure_file_share_name', options_list=["--azure-file-share-name", "--file-share", "-f"], help="Name of the share on the AzureFile storage.")
+        c.argument('azure_file_account_name', options_list=["--azure-file-account-name", "--account-name", "-a"], help="Name of the AzureFile storage account.")
+
+    with self.argument_context('containerapp connected-env storage') as c:
+        c.argument('name', id_part=None)
+        c.argument('storage_name', help="Name of the storage.")
+
+    with self.argument_context('containerapp connected-env storage', arg_group='AzureFile') as c:
         c.argument('access_mode', id_part=None, arg_type=get_enum_type(["ReadWrite", "ReadOnly"]), help="Access mode for the AzureFile storage.")
         c.argument('azure_file_account_key', options_list=["--azure-file-account-key", "--storage-account-key", "-k"], help="Key of the AzureFile storage account.")
         c.argument('azure_file_share_name', options_list=["--azure-file-share-name", "--file-share", "-f"], help="Name of the share on the AzureFile storage.")
@@ -235,6 +275,13 @@ def load_arguments(self, _):
         c.ignore('disable_max_length')
 
     with self.argument_context('containerapp env dapr-component') as c:
+        c.argument('dapr_app_id', help="The Dapr app ID.")
+        c.argument('dapr_app_port', help="The port of your app.")
+        c.argument('dapr_app_protocol', help="Tell Dapr which protocol your application is using.  Allowed values: grpc, http.")
+        c.argument('dapr_component_name', help="The Dapr component name.")
+        c.argument('environment_name', options_list=['--name', '-n'], help="The environment name.")
+
+    with self.argument_context('containerapp connected-env dapr-component') as c:
         c.argument('dapr_app_id', help="The Dapr app ID.")
         c.argument('dapr_app_port', help="The port of your app.")
         c.argument('dapr_app_protocol', help="Tell Dapr which protocol your application is using.  Allowed values: grpc, http.")

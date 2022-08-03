@@ -937,22 +937,26 @@ class ContainerApp(TrackedResource):
     :vartype type: str
     :ivar system_data: Azure Resource Manager metadata containing createdBy
      and modifiedBy information.
-    :vartype system_data: ~commondefinitions.models.SystemData
+    :vartype system_data: ~azure.mgmt.app.models.SystemData
     :param tags: Resource tags.
     :type tags: dict[str, str]
     :param location: Required. The geo-location where the resource lives
     :type location: str
+    :param extended_location:
+    :type extended_location: ~azure.mgmt.app.models.ExtendedLocation
     :param identity: managed identities for the Container App to interact with
      other Azure services without maintaining any secrets or credentials in
      code.
-    :type identity: ~commondefinitions.models.ManagedServiceIdentity
+    :type identity: ~azure.mgmt.app.models.ManagedServiceIdentity
     :ivar provisioning_state: Provisioning state of the Container App.
      Possible values include: 'InProgress', 'Succeeded', 'Failed', 'Canceled'
     :vartype provisioning_state: str or
-     ~commondefinitions.models.ContainerAppProvisioningState
-    :param managed_environment_id: Resource ID of the Container App's
-     environment.
+     ~azure.mgmt.app.models.ContainerAppProvisioningState
+    :param managed_environment_id: Deprecated. Resource ID of the Container
+     App's environment.
     :type managed_environment_id: str
+    :param environment_id: Resource ID of environment.
+    :type environment_id: str
     :ivar latest_revision_name: Name of the latest revision of the Container
      App.
     :vartype latest_revision_name: str
@@ -964,9 +968,9 @@ class ContainerApp(TrackedResource):
     :vartype custom_domain_verification_id: str
     :param configuration: Non versioned Container App configuration
      properties.
-    :type configuration: ~commondefinitions.models.Configuration
+    :type configuration: ~azure.mgmt.app.models.Configuration
     :param template: Container App versioned application definition.
-    :type template: ~commondefinitions.models.Template
+    :type template: ~azure.mgmt.app.models.Template
     :ivar outbound_ip_addresses: Outbound IP Addresses for container app.
     :vartype outbound_ip_addresses: list[str]
     """
@@ -991,9 +995,11 @@ class ContainerApp(TrackedResource):
         'system_data': {'key': 'systemData', 'type': 'SystemData'},
         'tags': {'key': 'tags', 'type': '{str}'},
         'location': {'key': 'location', 'type': 'str'},
+        'extended_location': {'key': 'extendedLocation', 'type': 'ExtendedLocation'},
         'identity': {'key': 'identity', 'type': 'ManagedServiceIdentity'},
         'provisioning_state': {'key': 'properties.provisioningState', 'type': 'str'},
         'managed_environment_id': {'key': 'properties.managedEnvironmentId', 'type': 'str'},
+        'environment_id': {'key': 'properties.environmentId', 'type': 'str'},
         'latest_revision_name': {'key': 'properties.latestRevisionName', 'type': 'str'},
         'latest_revision_fqdn': {'key': 'properties.latestRevisionFqdn', 'type': 'str'},
         'custom_domain_verification_id': {'key': 'properties.customDomainVerificationId', 'type': 'str'},
@@ -1002,16 +1008,18 @@ class ContainerApp(TrackedResource):
         'outbound_ip_addresses': {'key': 'properties.outboundIPAddresses', 'type': '[str]'},
     }
 
-    def __init__(self, **kwargs):
-        super(ContainerApp, self).__init__(**kwargs)
-        self.identity = kwargs.get('identity', None)
+    def __init__(self, *, location: str, tags=None, extended_location=None, identity=None, managed_environment_id: str=None, environment_id: str=None, configuration=None, template=None, **kwargs) -> None:
+        super(ContainerApp, self).__init__(tags=tags, location=location, **kwargs)
+        self.extended_location = extended_location
+        self.identity = identity
         self.provisioning_state = None
-        self.managed_environment_id = kwargs.get('managed_environment_id', None)
+        self.managed_environment_id = managed_environment_id
+        self.environment_id = environment_id
         self.latest_revision_name = None
         self.latest_revision_fqdn = None
         self.custom_domain_verification_id = None
-        self.configuration = kwargs.get('configuration', None)
-        self.template = kwargs.get('template', None)
+        self.configuration = configuration
+        self.template = template
         self.outbound_ip_addresses = None
 
 
