@@ -106,6 +106,9 @@ def load_arguments(self, _):
     with self.argument_context('containerapp create') as c:
         c.argument('traffic_weights', nargs='*', options_list=['--traffic-weight'], help="A list of revision weight(s) for the container app. Space-separated values in 'revision_name=weight' format. For latest revision, use 'latest=weight'")
 
+    with self.argument_context('containerapp list') as c:
+        c.argument('environment_type', arg_type=get_enum_type(["managed", "connected", "all"]), help="Type of environment.")
+
     with self.argument_context('containerapp create', arg_group='Identity') as c:
         c.argument('user_assigned', nargs='+', help="Space-separated user identities to be assigned.")
         c.argument('system_assigned', help="Boolean indicating whether to assign system-assigned identity.")

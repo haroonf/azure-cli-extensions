@@ -64,7 +64,7 @@ def validate_env_name_or_id(cmd, namespace):
         if "connectedEnvironments" in namespace.env:
             environment_type = "connected"
         if "managedEnvironments" in namespace.env:
-            environment_type = "connected"
+            environment_type = "managed"
 
     # Validate resource id / format resource id
     if environment_type == "connected":

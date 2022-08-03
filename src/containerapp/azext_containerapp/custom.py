@@ -251,16 +251,11 @@ def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=
     _remove_additional_attributes(containerapp_def)
     _remove_readonly_attributes(containerapp_def)
 
-    environment_type = "managed"
-    if containerapp_def["properties"].get("environmentId"):
-        if "connectedEnvironments" in containerapp_def["properties"]['environmentId']:
-            environment_type = "connected"
+    env_id = containerapp_def["properties"].get('environmentId')
 
-    env_id = None
-    if environment_type == "managed":
-        env_id = containerapp_def["properties"].get('managedEnvironmentId')
-    if not env_id:
-        env_id = containerapp_def["properties"].get('environmentId')
+    environment_type = "managed"
+    if "connectedEnvironments" in env_id:
+        environment_type = "connected"
 
     env_name = None
     env_rg = None
@@ -368,11 +363,21 @@ def create_containerapp(cmd,
     env_rg = parsed_env['resource_group']
     env_info = None
 
+    # Validate environment type
+    if parsed_env['resource_type'] == "connectedEnvironments":
+        if environment_type == "managed":
+            logger.warning("User passed a connectedEnvironment resource id but did not specify --environment-type connected. Using environment type connected.")
+            environment_type = "connected"
+    else:
+        if environment_type == "connected":
+            logger.warning("User passed a managedEnvironment resource id but specified --environment-type connected. Using environment type managed.")
+
+    # Validate environment exists + grab location and/or custom_location
     try:
         if environment_type == "managed":
             env_info = ManagedEnvironmentClient.show(cmd=cmd, resource_group_name=env_rg, name=env_name)
         else:
-            env_info = ConnectedEnvironmentClient.show(cmd=cmd, resource_group_name=resource_group_name, name=env_name)
+            env_info = ConnectedEnvironmentClient.show(cmd=cmd, resource_group_name=env_rg, name=env_name)
     except:
         pass
 
@@ -843,7 +848,7 @@ def show_containerapp(cmd, name, resource_group_name):
         handle_raw_exception(e)
 
 
-def list_containerapp(cmd, resource_group_name=None, env=None):
+def list_containerapp(cmd, resource_group_name=None, env=None, environment_type="all"):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
@@ -859,25 +864,34 @@ def list_containerapp(cmd, resource_group_name=None, env=None):
             if c["properties"].get("environmentId"):
                 return c["properties"]["environmentId"]
 
-        if env:
-            # Determine env type
-            environment_type = "managed"
-            if "connectedEnvironments" in env:
-                environment_type = "connected"
-            
-            # Set client
+        def match_env_rg_name(c, rg, name):
+            env_id = get_app_env(c)
+            parsed_env = parse_resource_id(env_id)
+            env_rg = parsed_env["resource_group"].lower()
+            env_name = parsed_env["name"].lower()
+            if not rg:
+                return env_name == name
+            return env_rg == rg.lower() and env_name == name.lower()
+
+        if environment_type == "connected":
+            containerapps = [c for c in containerapps if "connectedEnvironments" in get_app_env(c)]
+        if environment_type == "managed":
+            containerapps = [c for c in containerapps if "managedEnvironments" in get_app_env(c)]
+
+        if env:            
+            # Set client for validation
             client = ManagedEnvironmentClient
             if environment_type == "connected":
                 client = ConnectedEnvironmentClient
-            
+
             # List by env
             parsed_env = parse_resource_id(env)
-            env_name = parsed_env["name"].lower()
+            env_name = parsed_env["name"]
+            env_rg = parsed_env.get("resource_group", None)
             if "resource_group" in parse_resource_id(env):
-                client.show(cmd, parsed_env["resource_group"], parsed_env["name"])
-                containerapps = [c for c in containerapps if get_app_env(c).lower() == env.lower()]
-            else:
-                containerapps = [c for c in containerapps if parse_resource_id(get_app_env(c))["name"].lower() == env_name]
+                if environment_type != "all":
+                    client.show(cmd, parsed_env["resource_group"], parsed_env["name"])
+            containerapps = [c for c in containerapps if match_env_rg_name(c, env_rg, env_name)]
 
         return containerapps
     except CLIError as e:
@@ -2547,7 +2561,7 @@ def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, en
 
     if containerapp_def:
         return update_containerapp_logic(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, replace_env_vars=env_vars, ingress=ingress, target_port=target_port, registry_server=registry_server, registry_user=registry_user, registry_pass=registry_pass, container_name=name)
-    return create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, managed_env=managed_env, image=image, env_vars=env_vars, ingress=ingress, target_port=target_port, registry_server=registry_server, registry_user=registry_user, registry_pass=registry_pass)
+    return create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, env=managed_env, image=image, env_vars=env_vars, ingress=ingress, target_port=target_port, registry_server=registry_server, registry_user=registry_user, registry_pass=registry_pass)
 
 
 def list_certificates(cmd, name, resource_group_name, location=None, certificate=None, thumbprint=None):
