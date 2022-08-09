@@ -3,6 +3,11 @@
 Release History
 ===============
 
+0.3.9
+++++++
+* 'az containerapp show': Add parameter --show-secrets to show secret values
+* 'az containerapp env create': Add better message when polling times out
+
 0.3.8
 ++++++
 * 'az containerapp update': Fix bug where --yaml would error out due to secret values
