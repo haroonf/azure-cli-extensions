@@ -182,8 +182,15 @@ def _validate_container_exists(cmd, namespace):
         raise ResourceNotFoundError("Could not find container")
 
 
+def _validate_no_extended_location(cmd, namespace):
+    containerapp = ContainerAppClient.show(cmd, namespace.resource_group_name, namespace.name)
+    if containerapp.get("extendedLocation"):
+        raise ValidationError("Exec not supported on Containerapps hosted on connected environments.")
+
+
 # also used to validate logstream
 def validate_ssh(cmd, namespace):
+    _validate_no_extended_location(cmd, namespace)
     _set_ssh_defaults(cmd, namespace)
     _validate_revision_exists(cmd, namespace)
     _validate_replica_exists(cmd, namespace)

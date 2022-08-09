@@ -25,7 +25,7 @@ from knack.log import get_logger
 
 from msrestazure.tools import parse_resource_id, is_valid_resource_id, resource_id
 
-from ._clients import ManagedEnvironmentClient, ContainerAppClient, GitHubActionClient
+from ._clients import ManagedEnvironmentClient, ContainerAppClient, GitHubActionClient, ConnectedEnvironmentClient
 
 from ._utils import (
     get_randomized_name,
@@ -49,11 +49,13 @@ from ._utils import (
 from ._constants import MAXIMUM_SECRET_LENGTH, LOG_ANALYTICS_RP, CONTAINER_APPS_RP, ACR_IMAGE_SUFFIX, MAXIMUM_CONTAINER_APP_NAME_LENGTH
 
 from .custom import (
+    create_connected_environment,
     create_managed_environment,
     containerapp_up_logic,
     list_containerapp,
     list_managed_environments,
     create_or_update_github_action,
+    list_connected_environments,
 )
 
 from ._github_oauth import load_github_token_from_cache, get_github_access_token
@@ -146,6 +148,7 @@ class ContainerAppEnvironment(Resource):
         resource_group: "ResourceGroup",
         exists: bool = None,
         location=None,
+        custom_location=None,
         logs_key=None,
         logs_customer_id=None,
     ):
@@ -160,6 +163,8 @@ class ContainerAppEnvironment(Resource):
         self.location = location
         self.logs_key = logs_key
         self.logs_customer_id = logs_customer_id
+        self.custom_location = custom_location
+        self.resource_type = "managedEnvironments" if not custom_location else "connectedEnvironments"
 
     def set_name(self, name_or_rid):
         if is_valid_resource_id(name_or_rid):
@@ -176,9 +181,11 @@ class ContainerAppEnvironment(Resource):
             self.name = name_or_rid
 
     def _get(self):
-        return ManagedEnvironmentClient.show(
-            self.cmd, self.resource_group.name, self.name
-        )
+        if self.resource_type == "managedEnvironments":
+            return ManagedEnvironmentClient.show(
+                self.cmd, self.resource_group.name, self.name
+            )
+        return ConnectedEnvironmentClient.show(self.cmd, self.resource_group.name, self.name)
 
     def create_if_needed(self, app_name):
         if not self.check_exists():
@@ -194,17 +201,26 @@ class ContainerAppEnvironment(Resource):
             )  # TODO use .info()
 
     def create(self):
-        self.location = validate_environment_location(self.cmd, self.location)
-        register_provider_if_needed(self.cmd, LOG_ANALYTICS_RP)
-        env = create_managed_environment(
-            self.cmd,
-            self.name,
-            location=self.location,
-            resource_group_name=self.resource_group.name,
-            logs_key=self.logs_key,
-            logs_customer_id=self.logs_customer_id,
-            disable_warnings=True,
-        )
+        self.location = validate_environment_location(self.cmd, self.location, self.resource_type)  # connected needs to be passed
+        if self.resource_type == "managedEnvironments":
+            register_provider_if_needed(self.cmd, LOG_ANALYTICS_RP)
+            env = create_managed_environment(
+                self.cmd,
+                self.name,
+                location=self.location,
+                resource_group_name=self.resource_group.name,
+                logs_key=self.logs_key,
+                logs_customer_id=self.logs_customer_id,
+                disable_warnings=True,
+            )
+        else:
+            env = create_connected_environment(
+                cmd=self.cmd,
+                name=self.name,
+                resource_group_name=self.resource_group.name,
+                custom_location=self.custom_location,
+                location=self.location,
+            )
         self.exists = True
         return env
 
@@ -215,7 +231,7 @@ class ContainerAppEnvironment(Resource):
                 subscription=get_subscription_id(self.cmd.cli_ctx),
                 resource_group=self.resource_group.name,
                 namespace=CONTAINER_APPS_RP,
-                type="managedEnvironments",
+                type=self.resource_type,
                 name=self.name,
             )
         return rid
@@ -284,6 +300,7 @@ class ContainerApp(Resource):  # pylint: disable=too-many-instance-attributes
             registry_user=None if no_registry else self.registry_user,
             env_vars=self.env_vars,
             ingress=self.ingress,
+            environment_type="connected" if self.env.custom_location else "managed"
         )
 
     def create_acr_if_needed(self):
@@ -504,14 +521,16 @@ def _get_dockerfile_content(repo, branch, token, source, context_path, dockerfil
 
 
 def _get_app_env_and_group(
-    cmd, name, resource_group: "ResourceGroup", env: "ContainerAppEnvironment", location
+    cmd, name, resource_group: "ResourceGroup", env: "ContainerAppEnvironment", location, custom_location,
 ):
     if not resource_group.name and not resource_group.exists:
         matched_apps = [c for c in list_containerapp(cmd) if c["name"].lower() == name.lower()]
         if env.name:
-            matched_apps = [c for c in matched_apps if parse_resource_id(c["properties"]["managedEnvironmentId"])["name"].lower() == env.name.lower()]
+            matched_apps = [c for c in matched_apps if parse_resource_id(c["properties"]["environmentId"])["name"].lower() == env.name.lower()]
         if location:
             matched_apps = [c for c in matched_apps if c["location"].lower() == location.lower()]
+        if custom_location:
+            matched_apps = [c for c in matched_apps if c["extendedLocation"]["name"].lower() == custom_location.lower()]
         if len(matched_apps) == 1:
             resource_group.name = parse_resource_id(matched_apps[0]["id"])[
                 "resource_group"
@@ -692,21 +711,25 @@ def _set_up_defaults(
     resource_group: "ResourceGroup",
     env: "ContainerAppEnvironment",
     app: "ContainerApp",
+    custom_location=None,
 ):
     # If no RG passed in and a singular app exists with the same name, get its env and rg
-    _get_app_env_and_group(cmd, name, resource_group, env, location)
+    _get_app_env_and_group(cmd, name, resource_group, env, location, custom_location)
 
     # If no env passed in (and not creating a new RG), then try getting an env by location / log analytics ID
-    _get_env_and_group_from_log_analytics(
-        cmd, resource_group_name, env, resource_group, logs_customer_id, location
-    )
-
+    if not custom_location:
+        _get_env_and_group_from_log_analytics(
+            cmd, resource_group_name, env, resource_group, logs_customer_id, location
+        )
+    list_environments = list_managed_environments
+    if custom_location:
+        list_environments = list_connected_environments
     # try to set RG name by env name
     if env.name and not resource_group.name:
         if not location:
-            env_list = [e for e in list_managed_environments(cmd=cmd) if e["name"] == env.name]
+            env_list = [e for e in list_environments(cmd=cmd) if e["name"] == env.name]
         else:
-            env_list = [e for e in list_managed_environments(cmd=cmd) if e["name"] == env.name and e["location"] == location]
+            env_list = [e for e in list_environments(cmd=cmd) if e["name"] == env.name and e["location"] == location]
         if len(env_list) == 1:
             resource_group.name = parse_resource_id(env_list[0]["id"])["resource_group"]
         if len(env_list) > 1:
@@ -810,9 +833,12 @@ def find_existing_acr(cmd, app: "ContainerApp"):
     return None, None
 
 
-def validate_environment_location(cmd, location):
+def validate_environment_location(cmd, location, resource_type):
     from ._constants import MAX_ENV_PER_LOCATION
-    env_list = list_managed_environments(cmd)
+    if resource_type == "connectedEnvironments":
+        env_list = list_connected_environments(cmd)
+    else:
+        env_list = list_managed_environments(cmd)
 
     locations = [loc["location"] for loc in env_list]
     locations = list(set(locations))  # remove duplicates
@@ -833,7 +859,7 @@ def validate_environment_location(cmd, location):
 
     if location:
         try:
-            _ensure_location_allowed(cmd, location, CONTAINER_APPS_RP, "managedEnvironments")
+            _ensure_location_allowed(cmd, location, CONTAINER_APPS_RP, resource_type)
         except Exception as e:  # pylint: disable=broad-except
             raise ValidationError("You cannot create a Containerapp environment in location {}. List of eligible locations: {}.".format(location, allowed_locs)) from e
 
@@ -848,13 +874,13 @@ def validate_environment_location(cmd, location):
         raise ValidationError("You cannot create any more environments. Environments are limited to {} per location in a subscription. Please specify an existing environment using --environment.".format(MAX_ENV_PER_LOCATION))
 
 
-def list_environment_locations(cmd):
+def list_environment_locations(cmd, resource_type):
     from ._utils import providers_client_factory
     providers_client = providers_client_factory(cmd.cli_ctx, get_subscription_id(cmd.cli_ctx))
     resource_types = getattr(providers_client.get(CONTAINER_APPS_RP), 'resource_types', [])
     res_locations = []
     for res in resource_types:
-        if res and getattr(res, 'resource_type', "") == "managedEnvironments":
+        if res and getattr(res, 'resource_type', "") == resource_type:
             res_locations = getattr(res, 'locations', [])
 
     res_locations = [res_loc.lower().replace(" ", "").replace("(", "").replace(")", "") for res_loc in res_locations if res_loc.strip()]
@@ -862,13 +888,16 @@ def list_environment_locations(cmd):
     return res_locations
 
 
-def check_env_name_on_rg(cmd, env, resource_group_name, location):
+def check_env_name_on_rg(cmd, env, resource_group_name, location, resource_type):
     if location:
-        _ensure_location_allowed(cmd, location, CONTAINER_APPS_RP, "managedEnvironments")
+        _ensure_location_allowed(cmd, location, CONTAINER_APPS_RP, resource_type)
     if env and resource_group_name and location:
         env_def = None
         try:
-            env_def = ManagedEnvironmentClient.show(cmd, resource_group_name, parse_resource_id(env)["name"])
+            if resource_type == "managedEnvironments":
+                env_def = ManagedEnvironmentClient.show(cmd, resource_group_name, parse_resource_id(env)["name"])
+            else:
+                env_def = ConnectedEnvironmentClient.show(cmd, resource_group_name, parse_resource_id(env)["name"])
         except:  # pylint: disable=bare-except
             pass
         if env_def:

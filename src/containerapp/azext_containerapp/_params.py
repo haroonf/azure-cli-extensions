@@ -137,7 +137,7 @@ def load_arguments(self, _):
         c.argument('custom_location', help='Resource ID of custom location.')
 
     with self.argument_context('containerapp connected-env', arg_group='Dapr') as c:
-        c.argument('dapr_ai_connection_string', options_list=['--dapr-ai-connection-string', '--dapr-connection'], help='Dapr AI connection string.')
+        c.argument('dapr_ai_connection_string', options_list=['--dapr-ai-connection-string', '-d'], help='Connection string used for Dapr application insights.')
 
     with self.argument_context('containerapp connected-env', arg_group='Network') as c:
         c.argument('static_ip', help='Static IP value.')

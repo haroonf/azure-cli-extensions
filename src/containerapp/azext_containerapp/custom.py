@@ -2486,7 +2486,8 @@ def containerapp_up(cmd,
                     context_path=None,
                     service_principal_client_id=None,
                     service_principal_client_secret=None,
-                    service_principal_tenant_id=None):
+                    service_principal_tenant_id=None,
+                    custom_location=None):
     from ._up_utils import (_validate_up_args, _reformat_image, _get_dockerfile_content, _get_ingress_and_target_port,
                             ResourceGroup, ContainerAppEnvironment, ContainerApp, _get_registry_from_app,
                             _get_registry_details, _create_github_action, _set_up_defaults, up_output,
@@ -2500,7 +2501,7 @@ def containerapp_up(cmd,
     register_provider_if_needed(cmd, CONTAINER_APPS_RP)
     _validate_up_args(cmd, source, image, repo, registry_server)
     validate_container_app_name(name)
-    check_env_name_on_rg(cmd, env, resource_group_name, location)
+    check_env_name_on_rg(cmd, env, resource_group_name, location, "connecteEnvironments" if custom_location else "managedEnvironments")
 
     image = _reformat_image(source, repo, image)
     token = get_token(cmd, repo, token)
@@ -2518,10 +2519,10 @@ def containerapp_up(cmd,
     ingress, target_port = _get_ingress_and_target_port(ingress, target_port, dockerfile_content)
 
     resource_group = ResourceGroup(cmd, name=resource_group_name, location=location)
-    env = ContainerAppEnvironment(cmd, env, resource_group, location=location, logs_key=logs_key, logs_customer_id=logs_customer_id)
+    env = ContainerAppEnvironment(cmd, env, resource_group, location=location, logs_key=logs_key, logs_customer_id=logs_customer_id, custom_location=custom_location)
     app = ContainerApp(cmd, name, resource_group, None, image, env, target_port, registry_server, registry_user, registry_pass, env_vars, ingress)
 
-    _set_up_defaults(cmd, name, resource_group_name, logs_customer_id, location, resource_group, env, app)
+    _set_up_defaults(cmd, name, resource_group_name, logs_customer_id, location, resource_group, env, app, custom_location)
 
     if app.check_exists():
         if app.get()["properties"]["provisioningState"] == "InProgress":
@@ -2552,7 +2553,7 @@ def containerapp_up(cmd,
     up_output(app)
 
 
-def containerapp_up_logic(cmd, resource_group_name, name, env, image, env_vars, ingress, target_port, registry_server, registry_user, registry_pass):
+def containerapp_up_logic(cmd, resource_group_name, name, env, image, env_vars, ingress, target_port, registry_server, registry_user, registry_pass, environment_type):
     containerapp_def = None
     try:
         containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
@@ -2561,7 +2562,7 @@ def containerapp_up_logic(cmd, resource_group_name, name, env, image, env_vars, 
 
     if containerapp_def:
         return update_containerapp_logic(cmd=cmd, name=name, resource_group_name=resource_group_name, image=image, replace_env_vars=env_vars, ingress=ingress, target_port=target_port, registry_server=registry_server, registry_user=registry_user, registry_pass=registry_pass, container_name=name)
-    return create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, env=env, image=image, env_vars=env_vars, ingress=ingress, target_port=target_port, registry_server=registry_server, registry_user=registry_user, registry_pass=registry_pass)
+    return create_containerapp(cmd=cmd, name=name, resource_group_name=resource_group_name, env=env, image=image, env_vars=env_vars, ingress=ingress, target_port=target_port, registry_server=registry_server, registry_user=registry_user, registry_pass=registry_pass, environment_type=environment_type)
 
 
 def list_certificates(cmd, name, resource_group_name, location=None, certificate=None, thumbprint=None):
