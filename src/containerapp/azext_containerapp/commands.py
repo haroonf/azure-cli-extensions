@@ -7,7 +7,7 @@
 # from azure.cli.core.commands import CliCommandType
 # from msrestazure.tools import is_valid_resource_id, parse_resource_id
 from azext_containerapp._client_factory import ex_handler_factory
-from ._validators import validate_ssh
+from ._validators import validate_ssh, validate_exec
 
 
 def transform_containerapp_output(app):
@@ -50,7 +50,7 @@ def load_command_table(self, _):
         g.custom_command('create', 'create_containerapp', supports_no_wait=True, exception_handler=ex_handler_factory(), table_transformer=transform_containerapp_output)
         g.custom_command('update', 'update_containerapp', supports_no_wait=True, exception_handler=ex_handler_factory(), table_transformer=transform_containerapp_output)
         g.custom_command('delete', 'delete_containerapp', supports_no_wait=True, confirmation=True, exception_handler=ex_handler_factory())
-        g.custom_command('exec', 'containerapp_ssh', validator=validate_ssh)
+        g.custom_command('exec', 'containerapp_ssh', validator=validate_exec)
         g.custom_command('up', 'containerapp_up', supports_no_wait=False, exception_handler=ex_handler_factory())
         g.custom_command('browse', 'open_containerapp_in_browser')
 

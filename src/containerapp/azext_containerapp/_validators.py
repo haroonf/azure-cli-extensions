@@ -182,9 +182,20 @@ def _validate_container_exists(cmd, namespace):
         raise ResourceNotFoundError("Could not find container")
 
 
+def _validate_container_connected(cmd, namespace):
+    containerapp = ContainerAppClient.show(cmd, namespace.resource_group_name, namespace.name)
+    if "connected" in containerapp["properties"]["environmentId"]:
+        raise ValidationError("Containerapps hosted on connected environments do not support this command.")
+
+
 # also used to validate logstream
 def validate_ssh(cmd, namespace):
     _set_ssh_defaults(cmd, namespace)
     _validate_revision_exists(cmd, namespace)
     _validate_replica_exists(cmd, namespace)
     _validate_container_exists(cmd, namespace)
+
+
+def validate_exec(cmd, namespace):
+    _validate_container_connected(cmd, namespace)
+    validate_ssh(cmd, namespace)

@@ -69,9 +69,19 @@ def poll(cmd, request_url, poll_if_status):  # pylint: disable=inconsistent-retu
             raise e
 
 
+def safe_get(model, *keys, default=None):
+    if not model:
+        return default
+    for k in keys[:-1]:
+        model = model.get(k, {})
+    return model.get(keys[-1], default)
+
+
 class ContainerAppClient():
     @classmethod
     def create_or_update(cls, cmd, resource_group_name, name, container_app_envelope, no_wait=False):
+        if safe_get(container_app_envelope, "properties", "managedEnvironmentId") == "":
+            container_app_envelope["properties"]["managedEnvironmentId"] = None
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
         api_version = PREVIEW_API_VERSION
         sub_id = get_subscription_id(cmd.cli_ctx)
@@ -101,6 +111,8 @@ class ContainerAppClient():
 
     @classmethod
     def update(cls, cmd, resource_group_name, name, container_app_envelope, no_wait=False):
+        if safe_get(container_app_envelope, "properties", "managedEnvironmentId") == "":
+            container_app_envelope["properties"]["managedEnvironmentId"] = None
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
 
         api_version = PREVIEW_API_VERSION
