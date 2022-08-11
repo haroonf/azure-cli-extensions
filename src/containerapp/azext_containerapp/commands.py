@@ -50,9 +50,11 @@ def load_command_table(self, _):
         g.custom_command('create', 'create_containerapp', supports_no_wait=True, exception_handler=ex_handler_factory(), table_transformer=transform_containerapp_output)
         g.custom_command('update', 'update_containerapp', supports_no_wait=True, exception_handler=ex_handler_factory(), table_transformer=transform_containerapp_output)
         g.custom_command('delete', 'delete_containerapp', supports_no_wait=True, confirmation=True, exception_handler=ex_handler_factory())
-        g.custom_command('exec', 'containerapp_ssh', validator=validate_exec)
-        g.custom_command('up', 'containerapp_up', supports_no_wait=False, exception_handler=ex_handler_factory())
+        # g.custom_command('exec', 'containerapp_ssh', validator=validate_exec)
+        # g.custom_command('up', 'containerapp_up', supports_no_wait=False, exception_handler=ex_handler_factory())
         g.custom_command('browse', 'open_containerapp_in_browser')
+        g.custom_command('compose', 'list_containerapp', deprecate_info=g.deprecate(redirect='test show', expiration='0.0.1'))
+        g.custom_command('connection', 'list_containerapp', deprecate_info=g.deprecate(redirect='test show', expiration='0.0.1'))
 
     with self.command_group('containerapp replica') as g:
         g.custom_show_command('show', 'get_replica')  # TODO implement the table transformer

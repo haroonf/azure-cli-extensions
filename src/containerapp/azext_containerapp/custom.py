@@ -64,7 +64,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      validate_container_app_name, _update_weights, get_vnet_location, register_provider_if_needed,
                      generate_randomized_cert_name, _get_name, load_cert_file, check_cert_name_availability,
                      validate_hostname, patch_new_custom_domain, get_custom_domains, _validate_revision_name, set_managed_identity,
-                     clean_null_values, _populate_secret_values, connected_env_check_cert_name_availability)
+                     clean_null_values, _populate_secret_values, connected_env_check_cert_name_availability, _validate_custom_loc_and_location)
 
 
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
@@ -310,11 +310,10 @@ def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=
 def create_containerapp(cmd,
                         name,
                         resource_group_name,
+                        env,
                         environment_type="managed",
-                        yaml=None,
                         image=None,
                         container_name=None,
-                        env=None,
                         min_replicas=None,
                         max_replicas=None,
                         target_port=None,
@@ -342,14 +341,6 @@ def create_containerapp(cmd,
                         user_assigned=None):
     register_provider_if_needed(cmd, CONTAINER_APPS_RP)
     validate_container_app_name(name)
-
-    if yaml:
-        if image or env or min_replicas or max_replicas or target_port or ingress or\
-            revisions_mode or secrets or env_vars or cpu or memory or registry_server or\
-            registry_user or registry_pass or dapr_enabled or dapr_app_port or dapr_app_id or\
-                startup_command or args or tags:
-            not disable_warnings and logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
-        return create_containerapp_yaml(cmd=cmd, name=name, resource_group_name=resource_group_name, file_name=yaml, no_wait=no_wait)
 
     if not image:
         image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
@@ -521,7 +512,6 @@ def create_containerapp(cmd,
 def update_containerapp_logic(cmd,
                               name,
                               resource_group_name,
-                              yaml=None,
                               image=None,
                               container_name=None,
                               min_replicas=None,
@@ -549,13 +539,6 @@ def update_containerapp_logic(cmd,
     if max_replicas is not None:
         if max_replicas < 1 or max_replicas > 30:
             raise ArgumentUsageError('--max-replicas must be in the range [1,30]')
-
-    if yaml:
-        if image or min_replicas or max_replicas or\
-           set_env_vars or remove_env_vars or replace_env_vars or remove_all_env_vars or cpu or memory or\
-           startup_command or args or tags:
-            logger.warning('Additional flags were passed along with --yaml. These flags will be ignored, and the configuration defined in the yaml will be used instead')
-        return update_containerapp_yaml(cmd=cmd, name=name, resource_group_name=resource_group_name, file_name=yaml, no_wait=no_wait, from_revision=from_revision)
 
     containerapp_def = None
     try:
@@ -800,7 +783,6 @@ def update_containerapp_logic(cmd,
 def update_containerapp(cmd,
                         name,
                         resource_group_name,
-                        yaml=None,
                         image=None,
                         container_name=None,
                         min_replicas=None,
@@ -821,7 +803,6 @@ def update_containerapp(cmd,
     return update_containerapp_logic(cmd,
                                      name,
                                      resource_group_name,
-                                     yaml,
                                      image,
                                      container_name,
                                      min_replicas,
@@ -1049,10 +1030,11 @@ def create_connected_environment(cmd,
                                tags=None,
                                no_wait=False):
     from ._models import ConnectedEnvironment as ConnectedEnvironmentModel, ExtendedLocation as ExtendedLocationModel
-    location = location or _get_location_from_resource_group(cmd.cli_ctx, resource_group_name)
-
+    # location = location or _get_location_from_resource_group(cmd.cli_ctx, resource_group_name)
+    location = location or "northcentralusstage"
     register_provider_if_needed(cmd, CONTAINER_APPS_RP)
     _ensure_location_allowed(cmd, location, CONTAINER_APPS_RP, "connectedEnvironments")
+    custom_loc_location = _validate_custom_loc_and_location(cmd, custom_location)
 
     connected_env_def = ConnectedEnvironmentModel
     connected_env_def["location"] = location
@@ -1484,7 +1466,6 @@ def copy_revision(cmd,
                   from_revision=None,
                   # label=None,
                   name=None,
-                  yaml=None,
                   image=None,
                   container_name=None,
                   min_replicas=None,
@@ -1511,7 +1492,6 @@ def copy_revision(cmd,
     return update_containerapp_logic(cmd,
                                      name,
                                      resource_group_name,
-                                     yaml,
                                      image,
                                      container_name,
                                      min_replicas,

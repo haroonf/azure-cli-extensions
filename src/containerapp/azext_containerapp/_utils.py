@@ -1371,7 +1371,7 @@ def get_custom_domains(cmd, resource_group_name, name, location=None, environmen
             _ensure_location_allowed(cmd, location, "Microsoft.App", "containerApps")
             if _normalize_location(cmd, app["location"]) != _normalize_location(cmd, location):
                 raise ResourceNotFoundError('Container app {} is not in location {}.'.format(name, location))
-        if environment and (_get_name(environment) != _get_name(app["properties"]["managedEnvironmentId"])):
+        if environment and (_get_name(environment) != _get_name(app["properties"]["environmentId"])):
             raise ResourceNotFoundError('Container app {} is not under environment {}.'.format(name, environment))
         if "ingress" in app["properties"]["configuration"] and "customDomains" in app["properties"]["configuration"]["ingress"]:
             custom_domains = app["properties"]["configuration"]["ingress"]["customDomains"]
@@ -1440,3 +1440,12 @@ def set_managed_identity(cmd, resource_group_name, containerapp_def, system_assi
 
             if not isExisting:
                 containerapp_def["identity"]["userAssignedIdentities"][r] = {}
+
+
+def _validate_custom_loc_and_location(cmd, custom_location):
+    from ._client_factory import customlocation_client_factory
+    parsed_custom_loc = parse_resource_id(custom_location)
+    custom_loc_name = parsed_custom_loc["name"]
+    custom_loc_rg = parsed_custom_loc["resource_group"]
+    r = customlocation_client_factory(cmd.cli_ctx).custom_locations.get(resource_group_name=custom_loc_rg, resource_name=custom_loc_name)
+    return r.location

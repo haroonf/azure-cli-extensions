@@ -73,3 +73,9 @@ def log_analytics_shared_key_client_factory(cli_ctx):
     from azure.mgmt.loganalytics import LogAnalyticsManagementClient
 
     return get_mgmt_service_client(cli_ctx, LogAnalyticsManagementClient).shared_keys
+
+
+def customlocation_client_factory(cli_ctx, api_version=None, **_):
+    from azure.cli.core.profiles import ResourceType
+    from azure.cli.core.commands.client_factory import get_mgmt_service_client
+    return get_mgmt_service_client(cli_ctx, ResourceType.MGMT_CUSTOMLOCATION, api_version=api_version)

@@ -14,7 +14,8 @@ from azure.cli.core.commands.parameters import (resource_group_name_type, get_lo
 # from azure.cli.core.commands.validators import get_default_location_from_resource_group
 
 from ._validators import (validate_memory, validate_cpu, validate_env_name_or_id, validate_registry_server,
-                          validate_registry_user, validate_registry_pass, validate_target_port, validate_ingress)
+                          validate_registry_user, validate_registry_pass, validate_target_port, validate_ingress,
+                          validate_custom_location_name_or_id)
 from ._constants import UNAUTHENTICATED_CLIENT_ACTION, FORWARD_PROXY_CONVENTION, MAXIMUM_CONTAINER_APP_NAME_LENGTH
 
 
@@ -134,10 +135,10 @@ def load_arguments(self, _):
         c.argument('resource_group_name', arg_type=resource_group_name_type)
         c.argument('location', arg_type=get_location_type(self.cli_ctx), help='Location of resource. Examples: eastus2, northeurope')
         c.argument('tags', arg_type=tags_type)
-        c.argument('custom_location', help='Resource ID of custom location.')
+        c.argument('custom_location', help="Resource ID of custom location. List using 'az customlocation list'.", validator=validate_custom_location_name_or_id)
 
     with self.argument_context('containerapp connected-env', arg_group='Dapr') as c:
-        c.argument('dapr_ai_connection_string', options_list=['--dapr-ai-connection-string', '--dapr-connection'], help='Dapr AI connection string.')
+        c.argument('dapr_ai_connection_string', options_list=['--dapr-ai-connection-string', '--dapr-connection'], help='Connection string used for Dapr application insights.')
 
     with self.argument_context('containerapp connected-env', arg_group='Network') as c:
         c.argument('static_ip', help='Static IP value.')
