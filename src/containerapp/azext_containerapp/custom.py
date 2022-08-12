@@ -1077,7 +1077,7 @@ def show_connected_environment(cmd, name, resource_group_name):
         handle_raw_exception(e)
 
 
-def list_connected_environments(cmd, resource_group_name=None):
+def list_connected_environments(cmd, resource_group_name=None, custom_location=None):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     try:
@@ -1086,10 +1086,13 @@ def list_connected_environments(cmd, resource_group_name=None):
             connected_envs = ConnectedEnvironmentClient.list_by_subscription(cmd=cmd)
         else:
             connected_envs = ConnectedEnvironmentClient.list_by_resource_group(cmd=cmd, resource_group_name=resource_group_name)
-
-        return connected_envs
     except CLIError as e:
         handle_raw_exception(e)
+
+    if custom_location:
+        connected_envs = [c for c in connected_envs if c["extendedLocation"]["name"].lower() == custom_location.lower()]
+
+    return connected_envs
 
 
 def delete_connected_environment(cmd, name, resource_group_name, no_wait=False):
@@ -2794,7 +2797,8 @@ def bind_hostname(cmd, resource_group_name, name, hostname, thumbprint=None, cer
 
 def list_hostname(cmd, resource_group_name, name, location=None):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
-
+    if not location:
+        location = show_containerapp(cmd, name, resource_group_name)["location"]
     custom_domains = get_custom_domains(cmd, resource_group_name, name, location)
     return custom_domains
 
