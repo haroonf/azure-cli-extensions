@@ -2736,6 +2736,19 @@ def connected_env_delete_certificate(cmd, resource_group_name, name, location=No
 def upload_ssl(cmd, resource_group_name, name, environment, certificate_file, hostname, certificate_password=None, certificate_name=None, location=None):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise ResourceNotFoundError(f"The containerapp '{name}' does not exist in group '{resource_group_name}'")
+
+    upload = upload_certificate
+    if "connected" in safe_get(containerapp_def, "properties", "environmentId"):
+        upload = connected_env_upload_certificate
+
     passed, message = validate_hostname(cmd, resource_group_name, name, hostname)
     if not passed:
         raise ValidationError(message or 'Please configure the DNS records before adding the hostname.')
@@ -2744,9 +2757,9 @@ def upload_ssl(cmd, resource_group_name, name, environment, certificate_file, ho
     new_custom_domains = list(filter(lambda c: c["name"] != hostname, custom_domains))
 
     if is_valid_resource_id(environment):
-        cert = upload_certificate(cmd, _get_name(environment), parse_resource_id(environment)["resource_group"], certificate_file, certificate_name, certificate_password, location)
+        cert = upload(cmd, _get_name(environment), parse_resource_id(environment)["resource_group"], certificate_file, certificate_name, certificate_password, location)
     else:
-        cert = upload_certificate(cmd, _get_name(environment), resource_group_name, certificate_file, certificate_name, certificate_password, location)
+        cert = upload(cmd, _get_name(environment), resource_group_name, certificate_file, certificate_name, certificate_password, location)
     cert_id = cert["id"]
 
     new_domain = ContainerAppCustomDomainModel

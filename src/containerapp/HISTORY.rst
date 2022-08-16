@@ -2,6 +2,10 @@
 
 Release History
 ===============
+0.0.3
+++++++
+* Fixed hostname location bug
+* Fixed ssl upload bug
 
 0.0.2
 ++++++
