@@ -2,6 +2,10 @@
 
 Release History
 ===============
+0.0.4
+++++++
+* Fixed hostname bind bug
+
 0.0.3
 ++++++
 * Fixed hostname location bug

@@ -2773,6 +2773,19 @@ def upload_ssl(cmd, resource_group_name, name, environment, certificate_file, ho
 def bind_hostname(cmd, resource_group_name, name, hostname, thumbprint=None, certificate=None, location=None, environment=None):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
+    containerapp_def = None
+    try:
+        containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except:
+        pass
+
+    if not containerapp_def:
+        raise ResourceNotFoundError(f"The containerapp '{name}' does not exist in group '{resource_group_name}'")
+
+    list = list_certificates
+    if "connected" in safe_get(containerapp_def, "properties", "environmentId"):
+        list = connected_env_list_certificates
+
     if not thumbprint and not certificate:
         raise RequiredArgumentMissingError('Please specify at least one of parameters: --certificate and --thumbprint')
     if not environment and not certificate:
@@ -2795,7 +2808,7 @@ def bind_hostname(cmd, resource_group_name, name, hostname, thumbprint=None, cer
     if environment:
         env_name = _get_name(environment)
     if not cert_id:
-        certs = list_certificates(cmd, env_name, resource_group_name, location, cert_name, thumbprint)
+        certs = list(cmd, env_name, resource_group_name, location, cert_name, thumbprint)
         cert_id = certs[0]["id"]
 
     custom_domains = get_custom_domains(cmd, resource_group_name, name, location, environment)

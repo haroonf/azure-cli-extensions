@@ -490,12 +490,13 @@ helps['containerapp env certificate delete'] = """
 # Connected Environment Commands
 helps['containerapp connected-env'] = """
     type: group
-    short-summary: Commands to manage Container Apps connected environments.
+    short-summary: Commands to manage Container Apps Connected environments for use with Arc enabled Container Apps.
 """
 
 helps['containerapp connected-env create'] = """
     type: command
     short-summary: Create a Container Apps connected environment.
+    long-summary: Create a Container Apps Connected environment for use with Arc enabled Container Apps.  Environments are an isolation boundary around a collection of container apps.
     examples:
     - name: Create a connected environment
       text: |
