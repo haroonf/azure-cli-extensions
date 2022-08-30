@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------------------------
 # pylint: disable=line-too-long, consider-using-f-string, logging-format-interpolation, inconsistent-return-statements, broad-except, bare-except, too-many-statements, too-many-locals, too-many-boolean-expressions, too-many-branches, too-many-nested-blocks, pointless-statement, expression-not-assigned, unbalanced-tuple-unpacking
 
+from calendar import c
 import threading
 import sys
 import time
@@ -52,7 +53,8 @@ from ._models import (
     ManagedServiceIdentity as ManagedServiceIdentityModel,
     ContainerAppCertificateEnvelope as ContainerAppCertificateEnvelopeModel,
     ContainerAppCustomDomain as ContainerAppCustomDomainModel,
-    AzureFileProperties as AzureFilePropertiesModel)
+    AzureFileProperties as AzureFilePropertiesModel,
+    ScaleRule as ScaleRuleModel)
 from ._utils import (_validate_subscription_registered, _get_location_from_resource_group, _ensure_location_allowed,
                      parse_secret_flags, store_as_secret_and_return_secret_ref, parse_env_var_flags,
                      _generate_log_analytics_if_not_provided, _get_existing_secrets, _convert_object_from_snake_to_camel_case,
@@ -65,7 +67,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      generate_randomized_cert_name, _get_name, load_cert_file, check_cert_name_availability,
                      validate_hostname, patch_new_custom_domain, get_custom_domains, _validate_revision_name, set_managed_identity,
                      create_acrpull_role_assignment, is_registry_msi_system, clean_null_values, _populate_secret_values,
-                     validate_environment_location)
+                     validate_environment_location, parse_metadata_flags, parse_auth_flags)
 from ._validators import validate_create
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
                          SSH_BACKUP_ENCODING)
@@ -306,6 +308,11 @@ def create_containerapp(cmd,
                         managed_env=None,
                         min_replicas=None,
                         max_replicas=None,
+                        scale_rule_name=None,
+                        scale_rule_type=None,
+                        scale_rule_http_concurrency=None,
+                        scale_rule_metadata=None,
+                        scale_rule_auth=None,
                         target_port=None,
                         transport="auto",
                         ingress=None,
@@ -451,6 +458,29 @@ def create_containerapp(cmd,
         scale_def["minReplicas"] = min_replicas
         scale_def["maxReplicas"] = max_replicas
 
+    if scale_rule_name:
+        scale_rule_def = ScaleRuleModel
+        if not scale_rule_type:
+            raise ValidationError("")
+        curr_metadata = {}
+        if scale_rule_http_concurrency:
+            if scale_rule_type == "http":  
+                curr_metadata["concurrentRequests"] = scale_rule_http_concurrency
+        metadata_def = parse_metadata_flags(scale_rule_metadata, curr_metadata)
+        auth_def = parse_auth_flags(scale_rule_auth)
+        if scale_rule_type == "http":
+            scale_rule_def["name"] = scale_rule_name
+            scale_rule_def["httpScaleRule"] = {}
+            scale_rule_def["httpScaleRule"]["metadata"] = metadata_def
+            scale_rule_def["httpScaleRule"]["auth"] = auth_def
+        else:
+            scale_rule_def["name"] = scale_rule_name
+            scale_rule_def["customScaleRule"]["type"] = scale_rule_type
+            scale_rule_def["customScaleRule"]["metadata"] = metadata_def
+            scale_rule_def["customScaleRule"]["auth"] = auth_def
+        if not scale_def:
+            scale_def = ScaleModel
+        scale_def["rules"] = [scale_rule_def]
     resources_def = None
     if cpu is not None or memory is not None:
         resources_def = ContainerResourcesModel
@@ -490,6 +520,7 @@ def create_containerapp(cmd,
         else:
             set_managed_identity(cmd, resource_group_name, containerapp_def, user_assigned=[registry_identity])
 
+    return containerapp_def
     try:
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)

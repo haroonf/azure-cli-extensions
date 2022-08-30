@@ -77,6 +77,11 @@ def load_arguments(self, _):
     with self.argument_context('containerapp', arg_group='Scale') as c:
         c.argument('min_replicas', type=int, help="The minimum number of replicas.")
         c.argument('max_replicas', type=int, help="The maximum number of replicas.")
+        c.argument('scale_rule_name', help="The minimum number of replicas.")
+        c.argument('scale_rule_type', help="The minimum number of replicas.")
+        c.argument('scale_rule_http_concurrency', type=int, help="The minimum number of replicas.")
+        c.argument('scale_rule_metadata', nargs="+", help="The minimum number of replicas.")
+        c.argument('scale_rule_auth', nargs="+", help="The minimum number of replicas.")
 
     # Dapr
     with self.argument_context('containerapp', arg_group='Dapr') as c:
