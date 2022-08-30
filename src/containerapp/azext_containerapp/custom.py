@@ -309,7 +309,7 @@ def create_containerapp(cmd,
                         min_replicas=None,
                         max_replicas=None,
                         scale_rule_name=None,
-                        scale_rule_type=None,
+                        scale_rule_type="http",
                         scale_rule_http_concurrency=None,
                         scale_rule_metadata=None,
                         scale_rule_auth=None,
@@ -459,28 +459,29 @@ def create_containerapp(cmd,
         scale_def["maxReplicas"] = max_replicas
 
     if scale_rule_name:
+        scale_rule_type = scale_rule_type.lower()
         scale_rule_def = ScaleRuleModel
-        if not scale_rule_type:
-            raise ValidationError("")
         curr_metadata = {}
         if scale_rule_http_concurrency:
             if scale_rule_type == "http":  
-                curr_metadata["concurrentRequests"] = scale_rule_http_concurrency
+                curr_metadata["concurrentRequests"] = str(scale_rule_http_concurrency)
         metadata_def = parse_metadata_flags(scale_rule_metadata, curr_metadata)
         auth_def = parse_auth_flags(scale_rule_auth)
         if scale_rule_type == "http":
             scale_rule_def["name"] = scale_rule_name
-            scale_rule_def["httpScaleRule"] = {}
-            scale_rule_def["httpScaleRule"]["metadata"] = metadata_def
-            scale_rule_def["httpScaleRule"]["auth"] = auth_def
+            scale_rule_def["http"] = {}
+            scale_rule_def["http"]["metadata"] = metadata_def
+            scale_rule_def["http"]["auth"] = auth_def
         else:
             scale_rule_def["name"] = scale_rule_name
-            scale_rule_def["customScaleRule"]["type"] = scale_rule_type
-            scale_rule_def["customScaleRule"]["metadata"] = metadata_def
-            scale_rule_def["customScaleRule"]["auth"] = auth_def
+            scale_rule_def["custom"] = {}
+            scale_rule_def["custom"]["type"] = scale_rule_type
+            scale_rule_def["custom"]["metadata"] = metadata_def
+            scale_rule_def["custom"]["auth"] = auth_def
         if not scale_def:
             scale_def = ScaleModel
         scale_def["rules"] = [scale_rule_def]
+
     resources_def = None
     if cpu is not None or memory is not None:
         resources_def = ContainerResourcesModel
@@ -520,7 +521,6 @@ def create_containerapp(cmd,
         else:
             set_managed_identity(cmd, resource_group_name, containerapp_def, user_assigned=[registry_identity])
 
-    return containerapp_def
     try:
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
@@ -562,6 +562,11 @@ def update_containerapp_logic(cmd,
                               container_name=None,
                               min_replicas=None,
                               max_replicas=None,
+                              scale_rule_name=None,
+                              scale_rule_type="http",
+                              scale_rule_http_concurrency=None,
+                              scale_rule_metadata=None,
+                              scale_rule_auth=None,
                               set_env_vars=None,
                               remove_env_vars=None,
                               replace_env_vars=None,
@@ -623,7 +628,7 @@ def update_containerapp_logic(cmd,
                         e["value"] = ""
 
     update_map = {}
-    update_map['scale'] = min_replicas or max_replicas
+    update_map['scale'] = min_replicas or max_replicas or scale_rule_name
     update_map['container'] = image or container_name or set_env_vars is not None or remove_env_vars is not None or replace_env_vars is not None or remove_all_env_vars or cpu or memory or startup_command is not None or args is not None
     update_map['ingress'] = ingress or target_port
     update_map['registry'] = registry_server or registry_user or registry_pass
@@ -752,6 +757,38 @@ def update_containerapp_logic(cmd,
         if max_replicas is not None:
             new_containerapp["properties"]["template"]["scale"]["maxReplicas"] = max_replicas
 
+    scale_def = None
+    if min_replicas is not None or max_replicas is not None:
+        scale_def = ScaleModel
+        scale_def["minReplicas"] = min_replicas
+        scale_def["maxReplicas"] = max_replicas
+    # so we don't overwrite rules
+    if "rules" in new_containerapp["properties"]["template"]["scale"]:
+        new_containerapp["properties"]["template"]["scale"].pop(["rules"])
+    if scale_rule_name:
+        scale_rule_type = scale_rule_type.lower()
+        scale_rule_def = ScaleRuleModel
+        curr_metadata = {}
+        if scale_rule_http_concurrency:
+            if scale_rule_type == "http":  
+                curr_metadata["concurrentRequests"] = str(scale_rule_http_concurrency)
+        metadata_def = parse_metadata_flags(scale_rule_metadata, curr_metadata)
+        auth_def = parse_auth_flags(scale_rule_auth)
+        if scale_rule_type == "http":
+            scale_rule_def["name"] = scale_rule_name
+            scale_rule_def["http"] = {}
+            scale_rule_def["http"]["metadata"] = metadata_def
+            scale_rule_def["http"]["auth"] = auth_def
+        else:
+            scale_rule_def["name"] = scale_rule_name
+            scale_rule_def["custom"] = {}
+            scale_rule_def["custom"]["type"] = scale_rule_type
+            scale_rule_def["custom"]["metadata"] = metadata_def
+            scale_rule_def["custom"]["auth"] = auth_def
+        if not scale_def:
+            scale_def = ScaleModel
+        scale_def["rules"] = [scale_rule_def]
+        new_containerapp["properties"]["template"]["scale"]["rules"] = scale_def["rules"]
     # Ingress
     if update_map["ingress"]:
         new_containerapp["properties"]["configuration"] = {} if "configuration" not in new_containerapp["properties"] else new_containerapp["properties"]["configuration"]
@@ -841,6 +878,11 @@ def update_containerapp(cmd,
                         container_name=None,
                         min_replicas=None,
                         max_replicas=None,
+                        scale_rule_name=None,
+                        scale_rule_type="http",
+                        scale_rule_http_concurrency=None,
+                        scale_rule_metadata=None,
+                        scale_rule_auth=None,
                         set_env_vars=None,
                         remove_env_vars=None,
                         replace_env_vars=None,
@@ -862,6 +904,11 @@ def update_containerapp(cmd,
                                      container_name,
                                      min_replicas,
                                      max_replicas,
+                                     scale_rule_name,
+                                     scale_rule_type,
+                                     scale_rule_http_concurrency,
+                                     scale_rule_metadata,
+                                     scale_rule_auth,
                                      set_env_vars,
                                      remove_env_vars,
                                      replace_env_vars,
@@ -1422,6 +1469,11 @@ def copy_revision(cmd,
                   container_name=None,
                   min_replicas=None,
                   max_replicas=None,
+                  scale_rule_name=None,
+                  scale_rule_type="http",
+                  scale_rule_http_concurrency=None,
+                  scale_rule_metadata=None,
+                  scale_rule_auth=None,
                   set_env_vars=None,
                   replace_env_vars=None,
                   remove_env_vars=None,
@@ -1449,6 +1501,11 @@ def copy_revision(cmd,
                                      container_name,
                                      min_replicas,
                                      max_replicas,
+                                     scale_rule_name,
+                                     scale_rule_type,
+                                     scale_rule_http_concurrency,
+                                     scale_rule_metadata,
+                                     scale_rule_auth,
                                      set_env_vars,
                                      remove_env_vars,
                                      replace_env_vars,

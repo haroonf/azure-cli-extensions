@@ -370,6 +370,8 @@ def parse_secret_flags(secret_list):
 
 
 def parse_metadata_flags(metadata_list, metadata_def={}):
+    if not metadata_list:
+        metadata_list = []
     for pair in metadata_list:
         key_val = pair.split('=', 1)
         if len(key_val) != 2:
@@ -383,7 +385,8 @@ def parse_metadata_flags(metadata_list, metadata_def={}):
 
 def parse_auth_flags(auth_list):
     auth_pairs = {}
-
+    if not auth_list:
+        auth_list = []
     for pair in auth_list:
         key_val = pair.split('=', 1)
         if len(key_val) != 2:
