@@ -2,6 +2,10 @@
 
 Release History
 ===============
+0.0.5
+++++++
+* Removed env group commands
+
 0.0.4
 ++++++
 * Fixed hostname bind bug
