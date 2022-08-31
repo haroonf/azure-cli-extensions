@@ -309,7 +309,7 @@ def create_containerapp(cmd,
                         min_replicas=None,
                         max_replicas=None,
                         scale_rule_name=None,
-                        scale_rule_type="http",
+                        scale_rule_type=None,
                         scale_rule_http_concurrency=None,
                         scale_rule_metadata=None,
                         scale_rule_auth=None,
@@ -459,6 +459,8 @@ def create_containerapp(cmd,
         scale_def["maxReplicas"] = max_replicas
 
     if scale_rule_name:
+        if not scale_rule_type:
+            scale_rule_type = "http"
         scale_rule_type = scale_rule_type.lower()
         scale_rule_def = ScaleRuleModel
         curr_metadata = {}
@@ -767,6 +769,8 @@ def update_containerapp_logic(cmd,
     if "rules" in new_containerapp["properties"]["template"]["scale"]:
         new_containerapp["properties"]["template"]["scale"].pop(["rules"])
     if scale_rule_name:
+        if not scale_rule_type:
+            scale_rule_type = "http"
         scale_rule_type = scale_rule_type.lower()
         scale_rule_def = ScaleRuleModel
         curr_metadata = {}
@@ -882,7 +886,7 @@ def update_containerapp(cmd,
                         min_replicas=None,
                         max_replicas=None,
                         scale_rule_name=None,
-                        scale_rule_type="http",
+                        scale_rule_type=None,
                         scale_rule_http_concurrency=None,
                         scale_rule_metadata=None,
                         scale_rule_auth=None,
@@ -899,30 +903,30 @@ def update_containerapp(cmd,
                         no_wait=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
-    return update_containerapp_logic(cmd,
-                                     name,
-                                     resource_group_name,
-                                     yaml,
-                                     image,
-                                     container_name,
-                                     min_replicas,
-                                     max_replicas,
-                                     scale_rule_name,
-                                     scale_rule_type,
-                                     scale_rule_http_concurrency,
-                                     scale_rule_metadata,
-                                     scale_rule_auth,
-                                     set_env_vars,
-                                     remove_env_vars,
-                                     replace_env_vars,
-                                     remove_all_env_vars,
-                                     cpu,
-                                     memory,
-                                     revision_suffix,
-                                     startup_command,
-                                     args,
-                                     tags,
-                                     no_wait)
+    return update_containerapp_logic(cmd=cmd,
+                                     name=name,
+                                     resource_group_name=resource_group_name,
+                                     yaml=yaml,
+                                     image=image,
+                                     container_name=container_name,
+                                     min_replicas=min_replicas,
+                                     max_replicas=max_replicas,
+                                     scale_rule_name=scale_rule_name,
+                                     scale_rule_type=scale_rule_type,
+                                     scale_rule_http_concurrency=scale_rule_http_concurrency,
+                                     scale_rule_metadata=scale_rule_metadata,
+                                     scale_rule_auth=scale_rule_auth,
+                                     set_env_vars=set_env_vars,
+                                     remove_env_vars=remove_env_vars,
+                                     replace_env_vars=replace_env_vars,
+                                     remove_all_env_vars=remove_all_env_vars,
+                                     cpu=cpu,
+                                     memory=memory,
+                                     revision_suffix=revision_suffix,
+                                     startup_command=startup_command,
+                                     args=args,
+                                     tags=tags,
+                                     no_wait=no_wait)
 
 
 def show_containerapp(cmd, name, resource_group_name, show_secrets=False):
@@ -1473,7 +1477,7 @@ def copy_revision(cmd,
                   min_replicas=None,
                   max_replicas=None,
                   scale_rule_name=None,
-                  scale_rule_type="http",
+                  scale_rule_type=None,
                   scale_rule_http_concurrency=None,
                   scale_rule_metadata=None,
                   scale_rule_auth=None,
@@ -1496,31 +1500,31 @@ def copy_revision(cmd,
     if not name:
         name = _get_app_from_revision(from_revision)
 
-    return update_containerapp_logic(cmd,
-                                     name,
-                                     resource_group_name,
-                                     yaml,
-                                     image,
-                                     container_name,
-                                     min_replicas,
-                                     max_replicas,
-                                     scale_rule_name,
-                                     scale_rule_type,
-                                     scale_rule_http_concurrency,
-                                     scale_rule_metadata,
-                                     scale_rule_auth,
-                                     set_env_vars,
-                                     remove_env_vars,
-                                     replace_env_vars,
-                                     remove_all_env_vars,
-                                     cpu,
-                                     memory,
-                                     revision_suffix,
-                                     startup_command,
-                                     args,
-                                     tags,
-                                     no_wait,
-                                     from_revision)
+    return update_containerapp_logic(cmd=cmd,
+                                     name=name,
+                                     resource_group_name=resource_group_name,
+                                     yaml=yaml,
+                                     image=image,
+                                     container_name=container_name,
+                                     min_replicas=min_replicas,
+                                     max_replicas=max_replicas,
+                                     scale_rule_name=scale_rule_name,
+                                     scale_rule_type=scale_rule_type,
+                                     scale_rule_http_concurrency=scale_rule_http_concurrency,
+                                     scale_rule_metadata=scale_rule_metadata,
+                                     scale_rule_auth=scale_rule_auth,
+                                     set_env_vars=set_env_vars,
+                                     remove_env_vars=remove_env_vars,
+                                     replace_env_vars=replace_env_vars,
+                                     remove_all_env_vars=remove_all_env_vars,
+                                     cpu=cpu,
+                                     memory=memory,
+                                     revision_suffix=revision_suffix,
+                                     startup_command=startup_command,
+                                     args=args,
+                                     tags=tags,
+                                     no_wait=no_wait,
+                                     from_revision=from_revision)
 
 
 def set_revision_mode(cmd, resource_group_name, name, mode, no_wait=False):
