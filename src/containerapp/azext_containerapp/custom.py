@@ -469,11 +469,13 @@ def create_containerapp(cmd,
         auth_def = parse_auth_flags(scale_rule_auth)
         if scale_rule_type == "http":
             scale_rule_def["name"] = scale_rule_name
+            scale_rule_def["custom"] = None
             scale_rule_def["http"] = {}
             scale_rule_def["http"]["metadata"] = metadata_def
             scale_rule_def["http"]["auth"] = auth_def
         else:
             scale_rule_def["name"] = scale_rule_name
+            scale_rule_def["http"] = None
             scale_rule_def["custom"] = {}
             scale_rule_def["custom"]["type"] = scale_rule_type
             scale_rule_def["custom"]["metadata"] = metadata_def
@@ -520,7 +522,6 @@ def create_containerapp(cmd,
             set_managed_identity(cmd, resource_group_name, containerapp_def, system_assigned=True)
         else:
             set_managed_identity(cmd, resource_group_name, containerapp_def, user_assigned=[registry_identity])
-
     try:
         r = ContainerAppClient.create_or_update(
             cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
@@ -776,11 +777,13 @@ def update_containerapp_logic(cmd,
         auth_def = parse_auth_flags(scale_rule_auth)
         if scale_rule_type == "http":
             scale_rule_def["name"] = scale_rule_name
+            scale_rule_def["custom"] = None
             scale_rule_def["http"] = {}
             scale_rule_def["http"]["metadata"] = metadata_def
             scale_rule_def["http"]["auth"] = auth_def
         else:
             scale_rule_def["name"] = scale_rule_name
+            scale_rule_def["http"] = None
             scale_rule_def["custom"] = {}
             scale_rule_def["custom"]["type"] = scale_rule_type
             scale_rule_def["custom"]["metadata"] = metadata_def
