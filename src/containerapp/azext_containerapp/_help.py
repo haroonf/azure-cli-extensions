@@ -47,11 +47,15 @@ helps['containerapp create'] = """
               --scale-rule-http-concurrency 50
     - name: Create a container app with a custom scale rule
       text: |
-          az containerapp create -n myapp -g mygroup --environment myenv --image nginx \\
-              --scale-rule-name my-custom-rule \\
-              --scale-rule-type my-custom-type \\
-              --scale-rule-metadata key=value key2=value2 \\
-              --scale-rule-auth triggerparam=secretref triggerparam=secretref
+          az containerapp create -n MyContainerapp -g MyResourceGroup \\
+              --image my-queue-processor --environment MyContainerappEnv \\
+              --min-replicas 4 --max-replicas 8 \\
+              --scale-rule-name queue-based-autoscaling \\
+              --scale-rule-type azure-queue \\
+              --scale-rule-metadata "accountName=mystorageaccountname" \\
+                                    "cloud=AzurePublicCloud" \\
+                                    "queueLength": "5" "queueName": "foo" \\
+              --scale-rule-auth "connection=my-connection-string-secret-name"
 """
 
 helps['containerapp update'] = """
