@@ -52,7 +52,8 @@ from ._models import (
     ManagedServiceIdentity as ManagedServiceIdentityModel,
     ContainerAppCertificateEnvelope as ContainerAppCertificateEnvelopeModel,
     ContainerAppCustomDomain as ContainerAppCustomDomainModel,
-    AzureFileProperties as AzureFilePropertiesModel)
+    AzureFileProperties as AzureFilePropertiesModel,
+    CustomDomainConfiguration as CustomDomainConfigurationModel)
 from ._utils import (_validate_subscription_registered, _get_location_from_resource_group, _ensure_location_allowed,
                      parse_secret_flags, store_as_secret_and_return_secret_ref, parse_env_var_flags,
                      _generate_log_analytics_if_not_provided, _get_existing_secrets, _convert_object_from_snake_to_camel_case,
@@ -906,6 +907,9 @@ def create_managed_environment(cmd,
                                tags=None,
                                disable_warnings=False,
                                zone_redundant=False,
+                               hostname=None,
+                               certificate_file=None,
+                               certificate_password=None,
                                no_wait=False):
     if zone_redundant:
         if not infrastructure_subnet_resource_id:
@@ -942,6 +946,14 @@ def create_managed_environment(cmd,
     managed_env_def["properties"]["appLogsConfiguration"] = app_logs_config_def
     managed_env_def["tags"] = tags
     managed_env_def["properties"]["zoneRedundant"] = zone_redundant
+
+    if hostname:
+        customDomain = CustomDomainConfigurationModel
+        blob, _ = load_cert_file(certificate_file, certificate_password)
+        customDomain["dnsSuffix"] = hostname
+        customDomain["certificatePassword"] = certificate_password
+        customDomain["certificateValue"] = blob
+        managed_env_def["properties"]["customDomainConfiguration"] = customDomain
 
     if instrumentation_key is not None:
         managed_env_def["properties"]["daprAIInstrumentationKey"] = instrumentation_key
