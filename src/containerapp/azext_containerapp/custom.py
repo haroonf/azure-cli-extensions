@@ -2,9 +2,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
-# pylint: disable=line-too-long, consider-using-f-string, logging-format-interpolation, inconsistent-return-statements, broad-except, bare-except, too-many-statements, too-many-locals, too-many-boolean-expressions, too-many-branches, too-many-nested-blocks, pointless-statement, expression-not-assigned, unbalanced-tuple-unpacking
+# pylint: disable=line-too-long, consider-using-f-string, logging-format-interpolation, inconsistent-return-statements, broad-except, bare-except, too-many-statements, too-many-locals, too-many-boolean-expressions, too-many-branches, too-many-nested-blocks, pointless-statement, expression-not-assigned, unbalanced-tuple-unpacking, unsupported-assignment-operation
 
-from calendar import c
 import threading
 import sys
 import time
@@ -465,7 +464,7 @@ def create_containerapp(cmd,
         scale_rule_def = ScaleRuleModel
         curr_metadata = {}
         if scale_rule_http_concurrency:
-            if scale_rule_type == "http":  
+            if scale_rule_type == "http":
                 curr_metadata["concurrentRequests"] = str(scale_rule_http_concurrency)
         metadata_def = parse_metadata_flags(scale_rule_metadata, curr_metadata)
         auth_def = parse_auth_flags(scale_rule_auth)
@@ -775,7 +774,7 @@ def update_containerapp_logic(cmd,
         scale_rule_def = ScaleRuleModel
         curr_metadata = {}
         if scale_rule_http_concurrency:
-            if scale_rule_type == "http":  
+            if scale_rule_type == "http":
                 curr_metadata["concurrentRequests"] = str(scale_rule_http_concurrency)
         metadata_def = parse_metadata_flags(scale_rule_metadata, curr_metadata)
         auth_def = parse_auth_flags(scale_rule_auth)
