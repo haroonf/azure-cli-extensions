@@ -8,7 +8,7 @@ Release History
 * 'az containerapp create': Add keda scale rule parameters
 * 'az containerapp update': Add keda scale rule parameters
 * 'az containerapp revision copy': Add keda scale rule parameters
-
+* 'az containerapp up': autogenerate a docker container with --source when no dockerfile present
 
 0.3.10
 ++++++
