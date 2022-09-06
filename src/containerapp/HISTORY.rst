@@ -6,6 +6,7 @@ Release History
 0.3.11
 ++++++
 * Add new dapr params to 'az containerapp dapr enable' and 'az containerapp create'
+* 'az containerapp up': autogenerate a docker container with --source when no dockerfile present
 
 0.3.10
 ++++++
