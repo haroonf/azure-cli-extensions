@@ -5,7 +5,7 @@ Release History
 
 0.3.11
 ++++++
-
+* Add new dapr params to 'az containerapp dapr enable' and 'az containerapp create'
 
 0.3.10
 ++++++

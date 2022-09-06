@@ -2089,7 +2089,7 @@ def set_secrets(cmd, name, resource_group_name, secrets,
         handle_raw_exception(e)
 
 
-def enable_dapr(cmd, name, resource_group_name, 
+def enable_dapr(cmd, name, resource_group_name,
                 dapr_app_id=None,
                 dapr_app_port=None,
                 dapr_app_protocol=None,
