@@ -66,7 +66,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      generate_randomized_cert_name, _get_name, load_cert_file, check_cert_name_availability,
                      validate_hostname, patch_new_custom_domain, get_custom_domains, _validate_revision_name, set_managed_identity,
                      create_acrpull_role_assignment, is_registry_msi_system, clean_null_values, _populate_secret_values,
-                     validate_environment_location)
+                     validate_environment_location, safe_set)
 from ._validators import validate_create
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
                          SSH_BACKUP_ENCODING)
@@ -998,9 +998,34 @@ def create_managed_environment(cmd,
 def update_managed_environment(cmd,
                                name,
                                resource_group_name,
+                               hostname=None,
+                               certificate_file=None,
+                               certificate_password=None,
                                tags=None,
                                no_wait=False):
-    raise CLIInternalError('Containerapp env update is not yet supported.')
+    try:
+        r = ManagedEnvironmentClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
+    except CLIError as e:
+        handle_raw_exception(e)
+
+    
+
+    env_def = {}
+    safe_set(env_def, "location", value=r["location"])
+    safe_set(env_def, "properties", "customDomainConfiguration", value={})
+    cert_def = env_def["properties"]["customDomainConfiguration"]
+    if hostname:
+        blob, _ = load_cert_file(certificate_file, certificate_password)
+        safe_set(cert_def, "dnsSuffix", value=hostname)
+        safe_set(cert_def, "certificatePassword", value=certificate_password)
+        safe_set(cert_def, "certificateValue", value=blob)
+    try:
+        r = ManagedEnvironmentClient.create(
+            cmd=cmd, resource_group_name=resource_group_name, name=name, managed_environment_envelope=env_def, no_wait=no_wait)
+
+        return r
+    except Exception as e:
+        handle_raw_exception(e)
 
 
 def show_managed_environment(cmd, name, resource_group_name):
