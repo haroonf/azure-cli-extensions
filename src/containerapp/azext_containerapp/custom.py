@@ -1008,10 +1008,12 @@ def update_managed_environment(cmd,
     except CLIError as e:
         handle_raw_exception(e)
 
-    
-
+    # General setup
     env_def = {}
-    safe_set(env_def, "location", value=r["location"])
+    safe_set(env_def, "location", value=r["location"])  # required for API
+    safe_set(env_def, "tags", value=tags)
+
+    # Custom domains
     safe_set(env_def, "properties", "customDomainConfiguration", value={})
     cert_def = env_def["properties"]["customDomainConfiguration"]
     if hostname:
@@ -1019,6 +1021,8 @@ def update_managed_environment(cmd,
         safe_set(cert_def, "dnsSuffix", value=hostname)
         safe_set(cert_def, "certificatePassword", value=certificate_password)
         safe_set(cert_def, "certificateValue", value=blob)
+
+    # no PATCH api support atm, put works fine even with partial json
     try:
         r = ManagedEnvironmentClient.create(
             cmd=cmd, resource_group_name=resource_group_name, name=name, managed_environment_envelope=env_def, no_wait=no_wait)
