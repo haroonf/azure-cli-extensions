@@ -895,6 +895,7 @@ def delete_containerapp(cmd, name, resource_group_name, no_wait=False):
 def create_managed_environment(cmd,
                                name,
                                resource_group_name,
+                               logs_destination=None,
                                logs_customer_id=None,
                                logs_key=None,
                                location=None,
@@ -930,7 +931,7 @@ def create_managed_environment(cmd,
     register_provider_if_needed(cmd, CONTAINER_APPS_RP)
     _ensure_location_allowed(cmd, location, CONTAINER_APPS_RP, "managedEnvironments")
 
-    if logs_customer_id is None or logs_key is None:
+    if (logs_customer_id is None or logs_key is None) and logs_destination == "log-analytics":
         logs_customer_id, logs_key = _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, location, resource_group_name)
 
     log_analytics_config_def = LogAnalyticsConfigurationModel
@@ -938,7 +939,7 @@ def create_managed_environment(cmd,
     log_analytics_config_def["sharedKey"] = logs_key
 
     app_logs_config_def = AppLogsConfigurationModel
-    app_logs_config_def["destination"] = "log-analytics"
+    app_logs_config_def["destination"] = logs_destination
     app_logs_config_def["logAnalyticsConfiguration"] = log_analytics_config_def
 
     managed_env_def = ManagedEnvironmentModel
