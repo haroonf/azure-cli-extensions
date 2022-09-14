@@ -934,9 +934,12 @@ def create_managed_environment(cmd,
     if (logs_customer_id is None or logs_key is None) and logs_destination == "log-analytics":
         logs_customer_id, logs_key = _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, location, resource_group_name)
 
-    log_analytics_config_def = LogAnalyticsConfigurationModel
-    log_analytics_config_def["customerId"] = logs_customer_id
-    log_analytics_config_def["sharedKey"] = logs_key
+    if logs_destination == "log-analytics":
+        log_analytics_config_def = LogAnalyticsConfigurationModel
+        log_analytics_config_def["customerId"] = logs_customer_id
+        log_analytics_config_def["sharedKey"] = logs_key
+    else:
+        log_analytics_config_def = None
 
     app_logs_config_def = AppLogsConfigurationModel
     app_logs_config_def["destination"] = logs_destination
