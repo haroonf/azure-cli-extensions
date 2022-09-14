@@ -895,7 +895,7 @@ def delete_containerapp(cmd, name, resource_group_name, no_wait=False):
 def create_managed_environment(cmd,
                                name,
                                resource_group_name,
-                               logs_destination=None,
+                               logs_destination="log-analytics",
                                logs_customer_id=None,
                                logs_key=None,
                                location=None,
@@ -1002,6 +1002,9 @@ def create_managed_environment(cmd,
 def update_managed_environment(cmd,
                                name,
                                resource_group_name,
+                               logs_destination=None,
+                               logs_customer_id=None,
+                               logs_key=None,
                                hostname=None,
                                certificate_file=None,
                                certificate_password=None,
@@ -1016,6 +1019,17 @@ def update_managed_environment(cmd,
     env_def = {}
     safe_set(env_def, "location", value=r["location"])  # required for API
     safe_set(env_def, "tags", value=tags)
+
+    # Logs
+    if logs_destination:
+        safe_set(env_def, "properties", "appLogsConfiguration", "destination", value=logs_destination)
+    
+    if logs_destination == "log-analytics" and (not logs_customer_id or not logs_key):
+        raise ValidationError("Must provide logs-workspace-id and logs-workspace-key if updating logs destination to type 'log-analytics'.")
+
+    if logs_customer_id and logs_key:
+        safe_set(env_def, "properties", "appLogsConfiguration", "logAnalyticsConfiguration", "customerId", value=logs_customer_id)
+        safe_set(env_def, "properties", "appLogsConfiguration", "logAnalyticsConfiguration", "sharedKey", value=logs_key)
 
     # Custom domains
     safe_set(env_def, "properties", "customDomainConfiguration", value={})
