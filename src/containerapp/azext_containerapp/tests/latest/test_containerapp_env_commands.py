@@ -48,6 +48,64 @@ class ContainerappEnvScenarioTest(ScenarioTest):
         ])
 
     @AllowLargeResponse(8192)
+    @ResourceGroupPreparer(location="australiaeast")
+    def test_containerapp_env_logs_e2e(self, resource_group):
+        env_name = self.create_random_name(prefix='containerapp-env', length=24)
+        logs_workspace_name = self.create_random_name(prefix='containerapp-env', length=24)
+
+        logs_workspace_id = self.cmd('monitor log-analytics workspace create -g {} -n {}'.format(resource_group, logs_workspace_name)).get_output_in_json()["customerId"]
+        logs_workspace_key = self.cmd('monitor log-analytics workspace get-shared-keys -g {} -n {}'.format(resource_group, logs_workspace_name)).get_output_in_json()["primarySharedKey"]
+
+        self.cmd('containerapp env create -g {} -n {} --logs-workspace-id {} --logs-workspace-key {} --logs-destination log-analytics -l australiaeast'.format(resource_group, env_name, logs_workspace_id, logs_workspace_key))
+
+        containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
+
+        while containerapp_env["properties"]["provisioningState"].lower() == "waiting":
+            time.sleep(5)
+            containerapp_env = self.cmd('containerapp env show -g {} -n {}'.format(resource_group, env_name)).get_output_in_json()
+
+        self.cmd('containerapp env show -n {} -g {}'.format(env_name, resource_group), checks=[
+            JMESPathCheck('name', env_name),
+            JMESPathCheck('properties.appLogsConfiguration.destination', "log-analytics"),
+            JMESPathCheck('properties.appLogsConfiguration.logAnalyticsConfiguration.customerId', logs_workspace_id),
+        ])
+
+        time.sleep(10)
+
+        self.cmd('containerapp env update -g {} -n {} --logs-destination azure-monitor'.format(resource_group, env_name))
+
+        self.cmd('containerapp env show -n {} -g {}'.format(env_name, resource_group), checks=[
+            JMESPathCheck('name', env_name),
+            JMESPathCheck('properties.appLogsConfiguration.destination', "azure-monitor"),
+        ])
+
+        # self.cmd('containerapp env create -g {} -n {} --logs-destination azure-monitor -l australiaeast'.format(resource_group, env_name))
+
+        # self.cmd('containerapp env show -n {} -g {}'.format(env_name, resource_group), checks=[
+        #     JMESPathCheck('name', env_name),
+        #     JMESPathCheck('properties.appLogsConfiguration.destination', "azure-monitor"),
+        # ])
+
+        time.sleep(10)
+
+        self.cmd('containerapp env update -g {} -n {} --logs-destination none'.format(resource_group, env_name))
+
+        self.cmd('containerapp env show -n {} -g {}'.format(env_name, resource_group), checks=[
+            JMESPathCheck('name', env_name),
+            JMESPathCheck('properties.appLogsConfiguration.destination', None),
+        ])
+
+        # self.cmd('containerapp env create -g {} -n {} --logs-destination none -l australiaeast'.format(resource_group, env_name, logs_workspace_id, logs_workspace_key))
+
+        # self.cmd('containerapp env show -n {} -g {}'.format(env_name, resource_group), checks=[
+        #     JMESPathCheck('name', env_name),
+        #     JMESPathCheck('properties.appLogsConfiguration.destination', None),
+        # ])
+
+        # self.cmd('containerapp env update -g {} -n {} --logs-workspace-id {} --logs-workspace-key {} --logs-destination log-analytics'.format(resource_group, env_name, logs_workspace_id, logs_workspace_key))
+
+
+    @AllowLargeResponse(8192)
     @ResourceGroupPreparer(location="northeurope")
     def test_containerapp_env_dapr_components(self, resource_group):
         env_name = self.create_random_name(prefix='containerapp-e2e-env', length=24)
