@@ -28,7 +28,8 @@ from msrestazure.tools import parse_resource_id, is_valid_resource_id, resource_
 from ._clients import ContainerAppClient, ManagedEnvironmentClient
 from ._client_factory import handle_raw_exception, providers_client_factory, cf_resource_groups, log_analytics_client_factory, log_analytics_shared_key_client_factory
 from ._constants import (MAXIMUM_CONTAINER_APP_NAME_LENGTH, SHORT_POLLING_INTERVAL_SECS, LONG_POLLING_INTERVAL_SECS,
-                         LOG_ANALYTICS_RP, CONTAINER_APPS_RP, CHECK_CERTIFICATE_NAME_AVAILABILITY_TYPE, ACR_IMAGE_SUFFIX)
+                         LOG_ANALYTICS_RP, CONTAINER_APPS_RP, CHECK_CERTIFICATE_NAME_AVAILABILITY_TYPE, ACR_IMAGE_SUFFIX,
+                         LOGS_STRING)
 from ._models import (ContainerAppCustomDomainEnvelope as ContainerAppCustomDomainEnvelopeModel)
 
 logger = get_logger(__name__)
@@ -1575,8 +1576,6 @@ def _azure_monitor_quickstart(cmd, name, resource_group_name, storage_account, l
     from azure.cli.command_modules.monitor.operations.diagnostics_settings import create_diagnostics_settings
     from azure.cli.command_modules.monitor._client_factory import cf_diagnostics
 
-    logs_string = '[{"category":"ContainerAppConsoleLogs","categoryGroup":null,"enabled":true,"retentionPolicy":{"days":0,"enabled":false}},{"category":"ContainerAppSystemLogs","categoryGroup":null,"enabled":true,"retentionPolicy":{"days":0,"enabled":false}}]'
-
     env_id = resource_id(subscription=get_subscription_id(cmd.cli_ctx),
                          resource_group=resource_group_name,
                          namespace='Microsoft.App',
@@ -1587,7 +1586,7 @@ def _azure_monitor_quickstart(cmd, name, resource_group_name, storage_account, l
                                     name="diagnosticsettings",
                                     resource_uri=env_id,
                                     storage_account=storage_account,
-                                    logs=json.loads(logs_string))
+                                    logs=json.loads(LOGS_STRING))
         logger.warning("Azure Monitor diagnastic settings created successfully.")
     except Exception as ex:
         handle_raw_exception(ex)
