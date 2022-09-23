@@ -50,7 +50,11 @@ Dapr = {
     "enabled": False,
     "appId": None,
     "appProtocol": None,
-    "appPort": None
+    "appPort": None,
+    "httpReadBufferSize": None,
+    "httpMaxRequestSize": None,
+    "logLevel": None,
+    "enableApiLogging": None
 }
 
 EnvironmentVar = {
@@ -110,8 +114,8 @@ HttpScaleRule = {
 ScaleRule = {
     "name": None,
     "azureQueue": None,  # QueueScaleRule
-    "customScaleRule": None,  # CustomScaleRule
-    "httpScaleRule": None,  # HttpScaleRule
+    "custom": None,  # CustomScaleRule
+    "http": None,  # HttpScaleRule
 }
 
 Secret = {
@@ -145,7 +149,8 @@ Ingress = {
     "fqdn": None,
     "external": False,
     "targetPort": None,
-    "transport": None,  # 'auto', 'http', 'http2'
+    "transport": None,  # 'auto', 'http', 'http2', 'tcp'
+    "exposedPort": None,
     "traffic": None,  # TrafficWeight
     "customDomains": None  # [CustomDomain]
 }
