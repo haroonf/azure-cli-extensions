@@ -1561,3 +1561,38 @@ def list_environment_locations(cmd):
     res_locations = [res_loc.lower().replace(" ", "").replace("(", "").replace(")", "") for res_loc in res_locations if res_loc.strip()]
 
     return res_locations
+
+
+def _azure_monitor_quickstart(cmd, name, resource_group_name, storage_account, logs_destination, return_val=False):
+    if logs_destination != "azure-monitor":
+        if storage_account:
+            logger.warning("Storage accounts only accepted for Azure Monitor logs destination. Ignoring storage account value.")
+        return
+    if not storage_account:
+        logger.warning("Azure monitor must be set up manually. Run `az monitor diagnostic-settings create --name mydiagnosticsettings --resource myManagedEnvironmentId --storage-account myStorageAccountId --logs myJsonLogSettings` to set up Azure Monitor diagnostic settings on your storage account.")
+        return
+
+    import json
+    from msrestazure.tools import resource_id
+    from azure.cli.command_modules.monitor.operations.diagnostics_settings import create_diagnostics_settings
+    from azure.cli.command_modules.monitor._client_factory import cf_diagnostics
+    from azure.cli.core.commands.client_factory import get_subscription_id
+
+    logs_string = '[{"category":"ContainerAppConsoleLogs","categoryGroup":null,"enabled":true,"retentionPolicy":{"days":0,"enabled":false}},{"category":"ContainerAppSystemLogs","categoryGroup":null,"enabled":true,"retentionPolicy":{"days":0,"enabled":false}}]'
+
+    env_id = resource_id(subscription=get_subscription_id(cmd.cli_ctx),
+                        resource_group=resource_group_name,
+                        namespace='Microsoft.App',
+                        type='managedEnvironments',
+                        name=name)
+    try:
+        r = create_diagnostics_settings(client=cf_diagnostics(cmd.cli_ctx, None), 
+                                        name="diagnosticsettings",
+                                        resource_uri=env_id,
+                                        storage_account=storage_account,
+                                        logs=json.loads(logs_string))
+        logger.warning("Azure Monitor diagnastic settings created successfully.")
+        if return_val:
+            return r
+    except Exception as ex:
+        handle_raw_exception(ex)
