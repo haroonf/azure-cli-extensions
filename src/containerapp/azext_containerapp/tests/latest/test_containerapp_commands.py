@@ -343,7 +343,6 @@ class ContainerappIngressTests(ScenarioTest):
 
     @AllowLargeResponse(8192)
     @ResourceGroupPreparer(location="northeurope")
-    @live_only()  # passes live but hits CannotOverwriteExistingCassetteException when run from recording
     def test_containerapp_tcp_ingress(self, resource_group):
         env_name = self.create_random_name(prefix='env', length=24)
         logs = self.create_random_name(prefix='logs', length=24)
