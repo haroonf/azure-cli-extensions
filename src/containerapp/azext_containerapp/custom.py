@@ -1103,6 +1103,7 @@ def update_managed_environment(cmd,
                                name,
                                resource_group_name,
                                logs_destination=None,
+                               storage_account=None,
                                logs_customer_id=None,
                                logs_key=None,
                                hostname=None,
@@ -1146,10 +1147,12 @@ def update_managed_environment(cmd,
         r = ManagedEnvironmentClient.create(
             cmd=cmd, resource_group_name=resource_group_name, name=name, managed_environment_envelope=env_def, no_wait=no_wait)
 
-        return r
     except Exception as e:
         handle_raw_exception(e)
 
+    _azure_monitor_quickstart(cmd, name, resource_group_name, storage_account, logs_destination)
+
+    return r
 
 def show_managed_environment(cmd, name, resource_group_name):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
