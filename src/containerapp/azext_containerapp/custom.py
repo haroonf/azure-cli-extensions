@@ -69,12 +69,12 @@ from ._utils import (_validate_subscription_registered, _ensure_location_allowed
                      validate_hostname, patch_new_custom_domain, get_custom_domains, _validate_revision_name, set_managed_identity,
                      create_acrpull_role_assignment, is_registry_msi_system, clean_null_values, _populate_secret_values,
                      validate_environment_location, safe_set, parse_metadata_flags, parse_auth_flags, _azure_monitor_quickstart)
-from ._validators import validate_create
+from ._validators import validate_create, validate_revision_suffix
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
                          SSH_BACKUP_ENCODING)
 from ._constants import (MAXIMUM_SECRET_LENGTH, MICROSOFT_SECRET_SETTING_NAME, FACEBOOK_SECRET_SETTING_NAME, GITHUB_SECRET_SETTING_NAME,
                          GOOGLE_SECRET_SETTING_NAME, TWITTER_SECRET_SETTING_NAME, APPLE_SECRET_SETTING_NAME, CONTAINER_APPS_RP,
-                         NAME_INVALID, NAME_ALREADY_EXISTS, ACR_IMAGE_SUFFIX, HELLO_WORLD_IMAGE)
+                         NAME_INVALID, NAME_ALREADY_EXISTS, ACR_IMAGE_SUFFIX, HELLO_WORLD_IMAGE, LOG_TYPE_SYSTEM, LOG_TYPE_CONSOLE)
 
 logger = get_logger(__name__)
 
@@ -346,6 +346,7 @@ def create_containerapp(cmd,
     register_provider_if_needed(cmd, CONTAINER_APPS_RP)
     validate_container_app_name(name)
     validate_create(registry_identity, registry_pass, registry_user, registry_server, no_wait)
+    validate_revision_suffix(revision_suffix)
 
     if registry_identity and not is_registry_msi_system(registry_identity):
         logger.info("Creating an acrpull role assignment for the registry identity")
@@ -602,6 +603,7 @@ def update_containerapp_logic(cmd,
                               registry_user=None,
                               registry_pass=None):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
+    validate_revision_suffix(revision_suffix)
 
     # Validate that max_replicas is set to 0-30
     if max_replicas is not None:
@@ -1426,7 +1428,7 @@ def create_or_update_github_action(cmd,
         logger.warning("Creating Github action...")
         r = GitHubActionClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, github_action_envelope=source_control_info, headers=headers, no_wait=no_wait)
         if not no_wait:
-            await_github_action(cmd, token, repo, branch, name, resource_group_name)
+            await_github_action(token, repo, r["properties"]["githubActionConfiguration"]["workflowName"])
         return r
     except Exception as e:
         handle_raw_exception(e)
@@ -2459,10 +2461,15 @@ def containerapp_ssh(cmd, resource_group_name, name, container=None, revision=No
 
 
 def stream_containerapp_logs(cmd, resource_group_name, name, container=None, revision=None, replica=None, follow=False,
-                             tail=None, output_format=None):
+                             tail=None, output_format=None, kind=None):
     if tail:
         if tail < 0 or tail > 300:
             raise ValidationError("--tail must be between 0 and 300.")
+    if kind == LOG_TYPE_SYSTEM:
+        if container or replica or revision:
+            raise MutuallyExclusiveArgumentError("--type: --container, --replica, and --revision not supported for system logs")
+        if output_format and output_format != "json":
+            raise MutuallyExclusiveArgumentError("--type: only json logs supported for system logs")
 
     sub = get_subscription_id(cmd.cli_ctx)
     token_response = ContainerAppClient.get_auth_token(cmd, resource_group_name, name)
@@ -2470,13 +2477,57 @@ def stream_containerapp_logs(cmd, resource_group_name, name, container=None, rev
     logstream_endpoint = token_response["properties"]["logStreamEndpoint"]
     base_url = logstream_endpoint[:logstream_endpoint.index("/subscriptions/")]
 
-    url = (f"{base_url}/subscriptions/{sub}/resourceGroups/{resource_group_name}/containerApps/{name}"
-           f"/revisions/{revision}/replicas/{replica}/containers/{container}/logstream")
+    if kind == LOG_TYPE_CONSOLE:
+        url = (f"{base_url}/subscriptions/{sub}/resourceGroups/{resource_group_name}/containerApps/{name}"
+               f"/revisions/{revision}/replicas/{replica}/containers/{container}/logstream")
+    else:
+        url = f"{base_url}/subscriptions/{sub}/resourceGroups/{resource_group_name}/containerApps/{name}/eventstream"
 
     logger.info("connecting to : %s", url)
-    request_params = {"follow": str(follow).lower(), "output": output_format, "tailLines": tail}
+    request_params = {"follow": str(follow).lower(),
+                      "output": output_format,
+                      "tailLines": tail}
     headers = {"Authorization": f"Bearer {token}"}
-    resp = requests.get(url, timeout=None, stream=True, params=request_params, headers=headers)
+    resp = requests.get(url,
+                        timeout=None,
+                        stream=True,
+                        params=request_params,
+                        headers=headers)
+
+    if not resp.ok:
+        ValidationError(f"Got bad status from the logstream API: {resp.status_code}")
+
+    for line in resp.iter_lines():
+        if line:
+            logger.info("received raw log line: %s", line)
+            # these .replaces are needed to display color/quotations properly
+            # for some reason the API returns garbled unicode special characters (may need to add more in the future)
+            print(line.decode("utf-8").replace("\\u0022", "\u0022").replace("\\u001B", "\u001B").replace("\\u002B", "\u002B").replace("\\u0027", "\u0027"))
+
+
+def stream_environment_logs(cmd, resource_group_name, name, follow=False, tail=None):
+    if tail:
+        if tail < 0 or tail > 300:
+            raise ValidationError("--tail must be between 0 and 300.")
+
+    env = show_managed_environment(cmd, name, resource_group_name)
+    sub = get_subscription_id(cmd.cli_ctx)
+    token_response = ManagedEnvironmentClient.get_auth_token(cmd, resource_group_name, name)
+    token = token_response["properties"]["token"]
+    base_url = f"https://{env['location']}.azurecontainerapps.dev"
+
+    url = (f"{base_url}/subscriptions/{sub}/resourceGroups/{resource_group_name}/managedEnvironments/{name}"
+           f"/eventstream")
+
+    logger.info("connecting to : %s", url)
+    request_params = {"follow": str(follow).lower(),
+                      "tailLines": tail}
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(url,
+                        timeout=None,
+                        stream=True,
+                        params=request_params,
+                        headers=headers)
 
     if not resp.ok:
         ValidationError(f"Got bad status from the logstream API: {resp.status_code}")
